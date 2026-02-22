@@ -29,8 +29,8 @@ const PROGRAM_TYPE_CONFIG = {
     multipliers: [1, 1.5, 2],
     rewards: (aov) => [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: Math.round(aov * 0.1), minPurchase: Math.round(aov * 0.6) },
-      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.15)}€`, nameEn: `${Math.round(aov * 0.15)}€ voucher`, rewardUsage: 'burn', pointsCost: 1000, realCost: Math.round(aov * 0.15), minPurchase: Math.round(aov * 0.7) },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: Math.round(aov * 0.1), minPurchase: Math.round(aov * 1.5) },
+      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.15)}€`, nameEn: `${Math.round(aov * 0.15)}€ voucher`, rewardUsage: 'burn', pointsCost: 1000, realCost: Math.round(aov * 0.15), minPurchase: Math.round(aov * 1.5) },
       { id: 'r4', type: 'experience', nameFr: 'Accès avant-première', nameEn: 'Early access', rewardUsage: 'perk', pointsCost: 0, realCost: 2, minPurchase: 0 },
     ],
     missionFilter: (m) => ['referral', 'review', 'birthday', 'first_purchase', 'account_creation'].includes(m.id),
@@ -45,25 +45,9 @@ const PROGRAM_TYPE_CONFIG = {
     multipliers: [1, 1.25, 1.75],
     rewards: (aov) => [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 150, realCost: 4, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur la commande', nameEn: '-5% off order', rewardUsage: 'burn', pointsCost: 300, realCost: Math.round(aov * 0.05), minPurchase: Math.round(aov * 0.5) },
-      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.12)}€`, nameEn: `${Math.round(aov * 0.12)}€ voucher`, rewardUsage: 'burn', pointsCost: 800, realCost: Math.round(aov * 0.12), minPurchase: Math.round(aov * 0.6) },
+      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur la commande', nameEn: '-5% off order', rewardUsage: 'burn', pointsCost: 300, realCost: Math.round(aov * 0.05), minPurchase: Math.round(aov * 1.5) },
+      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.12)}€`, nameEn: `${Math.round(aov * 0.12)}€ voucher`, rewardUsage: 'burn', pointsCost: 800, realCost: Math.round(aov * 0.12), minPurchase: Math.round(aov * 1.5) },
       { id: 'r4', type: 'free_product', nameFr: 'Produit offert', nameEn: 'Free product', rewardUsage: 'perk', pointsCost: 0, realCost: Math.round(aov * 0.2), minPurchase: 0 },
-    ],
-    missionFilter: () => true,
-  },
-  cashback: {
-    tierBasis: 'spend',
-    hasMissions: true,
-    rewardType: 'both',
-    cashbackRate: 7,
-    burnRate: 60,
-    thresholds: [100, 55, 20],
-    multipliers: [1, 1.25, 1.75],
-    rewards: (aov) => [
-      { id: 'r1', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.05)}€`, nameEn: `${Math.round(aov * 0.05)}€ voucher`, rewardUsage: 'burn', pointsCost: 200, realCost: Math.round(aov * 0.05), minPurchase: 0 },
-      { id: 'r2', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.1)}€`, nameEn: `${Math.round(aov * 0.1)}€ voucher`, rewardUsage: 'burn', pointsCost: 500, realCost: Math.round(aov * 0.1), minPurchase: Math.round(aov * 0.5) },
-      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.2)}€`, nameEn: `${Math.round(aov * 0.2)}€ voucher`, rewardUsage: 'burn', pointsCost: 1000, realCost: Math.round(aov * 0.2), minPurchase: Math.round(aov * 0.6) },
-      { id: 'r4', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
     ],
     missionFilter: () => true,
   },
@@ -77,7 +61,9 @@ export function applyBrandDefaults(brandAnalysis, lang) {
     suggested_tier_names,
   } = brandAnalysis;
 
-  const programCfg = PROGRAM_TYPE_CONFIG[recommended_program] || PROGRAM_TYPE_CONFIG.mid;
+  // Remap cashback → mass (cashback program type removed)
+  const effectiveProgram = recommended_program === 'cashback' ? 'mass' : recommended_program;
+  const programCfg = PROGRAM_TYPE_CONFIG[effectiveProgram] || PROGRAM_TYPE_CONFIG.mid;
   const aov = estimated_aov || 60;
   const margin = Math.round((estimated_margin || 0.5) * 100);
 
@@ -111,7 +97,7 @@ export function applyBrandDefaults(brandAnalysis, lang) {
     tierBasis: programCfg.tierBasis,
     hasMissions: programCfg.hasMissions,
     rewardType: programCfg.rewardType,
-    pointsExpire: false,
+    pointsExpire: true,
     expirationMonths: 12,
     expirationType: 'rolling',
   };

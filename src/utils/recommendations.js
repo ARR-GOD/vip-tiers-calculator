@@ -35,14 +35,14 @@ export function getRecommendation(stepKey, { brandAnalysis, config, settings, cu
       if (margin < 40) {
         return {
           body: t
-            ? `Avec ${margin}% de marge, un programme VIP pur (sans cashback agressif) est idéal. Privilégiez les avantages exclusifs plutôt que les réductions.`
-            : `With ${margin}% margin, a pure VIP program (without aggressive cashback) is ideal. Favor exclusive perks over discounts.`,
+            ? `Avec ${margin}% de marge, un programme VIP pur est idéal. Privilégiez les avantages exclusifs plutôt que les réductions.`
+            : `With ${margin}% margin, a pure VIP program is ideal. Favor exclusive perks over discounts.`,
         };
       }
       return {
         body: t
-          ? `Avec ${margin}% de marge, un programme ${programType === 'luxury' ? 'prestige' : 'à points'} est bien adapté. Le cashback optimal se situe entre ${Math.round(margin * 0.04)}% et ${Math.round(margin * 0.08)}%.`
-          : `With ${margin}% margin, a ${programType === 'luxury' ? 'prestige' : 'points-based'} program is well suited. Optimal cashback is between ${Math.round(margin * 0.04)}% and ${Math.round(margin * 0.08)}%.`,
+          ? `Avec ${margin}% de marge, un programme ${programType === 'luxury' ? 'prestige' : 'à points'} est bien adapté. Le taux de récompense optimal se situe entre ${Math.round(margin * 0.04)}% et ${Math.round(margin * 0.08)}%.`
+          : `With ${margin}% margin, a ${programType === 'luxury' ? 'prestige' : 'points-based'} program is well suited. Optimal reward rate is between ${Math.round(margin * 0.04)}% and ${Math.round(margin * 0.08)}%.`,
       };
 
     case 3: // Missions

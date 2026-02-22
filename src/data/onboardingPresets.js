@@ -7,8 +7,8 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Bronze', 'Argent', 'Or'], tierNamesEn: ['Bronze', 'Silver', 'Gold'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 8.5, minPurchase: 50 },
-      { id: 'r3', type: 'gift_voucher', nameFr: 'Bon de 15€', nameEn: '15€ voucher', rewardUsage: 'burn', pointsCost: 1000, realCost: 15, minPurchase: 60 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 8.5, minPurchase: 128 },
+      { id: 'r3', type: 'gift_voucher', nameFr: 'Bon de 15€', nameEn: '15€ voucher', rewardUsage: 'burn', pointsCost: 1000, realCost: 15, minPurchase: 128 },
       { id: 'r4', type: 'experience', nameFr: 'Accès ventes privées', nameEn: 'Private sales access', rewardUsage: 'perk', pointsCost: 0, realCost: 2, minPurchase: 0 },
     ],
   },
@@ -19,7 +19,7 @@ const INDUSTRY_PRESETS = {
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 150, realCost: 4, minPurchase: 0 },
       { id: 'r2', type: 'free_product', nameFr: 'Échantillons gratuits', nameEn: 'Free samples', rewardUsage: 'perk', pointsCost: 0, realCost: 3, minPurchase: 0 },
-      { id: 'r3', type: 'promo_percent', nameFr: '-15% sur la commande', nameEn: '-15% off order', rewardUsage: 'burn', pointsCost: 600, realCost: 8, minPurchase: 40 },
+      { id: 'r3', type: 'promo_percent', nameFr: '-15% sur la commande', nameEn: '-15% off order', rewardUsage: 'burn', pointsCost: 600, realCost: 8, minPurchase: 83 },
       { id: 'r4', type: 'experience', nameFr: 'Accès avant-première', nameEn: 'Early access', rewardUsage: 'perk', pointsCost: 0, realCost: 1, minPurchase: 0 },
     ],
   },
@@ -29,9 +29,9 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Découverte', 'Gourmet', 'Chef'], tierNamesEn: ['Discovery', 'Gourmet', 'Chef'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 150, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur la commande', nameEn: '-5% off order', rewardUsage: 'burn', pointsCost: 300, realCost: 2.25, minPurchase: 30 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur la commande', nameEn: '-5% off order', rewardUsage: 'burn', pointsCost: 300, realCost: 2.25, minPurchase: 68 },
       { id: 'r3', type: 'free_product', nameFr: 'Produit surprise', nameEn: 'Surprise product', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
-      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 10€', nameEn: '10€ voucher', rewardUsage: 'burn', pointsCost: 800, realCost: 10, minPurchase: 40 },
+      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 10€', nameEn: '10€ voucher', rewardUsage: 'burn', pointsCost: 800, realCost: 10, minPurchase: 68 },
     ],
   },
   health: {
@@ -40,7 +40,7 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Bien-être', 'Vitalité', 'Élite'], tierNamesEn: ['Wellness', 'Vitality', 'Elite'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 6, minPurchase: 50 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 6, minPurchase: 90 },
       { id: 'r3', type: 'free_product', nameFr: 'Cure découverte offerte', nameEn: 'Free trial cure', rewardUsage: 'perk', pointsCost: 0, realCost: 12, minPurchase: 0 },
       { id: 'r4', type: 'experience', nameFr: 'Consultation nutrition', nameEn: 'Nutrition consultation', rewardUsage: 'perk', pointsCost: 0, realCost: 8, minPurchase: 0 },
     ],
@@ -51,9 +51,9 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Standard', 'Pro', 'Elite'], tierNamesEn: ['Standard', 'Pro', 'Elite'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison express', nameEn: 'Express delivery', rewardUsage: 'perk', pointsCost: 0, realCost: 8, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur accessoires', nameEn: '-5% on accessories', rewardUsage: 'burn', pointsCost: 500, realCost: 7.5, minPurchase: 80 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-5% sur accessoires', nameEn: '-5% on accessories', rewardUsage: 'burn', pointsCost: 500, realCost: 7.5, minPurchase: 225 },
       { id: 'r3', type: 'experience', nameFr: 'Extension garantie', nameEn: 'Extended warranty', rewardUsage: 'perk', pointsCost: 0, realCost: 10, minPurchase: 0 },
-      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 20€', nameEn: '20€ voucher', rewardUsage: 'burn', pointsCost: 1500, realCost: 20, minPurchase: 100 },
+      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 20€', nameEn: '20€ voucher', rewardUsage: 'burn', pointsCost: 1500, realCost: 20, minPurchase: 225 },
     ],
   },
   sports: {
@@ -62,7 +62,7 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Rookie', 'Athlète', 'Champion'], tierNamesEn: ['Rookie', 'Athlete', 'Champion'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 9.5, minPurchase: 60 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 9.5, minPurchase: 143 },
       { id: 'r3', type: 'experience', nameFr: 'Coaching offert', nameEn: 'Free coaching session', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
       { id: 'r4', type: 'free_product', nameFr: 'Produit offert', nameEn: 'Free product', rewardUsage: 'perk', pointsCost: 0, realCost: 20, minPurchase: 0 },
     ],
@@ -73,9 +73,9 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Cocon', 'Intérieur', 'Maison'], tierNamesEn: ['Cozy', 'Interior', 'Home'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 250, realCost: 8, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 600, realCost: 12, minPurchase: 80 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 600, realCost: 12, minPurchase: 180 },
       { id: 'r3', type: 'experience', nameFr: 'Conseil déco personnalisé', nameEn: 'Personal deco advice', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
-      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 20€', nameEn: '20€ voucher', rewardUsage: 'burn', pointsCost: 1200, realCost: 20, minPurchase: 80 },
+      { id: 'r4', type: 'gift_voucher', nameFr: 'Bon de 20€', nameEn: '20€ voucher', rewardUsage: 'burn', pointsCost: 1200, realCost: 20, minPurchase: 180 },
     ],
   },
   other: {
@@ -84,8 +84,8 @@ const INDUSTRY_PRESETS = {
     tierNamesFr: ['Bronze', 'Argent', 'Or'], tierNamesEn: ['Bronze', 'Silver', 'Gold'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
-      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 8, minPurchase: 50 },
-      { id: 'r3', type: 'gift_voucher', nameFr: 'Bon de 10€', nameEn: '10€ voucher', rewardUsage: 'burn', pointsCost: 1000, realCost: 10, minPurchase: 60 },
+      { id: 'r2', type: 'promo_percent', nameFr: '-10% sur la commande', nameEn: '-10% off order', rewardUsage: 'burn', pointsCost: 500, realCost: 8, minPurchase: 120 },
+      { id: 'r3', type: 'gift_voucher', nameFr: 'Bon de 10€', nameEn: '10€ voucher', rewardUsage: 'burn', pointsCost: 1000, realCost: 10, minPurchase: 120 },
       { id: 'r4', type: 'free_product', nameFr: 'Produit mystère', nameEn: 'Mystery product', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
     ],
   },
@@ -157,7 +157,7 @@ export function applyOnboardingDefaults(answers, lang) {
     tierBasis: 'spend',
     hasMissions,
     rewardType: 'both',
-    pointsExpire: false,
+    pointsExpire: true,
     expirationMonths: 12,
     expirationType: 'rolling',
   };

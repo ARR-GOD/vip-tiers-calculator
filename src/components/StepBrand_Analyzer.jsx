@@ -37,13 +37,8 @@ const PROGRAM_LABELS = {
   },
   mass: {
     fr: 'Engagé', en: 'Engaged',
-    descFr: 'Points, toutes missions, cashback & bons',
-    descEn: 'Points, all missions, cashback & vouchers',
-  },
-  cashback: {
-    fr: 'Cashback', en: 'Cashback',
-    descFr: 'Maximum de cashback, simplicité',
-    descEn: 'Maximum cashback, simplicity',
+    descFr: 'Points, toutes missions, bons & récompenses',
+    descEn: 'Points, all missions, vouchers & rewards',
   },
 };
 
@@ -51,7 +46,6 @@ const PROGRAM_TO_POSITIONING = {
   luxury: 'premium',
   mid: 'mid-market',
   mass: 'mass',
-  cashback: 'mass',
 };
 
 const TONE_LABELS = { luxury: 'Luxe', friendly: 'Amical', playful: 'Ludique', professional: 'Professionnel' };
@@ -190,7 +184,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           {t ? "C'est un choix stratégique, pas juste une détection automatique." : "This is a strategic choice, not just automatic detection."}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          {['luxury', 'mid', 'mass', 'cashback'].map(type => {
+          {['luxury', 'mid', 'mass'].map(type => {
             const label = PROGRAM_LABELS[type];
             const isSelected = editValues.recommended_program === type;
             const isDetected = originalDetectedType === type;
@@ -218,10 +212,11 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       <div className="card">
         <div className="section-subheader">{t ? 'PARAMÈTRES DÉTECTÉS' : 'DETECTED PARAMETERS'}</div>
         <div className="grid grid-cols-2 gap-4 mt-2">
-          <EditableField
+          <IndustrySelect
             label={t ? 'Secteur' : 'Industry'}
             value={editValues.industry}
             onChange={(v) => setEditValues(prev => ({ ...prev, industry: v }))}
+            lang={lang}
           />
           <EditableField
             label={t ? 'Panier moyen' : 'Avg Order Value'}
@@ -344,6 +339,79 @@ function LoadingPhase({ url, lang }) {
       </p>
 
       <p className="text-[13px] text-[#9CA3AF] mt-3">{url}</p>
+    </div>
+  );
+}
+
+// ── Industry Multi-Select ──
+const INDUSTRY_OPTIONS = [
+  { id: 'fashion', fr: 'Mode', en: 'Fashion' },
+  { id: 'beauty', fr: 'Beauté', en: 'Beauty' },
+  { id: 'food', fr: 'Alimentation', en: 'Food & Beverage' },
+  { id: 'health', fr: 'Santé / Compléments', en: 'Health / Supplements' },
+  { id: 'electronics', fr: 'Électronique', en: 'Electronics' },
+  { id: 'sports', fr: 'Sport', en: 'Sports' },
+  { id: 'home', fr: 'Maison', en: 'Home & Garden' },
+  { id: 'jewelry', fr: 'Bijoux / Accessoires', en: 'Jewelry / Accessories' },
+  { id: 'kids', fr: 'Enfants / Bébé', en: 'Kids / Baby' },
+  { id: 'pets', fr: 'Animaux', en: 'Pets' },
+  { id: 'other', fr: 'Autre', en: 'Other' },
+];
+
+function IndustrySelect({ label, value, onChange, lang }) {
+  const t = lang === 'fr';
+  const [open, setOpen] = useState(false);
+
+  // Normalize value to array
+  const selected = Array.isArray(value)
+    ? value
+    : value ? [value] : [];
+
+  const toggle = (id) => {
+    const next = selected.includes(id)
+      ? selected.filter(s => s !== id)
+      : [...selected, id];
+    onChange(next.length === 1 ? next[0] : next);
+  };
+
+  const displayLabel = selected.length === 0
+    ? (t ? 'Sélectionner' : 'Select')
+    : selected.map(id => {
+        const opt = INDUSTRY_OPTIONS.find(o => o.id === id);
+        return opt ? (t ? opt.fr : opt.en) : id;
+      }).join(', ');
+
+  return (
+    <div className="relative">
+      <div className="text-[11px] text-[#9CA3AF] uppercase tracking-wider mb-1">{label}</div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-[15px] font-medium text-[#111827] w-full text-left group"
+      >
+        <span className="truncate">{displayLabel}</span>
+        <Pencil size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-56 max-h-52 overflow-y-auto">
+          {INDUSTRY_OPTIONS.map(opt => {
+            const isActive = selected.includes(opt.id);
+            return (
+              <button key={opt.id}
+                onClick={() => toggle(opt.id)}
+                className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-[13px] transition-all ${isActive ? 'bg-primary-50 text-primary font-medium' : 'text-[#374151] hover:bg-gray-50'}`}
+              >
+                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${isActive ? 'bg-primary border-primary text-white' : 'border-gray-300'}`}>
+                  {isActive && '✓'}
+                </span>
+                {t ? opt.fr : opt.en}
+              </button>
+            );
+          })}
+          <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-gray-100 text-[12px] text-primary font-medium text-center py-1">
+            {t ? 'Fermer' : 'Done'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

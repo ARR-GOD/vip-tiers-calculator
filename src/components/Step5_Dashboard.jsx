@@ -90,10 +90,6 @@ const DIFFERENTIATION_TIPS = {
     fr: 'Adoptez la profondeur du catalogue Sephora : proposez un large choix de récompenses accessibles dès le premier palier, avec des missions variées pour maximiser l\'engagement quotidien.',
     en: 'Adopt Sephora\'s catalog depth: offer a wide choice of accessible rewards from the first tier, with varied missions to maximize daily engagement.',
   },
-  cashback: {
-    fr: 'Maximisez la transparence comme Yves Rocher : un cashback généreux et clairement communiqué fidélise les acheteurs fréquents. Ajoutez des missions simples pour créer de l\'engagement au-delà de l\'achat.',
-    en: 'Maximize transparency like Yves Rocher: generous, clearly communicated cashback retains frequent buyers. Add simple missions to create engagement beyond purchase.',
-  },
 };
 
 export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis }) {
