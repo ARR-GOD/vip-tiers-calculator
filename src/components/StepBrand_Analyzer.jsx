@@ -1,5 +1,22 @@
-import { useState } from 'react';
-import { Globe, ArrowRight, Loader2, Pencil, Check, X, RotateCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Globe, ArrowRight, Pencil, Check, X, RotateCcw } from 'lucide-react';
+
+const LOADING_MESSAGES_FR = [
+  '🔍 Analyse de votre site en cours...',
+  '🎨 Détection du ton de marque...',
+  '🛍️ Estimation du panier moyen...',
+  '📊 Identification de l\'industrie...',
+  '💡 Génération des recommandations...',
+  '✨ Finalisation de votre profil...',
+];
+const LOADING_MESSAGES_EN = [
+  '🔍 Analyzing your website...',
+  '🎨 Detecting brand tone...',
+  '🛍️ Estimating average order value...',
+  '📊 Identifying industry...',
+  '💡 Generating recommendations...',
+  '✨ Finalizing your profile...',
+];
 
 const POSITIONING_LABELS = {
   premium: { fr: 'Premium', en: 'Premium', color: '#B8860B' },
@@ -112,7 +129,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
             <button
               onClick={handleAnalyze}
               disabled={!url.trim()}
-              className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-xl text-[14px] font-semibold hover:bg-primary-600 disabled:opacity-40 transition-all"
+              className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-lg text-[14px] font-semibold hover:bg-primary-dark disabled:opacity-40 transition-all"
             >
               {t ? 'Analyser' : 'Analyze'}
               <ArrowRight size={14} />
@@ -137,15 +154,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
   // ── LOADING PHASE ──
   if (phase === 'loading') {
-    return (
-      <div className="max-w-2xl mx-auto flex flex-col items-center justify-center" style={{ minHeight: 300 }}>
-        <Loader2 size={32} className="text-primary animate-spin mb-4" />
-        <p className="text-[15px] font-medium text-[#111827]">
-          {t ? 'Analyse de votre marque en cours...' : 'Analyzing your brand...'}
-        </p>
-        <p className="text-[13px] text-[#9CA3AF] mt-1">{url}</p>
-      </div>
-    );
+    return <LoadingPhase url={url} lang={lang} />;
   }
 
   // ── RESULTS PHASE ──
@@ -157,9 +166,18 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       {/* Header */}
       <div className="text-center">
         <div className="section-subheader">ANALYSE</div>
-        <h2 className="text-[28px] font-bold text-[#111827]">
-          {editValues.brand_name || url}
-        </h2>
+        <div className="flex items-center justify-center gap-3 mt-1">
+          {editValues.brand_logo ? (
+            <img src={editValues.brand_logo} alt={editValues.brand_name} className="brand-avatar" />
+          ) : editValues.brand_name ? (
+            <span className="brand-avatar-initials" style={{ backgroundColor: '#6B4EFF' }}>
+              {editValues.brand_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+            </span>
+          ) : null}
+          <h2 className="text-[28px] font-bold text-[#111827]">
+            {editValues.brand_name || url}
+          </h2>
+        </div>
         {editValues.brand_description && (
           <p className="text-[15px] text-[#6B7280] mt-1">{editValues.brand_description}</p>
         )}
@@ -229,7 +247,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           <div className="section-subheader">{t ? 'NOMS DES PALIERS' : 'TIER NAMES'}</div>
           <div className="flex gap-3 mt-2">
             {editValues.suggested_tier_names.map((name, i) => (
-              <div key={i} className="flex-1 p-3 rounded-xl bg-gray-50 text-center">
+              <div key={i} className="flex-1 p-3 rounded-lg bg-gray-50 text-center">
                 <div className="text-[10px] text-[#9CA3AF] uppercase mb-1">
                   {t ? `Palier ${i + 1}` : `Tier ${i + 1}`}
                 </div>
@@ -274,12 +292,58 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
         </button>
         <button
           onClick={handleComplete}
-          className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl text-[14px] font-semibold hover:bg-primary-600 transition-all"
+          className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg text-[14px] font-semibold hover:bg-primary-dark transition-all"
         >
           {t ? "C'est correct, continuer" : 'Looks good, continue'}
           <ArrowRight size={14} />
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Loading Phase with animated messages ──
+function LoadingPhase({ url, lang }) {
+  const t = lang === 'fr';
+  const messages = t ? LOADING_MESSAGES_FR : LOADING_MESSAGES_EN;
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // Progress bar animation
+    const progressInterval = setInterval(() => {
+      setProgress(p => Math.min(p + 0.5, 95));
+    }, 200);
+
+    // Message cycling with fade
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setMsgIndex(i => (i + 1) % messages.length);
+        setVisible(true);
+      }, 400);
+    }, 1800);
+
+    return () => { clearInterval(interval); clearInterval(progressInterval); };
+  }, [messages.length]);
+
+  return (
+    <div className="max-w-2xl mx-auto flex flex-col items-center justify-center" style={{ minHeight: 300 }}>
+      {/* Progress bar */}
+      <div className="w-full max-w-xs mb-8">
+        <div className="progress-bar-track">
+          <div className="progress-bar-fill" style={{ width: `${progress}%`, backgroundColor: '#6B4EFF' }} />
+        </div>
+      </div>
+
+      {/* Animated message */}
+      <p className="text-[16px] font-medium text-[#111827] h-8 flex items-center"
+        style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.4s ease' }}>
+        {messages[msgIndex]}
+      </p>
+
+      <p className="text-[13px] text-[#9CA3AF] mt-3">{url}</p>
     </div>
   );
 }

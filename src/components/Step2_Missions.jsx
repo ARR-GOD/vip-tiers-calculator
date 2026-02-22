@@ -38,11 +38,12 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
     else setCustomMissions(updater);
   };
 
-  const updateEngagement = (id, tierIdx, value) => {
+  const updateEngagement = (id, value) => {
+    const clamped = Math.max(0, Math.min(100, value));
     const updater = (prev) => prev.map(m => {
       if (m.id !== id) return m;
-      const rates = [...(m.engagementByTier || [])];
-      rates[tierIdx] = Math.max(0, Math.min(100, value));
+      // Set all tier indices to the same value so per-tier calculations still work
+      const rates = tiers.map(() => clamped);
       return { ...m, engagementByTier: rates };
     });
     if (missions.find(m => m.id === id)) setMissions(updater);
@@ -50,11 +51,12 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   };
 
   const addCustom = () => {
+    const defaultRate = 20;
     setCustomMissions(prev => [...prev, {
       id: `custom_${Date.now()}`, icon: '',
       nameFr: 'Nouvelle mission', nameEn: 'New mission',
       points: 100, frequency: 1, enabled: true,
-      engagementByTier: tiers.map(() => 20),
+      engagementByTier: tiers.map(() => defaultRate),
     }]);
   };
 
@@ -145,13 +147,9 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                 <th className="text-center px-3 py-2.5 font-medium text-[#6B7280] w-16">
                   <div className="flex items-center gap-1 justify-center">{t ? 'Fréq/an' : 'Freq/yr'} <Tooltip text={t ? 'Complétions max par client par an.' : 'Max completions per customer per year.'} /></div>
                 </th>
-                {tiers.map((tier, i) => (
-                  <th key={i} className="text-center px-2 py-2.5 font-medium text-primary w-20">
-                    <div className="flex items-center gap-1 justify-center">
-                      {tier.name} <Tooltip text={t ? `% des clients ${tier.name} qui participent.` : `% of ${tier.name} customers participating.`} />
-                    </div>
-                  </th>
-                ))}
+                <th className="text-center px-3 py-2.5 font-medium text-primary w-24">
+                  <div className="flex items-center gap-1 justify-center">{t ? 'Engagement' : 'Engagement'} <Tooltip text={t ? "Taux d'engagement moyen des clients pour cette mission." : 'Average customer engagement rate for this mission.'} /></div>
+                </th>
                 <th className="text-center px-3 py-2.5 font-medium text-[#6B7280] w-24">{t ? 'Total pts' : 'Total pts'}</th>
                 <th className="w-8"></th>
               </tr>
@@ -191,17 +189,15 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                         onChange={e => updateField(m.id, 'frequency', parseFloat(e.target.value) || 0)}
                         className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
                     </td>
-                    {tiers.map((_, ti) => (
-                      <td key={ti} className="px-2 py-2 text-center">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <input type="number" min={0} max={100}
-                            value={m.engagementByTier?.[ti] ?? 20}
-                            onChange={e => updateEngagement(m.id, ti, parseInt(e.target.value) || 0)}
-                            className="w-12 px-1 py-0.5 text-[12px] text-center" />
-                          <span className="text-[10px] text-[#9CA3AF]">%</span>
-                        </div>
-                      </td>
-                    ))}
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <input type="number" min={0} max={100}
+                          value={m.engagementByTier?.[0] ?? 20}
+                          onChange={e => updateEngagement(m.id, parseInt(e.target.value) || 0)}
+                          className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
+                        <span className="text-[10px] text-[#9CA3AF]">%</span>
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-center font-medium text-[#374151]">{formatCompact(totalMissionPts)}</td>
                     <td className="px-2 py-2">
                       {isCustom && (
@@ -215,7 +211,7 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 border-t border-gray-200">
-                <td colSpan={4 + tiers.length} className="px-4 py-2.5 text-[12px] font-semibold text-[#374151]">{t ? 'Total estimé' : 'Estimated total'}</td>
+                <td colSpan={5} className="px-4 py-2.5 text-[12px] font-semibold text-[#374151]">{t ? 'Total estimé' : 'Estimated total'}</td>
                 <td className="px-3 py-2.5 text-center font-bold text-primary text-[12px]">{formatCompact(totalPts)}</td>
                 <td></td>
               </tr>

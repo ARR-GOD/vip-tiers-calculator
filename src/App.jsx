@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Menu } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -140,11 +140,8 @@ function App() {
       <header className="sticky top-0 z-40 bg-white" style={{ height: 56, borderBottom: '1px solid #E5E7EB' }}>
         <div className="max-w-[1100px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Menu size={18} className="text-gray-400" />
-            <div>
-              <span className="text-[15px] font-bold text-gray-900">VIP Tiers Calculator</span>
-              <span className="text-[12px] text-gray-400 ml-2">by Loyoly</span>
-            </div>
+            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28 }} />
+            <span className="text-[15px] font-bold text-gray-900">VIP Tiers Calculator</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={copyShareableLink}
@@ -169,6 +166,7 @@ function App() {
         <ProgramTypeBanner
           programType={brandAnalysis.recommended_program}
           brandName={brandAnalysis.brand_name}
+          brandLogo={brandAnalysis.brand_logo}
           lang={lang}
           onEdit={() => { setPhase('brand'); }}
         />

@@ -43,7 +43,21 @@ const PROGRAM_CONFIG = {
   },
 };
 
-export default function ProgramTypeBanner({ programType, brandName, lang, onEdit }) {
+function BrandAvatar({ brandName, brandLogo, size = 20 }) {
+  if (brandLogo) {
+    return (
+      <img src={brandLogo} alt={brandName} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+    );
+  }
+  const initials = (brandName || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <span style={{ width: size, height: size, borderRadius: '50%', background: '#6B4EFF', color: 'white', fontSize: size * 0.45, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {initials}
+    </span>
+  );
+}
+
+export default function ProgramTypeBanner({ programType, brandName, brandLogo, lang, onEdit }) {
   const t = lang === 'fr';
   const cfg = PROGRAM_CONFIG[programType] || PROGRAM_CONFIG.mid;
   const { Icon } = cfg;
@@ -58,6 +72,7 @@ export default function ProgramTypeBanner({ programType, brandName, lang, onEdit
         {brandName && (
           <>
             <span className="text-gray-300">|</span>
+            <BrandAvatar brandName={brandName} brandLogo={brandLogo} size={20} />
             <span className="text-[#6B7280]">{brandName}</span>
           </>
         )}

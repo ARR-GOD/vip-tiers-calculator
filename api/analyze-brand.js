@@ -31,6 +31,34 @@ export default async function handler(req, res) {
     const html = await fetchRes.text();
     const truncatedHtml = html.slice(0, 50000);
 
+    // Extract brand logo from HTML meta tags
+    let brandLogo = null;
+    try {
+      // Try og:image first (usually higher quality)
+      const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+      if (ogMatch) {
+        brandLogo = ogMatch[1];
+      } else {
+        // Try apple-touch-icon (good quality, square)
+        const appleMatch = html.match(/<link[^>]+rel=["']apple-touch-icon["'][^>]+href=["']([^"']+)["']/i);
+        if (appleMatch) {
+          brandLogo = appleMatch[1];
+        } else {
+          // Try favicon with sizes (prefer larger)
+          const iconMatch = html.match(/<link[^>]+rel=["'](?:icon|shortcut icon)["'][^>]+href=["']([^"']+)["']/i);
+          if (iconMatch) {
+            brandLogo = iconMatch[1];
+          }
+        }
+      }
+      // Make relative URLs absolute
+      if (brandLogo && !brandLogo.startsWith('http')) {
+        const base = new URL(normalizedUrl);
+        brandLogo = new URL(brandLogo, base.origin).href;
+      }
+    } catch { /* ignore logo extraction errors */ }
+
     // Call Claude
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -99,6 +127,7 @@ Rules:
       brand_tone: analysis.brand_tone || 'professional',
       brand_name: analysis.brand_name || '',
       brand_description: analysis.brand_description || '',
+      brand_logo: brandLogo || null,
     };
 
     return res.status(200).json(validated);
