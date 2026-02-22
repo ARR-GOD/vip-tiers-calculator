@@ -15,8 +15,12 @@ export function derivePointsFromCashback(cashbackRate) {
 export function computeCustomerScores(customers, segmentationType, caWeight = 0.5) {
   if (!customers || customers.length === 0) return [];
 
-  const maxRevenue = Math.max(...customers.map(c => c.total_ordered_TTC), 1);
-  const maxOrders = Math.max(...customers.map(c => c.number_of_orders), 1);
+  let maxRevenue = 1;
+  let maxOrders = 1;
+  for (let i = 0; i < customers.length; i++) {
+    if (customers[i].total_ordered_TTC > maxRevenue) maxRevenue = customers[i].total_ordered_TTC;
+    if (customers[i].number_of_orders > maxOrders) maxOrders = customers[i].number_of_orders;
+  }
 
   return customers.map(c => {
     let score;
@@ -84,9 +88,17 @@ export function computeTierStats(assignedCustomers, tiers) {
     const tierOrders = customers.reduce((s, c) => s + c.number_of_orders, 0);
     const count = customers.length;
 
-    const revenueValues = customers.map(c => c.total_ordered_TTC);
-    const minRevenue = revenueValues.length > 0 ? Math.min(...revenueValues) : 0;
-    const maxRevenue = revenueValues.length > 0 ? Math.max(...revenueValues) : 0;
+    let minRevenue = 0;
+    let maxRevenue = 0;
+    if (customers.length > 0) {
+      minRevenue = customers[0].total_ordered_TTC;
+      maxRevenue = customers[0].total_ordered_TTC;
+      for (let j = 1; j < customers.length; j++) {
+        const v = customers[j].total_ordered_TTC;
+        if (v < minRevenue) minRevenue = v;
+        if (v > maxRevenue) maxRevenue = v;
+      }
+    }
 
     return {
       tierIndex: i,
