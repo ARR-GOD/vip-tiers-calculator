@@ -1,0 +1,263 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6B4EFF;
+  --color-primary-light: #8B74FF;
+  --color-primary-dark: #5338E0;
+  --color-primary-50: #F3F0FF;
+  --color-primary-100: #E8E1FF;
+  --color-primary-200: #D1C4FF;
+  --color-primary-700: #4A35B3;
+  --color-primary-900: #2D1F6E;
+  --color-accent: #FF6B9D;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-surface: #F0F0F0;
+  --color-bronze: #CD7F32;
+  --color-silver: #A8A9AD;
+  --color-gold: #FFD700;
+  --color-platinum: #E5E4E2;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: #111827;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c4c4d4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a0a0b4; }
+
+/* ─── Transitions ─── */
+* { transition-timing-function: ease; }
+
+.step-transition {
+  animation: fadeSlideIn 0.15s ease;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Card ─── */
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.card-hover {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+}
+
+/* ─── Range slider ─── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #E5E7EB;
+  border-radius: 999px;
+  outline: none;
+  width: 100%;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(107, 78, 255, 0.3);
+  transition: transform 0.15s ease;
+  margin-top: -7px;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(107, 78, 255, 0.3);
+}
+
+/* ─── Inputs ─── */
+input[type="text"], input[type="number"], select, textarea {
+  font-size: 15px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(107, 78, 255, 0.12);
+  outline: none;
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  padding: 0 20px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.btn-primary:hover { background: var(--color-primary-dark); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.35; pointer-events: none; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-primary);
+  padding: 0 20px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1.5px solid var(--color-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover { background: var(--color-primary-50); }
+.btn-ghost:disabled { opacity: 0.35; pointer-events: none; }
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #E5E7EB;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.btn-secondary:hover { background: #FAFAFA; border-color: #D1D5DB; }
+
+/* ─── Section headers (uppercase gray) ─── */
+.section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 16px;
+}
+
+/* ─── Small purple label above names ─── */
+.section-subheader {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+/* ─── Pill badges ─── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pill-green { background: rgba(16,185,129,0.15); color: #059669; }
+.pill-red { background: rgba(239,68,68,0.15); color: #DC2626; }
+.pill-orange { background: rgba(245,158,11,0.15); color: #D97706; }
+.pill-purple { background: rgba(107,78,255,0.15); color: var(--color-primary); }
+.pill-gray { background: rgba(107,114,128,0.1); color: #6B7280; }
+
+/* ─── Progress bar track ─── */
+.progress-bar-track {
+  height: 6px;
+  background: #E5E7EB;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* ─── Tables ─── */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Checkbox accent ─── */
+input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
+
+/* ─── Toggle switch ─── */
+.toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #D1D5DB;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.toggle-track.active {
+  background: var(--color-primary);
+}
+.toggle-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.toggle-track.active .toggle-thumb {
+  transform: translateX(16px);
+}
