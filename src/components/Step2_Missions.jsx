@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Crown } from 'lucide-react';
 import Tooltip from './Tooltip';
-import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatNumber, formatCompact, derivePointsFromCashback } from '../utils/calculations';
+import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatNumber, formatCompact, derivePointsFromCashback, getCashbackRecommendation } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
 
-export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang }) {
+export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate }) {
   const t = lang === 'fr';
   const [scenario, setScenario] = useState('medium');
   const scenarioData = ENGAGEMENT_SCENARIOS[scenario];
@@ -58,6 +58,46 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
 
   const totalPts = missionsByTier.reduce((s, d) => s + d.totalPoints, 0);
   const totalCompletions = missionsByTier.reduce((s, d) => s + d.totalCompletions, 0);
+
+  const cashbackReco = getCashbackRecommendation(settings.grossMargin);
+  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+
+  // Per-tier point circulation data
+  const tierPointsData = useMemo(() => {
+    return tiers.map((tier, i) => {
+      const ts = tierStats[i] || {};
+      const missionPts = missionsByTier[i]?.totalPoints || 0;
+      const purchasePts = Math.round((ts.revenue || 0) * (settings.cashbackRate / 100) * pointsPerEuro * (tier.pointsMultiplier || 1));
+      const totalTierPts = missionPts + purchasePts;
+      const burnPotential = Math.round(totalTierPts * ((burnRate || 30) / 100));
+      return { tier, clients: ts.count || 0, missionPts, purchasePts, totalTierPts, burnPotential };
+    });
+  }, [tiers, tierStats, missionsByTier, settings.cashbackRate, pointsPerEuro, burnRate]);
+
+  // ── LUXURY PLACEHOLDER ──
+  if (!config.hasMissions) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <div className="section-subheader">{t ? 'ÉTAPE 3' : 'STEP 3'}</div>
+          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
+        </div>
+        <div className="card flex flex-col items-center justify-center text-center" style={{ padding: '64px 32px' }}>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: '#FFFBEB' }}>
+            <Crown size={28} className="text-[#B8860B]" />
+          </div>
+          <h3 className="text-[18px] font-bold text-[#111827] mb-2">
+            {t ? 'Programme premium — pas de missions' : 'Premium program — no missions'}
+          </h3>
+          <p className="text-[14px] text-[#6B7280] max-w-md">
+            {t
+              ? 'Votre programme est basé sur les dépenses et les avantages exclusifs par palier. Les missions ne sont pas nécessaires — vos clients montent en statut naturellement par leurs achats.'
+              : 'Your program is based on spending and exclusive tier perks. Missions are not needed — your customers progress through tiers naturally via their purchases.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -200,16 +240,73 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
         </div>
       </div>
 
+      {/* Per-tier point circulation table */}
+      <div>
+        <div className="section-header">{t ? 'POINTS EN CIRCULATION PAR PALIER' : 'POINTS IN CIRCULATION BY TIER'}</div>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2.5 font-medium text-[#6B7280]">{t ? 'Palier' : 'Tier'}</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-[#6B7280]">{t ? 'Clients' : 'Clients'}</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-[#6B7280]">
+                    <div className="flex items-center gap-1 justify-end">{t ? 'Pts missions' : 'Mission pts'} <Tooltip text={t ? 'Points générés par les missions.' : 'Points generated from missions.'} /></div>
+                  </th>
+                  <th className="text-right px-3 py-2.5 font-medium text-[#6B7280]">
+                    <div className="flex items-center gap-1 justify-end">{t ? 'Pts achats' : 'Purchase pts'} <Tooltip text={t ? 'Points générés par les achats (cashback).' : 'Points generated from purchases (cashback).'} /></div>
+                  </th>
+                  <th className="text-right px-3 py-2.5 font-medium text-primary">{t ? 'Total pts' : 'Total pts'}</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-[#6B7280]">
+                    <div className="flex items-center gap-1 justify-end">{t ? 'Potentiel burn' : 'Burn potential'} <Tooltip text={t ? `Points susceptibles d'être brûlés (taux: ${burnRate || 30}%).` : `Points likely to be burned (rate: ${burnRate || 30}%).`} /></div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {tierPointsData.map((row, i) => (
+                  <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5 font-medium text-[#374151]">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: row.tier.color || '#6B4EFF' }} />
+                        {row.tier.name}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[#374151]">{formatNumber(row.clients)}</td>
+                    <td className="px-3 py-2.5 text-right text-[#374151]">{formatCompact(row.missionPts)}</td>
+                    <td className="px-3 py-2.5 text-right text-[#374151]">{formatCompact(row.purchasePts)}</td>
+                    <td className="px-3 py-2.5 text-right font-bold text-primary">{formatCompact(row.totalTierPts)}</td>
+                    <td className="px-3 py-2.5 text-right text-[#374151]">{formatCompact(row.burnPotential)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 border-t border-gray-200">
+                  <td className="px-4 py-2.5 text-[12px] font-semibold text-[#374151]">Total</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-[#374151]">{formatNumber(tierPointsData.reduce((s, r) => s + r.clients, 0))}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-[#374151]">{formatCompact(tierPointsData.reduce((s, r) => s + r.missionPts, 0))}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-[#374151]">{formatCompact(tierPointsData.reduce((s, r) => s + r.purchasePts, 0))}</td>
+                  <td className="px-3 py-2.5 text-right font-bold text-primary">{formatCompact(tierPointsData.reduce((s, r) => s + r.totalTierPts, 0))}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-[#374151]">{formatCompact(tierPointsData.reduce((s, r) => s + r.burnPotential, 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* Recommendation */}
-      {settings.grossMargin > 0 && (
-        <div className="card" style={{ padding: 16, backgroundColor: '#F3F0FF', border: '1px solid #E8E1FF' }}>
-          <div className="text-[13px] text-primary">
-            <span className="font-semibold">{t ? 'Recommandation' : 'Recommendation'}:</span>{' '}
-            <span className="text-[#374151]">
+      {cashbackReco && (
+        <div className="card" style={{ padding: 16, backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
+          <div className="text-[13px] text-[#92400E]">
+            <span className="font-semibold">💡 {t ? 'Recommandation' : 'Recommendation'}:</span>{' '}
+            <span>
               {t
-                ? `Avec ${settings.grossMargin}% de marge, le cashback idéal est entre ${Math.max(1, Math.round(settings.grossMargin * 0.03))}% et ${Math.round(settings.grossMargin * 0.06)}%. Actuel: ${settings.cashbackRate}%.`
-                : `With ${settings.grossMargin}% margin, ideal cashback is ${Math.max(1, Math.round(settings.grossMargin * 0.03))}%-${Math.round(settings.grossMargin * 0.06)}%. Current: ${settings.cashbackRate}%.`}
+                ? `Avec ${settings.grossMargin}% de marge, le cashback recommandé est ${cashbackReco.minRate}–${cashbackReco.maxRate}%. Actuel : ${settings.cashbackRate}%.`
+                : `With ${settings.grossMargin}% margin, recommended cashback is ${cashbackReco.minRate}–${cashbackReco.maxRate}%. Current: ${settings.cashbackRate}%.`}
             </span>
+            {cashbackReco.bracket === 'low' && (
+              <span className="block mt-1 font-bold">⚠️ {t ? cashbackReco.warningFr : cashbackReco.warningEn}</span>
+            )}
           </div>
         </div>
       )}

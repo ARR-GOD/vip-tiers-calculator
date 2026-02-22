@@ -64,7 +64,7 @@ export const DEFAULT_MISSIONS = [
 export const ENGAGEMENT_SCENARIOS = {
   low: {
     nameFr: 'Conservateur', nameEn: 'Conservative', emoji: '🟡',
-    multiplier: 0.5,
+    multiplier: 0.6,
     descFr: 'Engagement faible — seuls les clients les plus motivés participent.',
     descEn: 'Low engagement — only the most motivated customers participate.',
   },
@@ -76,7 +76,7 @@ export const ENGAGEMENT_SCENARIOS = {
   },
   high: {
     nameFr: 'Optimiste', nameEn: 'Optimistic', emoji: '🔴',
-    multiplier: 1.5,
+    multiplier: 1.4,
     descFr: 'Engagement élevé — programme très actif.',
     descEn: 'High engagement — very active program.',
   },

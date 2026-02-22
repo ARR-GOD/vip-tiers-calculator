@@ -6,7 +6,7 @@ import { toPng } from 'html-to-image';
 import { computeCustomerScores, assignTiers, computeTierStats, computeRewardsCost, computeProgramFunnel, compute12MonthProjection, computeTierFinancials, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
 
-const SCENARIO_MULTIPLIERS = { conservative: 0.5, base: 1, optimistic: 1.5 };
+const SCENARIO_MULTIPLIERS = { conservative: 0.6, base: 1, optimistic: 1.4 };
 
 export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang }) {
   const t = lang === 'fr';

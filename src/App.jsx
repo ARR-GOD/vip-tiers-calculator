@@ -206,7 +206,8 @@ function App() {
             {step === 2 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
-                tiers={tiers} customers={customers} settings={settings} config={config} lang={lang} />
+                tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
+                burnRate={burnRate} />
             )}
             {step === 3 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}

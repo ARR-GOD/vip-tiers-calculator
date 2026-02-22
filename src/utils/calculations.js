@@ -11,6 +11,22 @@ export function derivePointsFromCashback(cashbackRate) {
   return { pointsToEuro, pointsPerEuro };
 }
 
+// ── Cashback recommendation based on gross margin ──
+export function getCashbackRecommendation(grossMargin) {
+  if (!grossMargin || grossMargin <= 0) return null;
+  if (grossMargin < 40) {
+    return {
+      bracket: 'low', minRate: 3, maxRate: 6,
+      warningFr: 'Marge faible — privilégiez les perks non-monétaires',
+      warningEn: 'Low margin — prefer non-monetary perks',
+    };
+  } else if (grossMargin <= 60) {
+    return { bracket: 'mid', minRate: 6, maxRate: 12, warningFr: null, warningEn: null };
+  } else {
+    return { bracket: 'high', minRate: 12, maxRate: 20, warningFr: null, warningEn: null };
+  }
+}
+
 // ── Customer scoring ──
 export function computeCustomerScores(customers, segmentationType, caWeight = 0.5) {
   if (!customers || customers.length === 0) return [];
