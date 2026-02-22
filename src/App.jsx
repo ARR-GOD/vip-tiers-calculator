@@ -10,6 +10,9 @@ import { parseSampleData } from './data/sampleData';
 import { DEFAULT_MISSIONS, DEFAULT_REWARDS } from './data/defaults';
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
+import { applyBrandDefaults } from './data/brandPresets';
+import StepBrand_Analyzer from './components/StepBrand_Analyzer';
+import ProgramTypeBanner from './components/ProgramTypeBanner';
 
 const INITIAL_CONFIG = {
   tierBasis: 'spend',
@@ -55,6 +58,8 @@ function App() {
   const [rewards, setRewards] = useState(DEFAULT_REWARDS);
   const [burnRate, setBurnRate] = useState(40);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
+  const [phase, setPhase] = useState('brand'); // 'brand' | 'wizard'
+  const [brandAnalysis, setBrandAnalysis] = useState(null);
 
   const setTiers = useCallback((newTiersOrFn) => {
     setTiersRaw(prev => {
@@ -67,6 +72,25 @@ function App() {
       return newTiers;
     });
   }, []);
+
+  const handleBrandComplete = (analysisResult) => {
+    setBrandAnalysis(analysisResult);
+    const defaults = applyBrandDefaults(analysisResult, lang);
+    setConfig(defaults.config);
+    setSettings(defaults.settings);
+    setTiersRaw(defaults.tiers);
+    setRewards(defaults.rewards);
+    setMissions(defaults.missions);
+    setBurnRate(defaults.burnRate);
+    setPhase('wizard');
+    setStep(1);
+  };
+
+  const handleBrandSkip = () => {
+    setBrandAnalysis(null);
+    setPhase('wizard');
+    setStep(0);
+  };
 
   const handleStep0Complete = (answers) => {
     setOnboardingAnswers(answers);
@@ -90,6 +114,8 @@ function App() {
     setRewards(DEFAULT_REWARDS);
     setBurnRate(40);
     setOnboardingAnswers(null);
+    setBrandAnalysis(null);
+    setPhase('brand');
     setStep(0);
   };
 
@@ -132,8 +158,16 @@ function App() {
         </div>
       </header>
 
-      {/* ─── Onboarding summary banner ─── */}
-      {onboardingAnswers && step > 0 && (
+      {/* ─── Program type / Onboarding banner ─── */}
+      {phase === 'wizard' && step > 0 && brandAnalysis && (
+        <ProgramTypeBanner
+          programType={brandAnalysis.recommended_program}
+          brandName={brandAnalysis.brand_name}
+          lang={lang}
+          onEdit={() => { setPhase('brand'); }}
+        />
+      )}
+      {phase === 'wizard' && step > 0 && !brandAnalysis && onboardingAnswers && (
         <div className="bg-primary-50" style={{ borderBottom: '1px solid #E8E1FF' }}>
           <div className="max-w-[960px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
@@ -151,67 +185,84 @@ function App() {
 
       {/* ─── Main Content ─── */}
       <main className="flex-1 max-w-[960px] mx-auto w-full px-6 pt-8 pb-24">
-        <div className="step-transition" key={step}>
-          {step === 0 && (
-            <Step0_ProgramSetup lang={lang} answers={onboardingAnswers}
-              onComplete={handleStep0Complete} onSkip={() => setStep(1)} />
-          )}
-          {step === 1 && (
-            <Step1_DataSettings config={config} setConfig={setConfig}
-              customers={customers} setCustomers={setCustomers}
-              settings={settings} setSettings={setSettings} lang={lang} />
-          )}
-          {step === 2 && (
-            <Step2_Missions missions={missions} setMissions={setMissions}
-              customMissions={customMissions} setCustomMissions={setCustomMissions}
-              tiers={tiers} customers={customers} settings={settings} config={config} lang={lang} />
-          )}
-          {step === 3 && (
-            <Step3_Rewards rewards={rewards} setRewards={setRewards}
-              settings={settings} config={config} lang={lang} />
-          )}
-          {step === 4 && (
-            <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
-              rewards={rewards} setRewards={setRewards}
-              burnRate={burnRate} setBurnRate={setBurnRate}
-              customers={customers} settings={settings} config={config}
-              missions={missions} customMissions={customMissions} lang={lang} />
-          )}
-          {step === 5 && (
-            <Step5_Dashboard tiers={tiers} customers={customers}
-              settings={settings} config={config}
-              missions={missions} customMissions={customMissions}
-              rewards={rewards} burnRate={burnRate} lang={lang} />
-          )}
-        </div>
+        {phase === 'brand' ? (
+          <StepBrand_Analyzer
+            lang={lang}
+            onComplete={handleBrandComplete}
+            onSkip={handleBrandSkip}
+            initialData={brandAnalysis}
+          />
+        ) : (
+          <div className="step-transition" key={step}>
+            {step === 0 && (
+              <Step0_ProgramSetup lang={lang} answers={onboardingAnswers}
+                onComplete={handleStep0Complete} onSkip={() => setStep(1)} />
+            )}
+            {step === 1 && (
+              <Step1_DataSettings config={config} setConfig={setConfig}
+                customers={customers} setCustomers={setCustomers}
+                settings={settings} setSettings={setSettings} lang={lang} />
+            )}
+            {step === 2 && (
+              <Step2_Missions missions={missions} setMissions={setMissions}
+                customMissions={customMissions} setCustomMissions={setCustomMissions}
+                tiers={tiers} customers={customers} settings={settings} config={config} lang={lang} />
+            )}
+            {step === 3 && (
+              <Step3_Rewards rewards={rewards} setRewards={setRewards}
+                settings={settings} config={config} lang={lang} />
+            )}
+            {step === 4 && (
+              <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
+                rewards={rewards} setRewards={setRewards}
+                burnRate={burnRate} setBurnRate={setBurnRate}
+                customers={customers} settings={settings} config={config}
+                missions={missions} customMissions={customMissions} lang={lang} />
+            )}
+            {step === 5 && (
+              <Step5_Dashboard tiers={tiers} customers={customers}
+                settings={settings} config={config}
+                missions={missions} customMissions={customMissions}
+                rewards={rewards} burnRate={burnRate} lang={lang} />
+            )}
+          </div>
+        )}
       </main>
 
-      {/* ─── Bottom Navigation ─── */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white" style={{ borderTop: '1px solid #E5E7EB' }}>
-        <div className="max-w-[960px] mx-auto px-6 py-3 flex items-center justify-between">
-          <button
-            onClick={() => setStep(s => Math.max(0, s - 1))}
-            disabled={step === 0}
-            className="btn-ghost disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft size={16} />
-            {t ? 'Précédent' : 'Previous'}
-          </button>
+      {/* ─── Bottom Navigation (hidden during brand phase) ─── */}
+      {phase === 'wizard' && (
+        <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white" style={{ borderTop: '1px solid #E5E7EB' }}>
+          <div className="max-w-[960px] mx-auto px-6 py-3 flex items-center justify-between">
+            <button
+              onClick={() => {
+                if (step === 0 && brandAnalysis) {
+                  setPhase('brand');
+                } else {
+                  setStep(s => Math.max(0, s - 1));
+                }
+              }}
+              disabled={step === 0 && !brandAnalysis}
+              className="btn-ghost disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={16} />
+              {t ? 'Précédent' : 'Previous'}
+            </button>
 
-          <span className="text-[13px] text-gray-400">
-            {t ? `Étape ${step + 1} sur ${STEPS.length}` : `Step ${step + 1} of ${STEPS.length}`}
-          </span>
+            <span className="text-[13px] text-gray-400">
+              {t ? `Étape ${step + 1} sur ${STEPS.length}` : `Step ${step + 1} of ${STEPS.length}`}
+            </span>
 
-          <button
-            onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))}
-            disabled={step === STEPS.length - 1}
-            className="btn-primary disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {t ? 'Suivant' : 'Next'}
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </footer>
+            <button
+              onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))}
+              disabled={step === STEPS.length - 1}
+              className="btn-primary disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {t ? 'Suivant' : 'Next'}
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
