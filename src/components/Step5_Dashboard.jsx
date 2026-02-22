@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Download, Image, ChevronDown, Check, X } from 'lucide-react';
+import { Download, Image, ChevronDown, Check, X, FileText, Link2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
@@ -407,6 +407,83 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
             </div>
           </div>
         )}
+      </div>
+
+      {/* ─── Competitive Advantage CTA ─── */}
+      <div
+        className="mt-6"
+        style={{
+          background: 'linear-gradient(135deg, #6B4EFF 0%, #4F35CC 100%)',
+          borderRadius: 16,
+          padding: 32,
+        }}
+      >
+        <h3 className="text-[24px] font-bold text-white mb-4">
+          {t ? 'Ce qui vous différencie' : 'What sets you apart'}
+        </h3>
+        <div className="space-y-3 mb-6">
+          {config.hasMissions && (
+            <div className="flex items-start gap-3">
+              <span className="text-white/90 text-[16px] mt-0.5">&#10003;</span>
+              <span className="text-[14px] text-white/90 leading-relaxed">
+                {t
+                  ? 'Engagement au-delà de l\'achat — vos clients gagnent des points en interagissant avec votre marque'
+                  : 'Engagement beyond purchase — your customers earn points by interacting with your brand'}
+              </span>
+            </div>
+          )}
+          {effectiveType === 'luxury' && (
+            <div className="flex items-start gap-3">
+              <span className="text-white/90 text-[16px] mt-0.5">&#10003;</span>
+              <span className="text-[14px] text-white/90 leading-relaxed">
+                {t
+                  ? 'Programme premium sans dévaluation — aucun discount, que de la valeur perçue'
+                  : 'Premium program without devaluation — no discounts, only perceived value'}
+              </span>
+            </div>
+          )}
+          {config.rewardType !== 'perk' && (
+            <div className="flex items-start gap-3">
+              <span className="text-white/90 text-[16px] mt-0.5">&#10003;</span>
+              <span className="text-[14px] text-white/90 leading-relaxed">
+                {t
+                  ? 'Économie circulaire — les points réinjectent du CA dans votre boutique'
+                  : 'Circular economy — points reinject revenue into your store'}
+              </span>
+            </div>
+          )}
+          <div className="flex items-start gap-3">
+            <span className="text-white/90 text-[16px] mt-0.5">&#10003;</span>
+            <span className="text-[14px] text-white/90 leading-relaxed">
+              {t
+                ? 'Simulé sur vos vraies données clients — pas un benchmark générique'
+                : 'Simulated on your real customer data — not a generic benchmark'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportPNG}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold transition-all"
+            style={{ backgroundColor: 'white', color: '#6B4EFF' }}
+          >
+            <FileText size={15} />
+            {t ? 'Exporter le rapport' : 'Export report'}
+          </button>
+          <button
+            onClick={() => {
+              const state = { config, settings, tiers };
+              const encoded = btoa(JSON.stringify(state));
+              const url = `${window.location.origin}${window.location.pathname}?state=${encoded}`;
+              navigator.clipboard.writeText(url);
+            }}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold transition-all"
+            style={{ backgroundColor: 'transparent', color: 'white', border: '1.5px solid rgba(255,255,255,0.5)' }}
+          >
+            <Link2 size={15} />
+            {t ? 'Partager la configuration' : 'Share configuration'}
+          </button>
+        </div>
       </div>
     </div>
   );
