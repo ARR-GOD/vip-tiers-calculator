@@ -91,7 +91,7 @@ const INDUSTRY_PRESETS = {
   },
 };
 
-const DEFAULT_TIER_COLORS = ['#CD7F32', '#A8A9AD', '#FFD700'];
+const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706'];
 
 const PRICE_ADJUSTMENTS = {
   low: { aovMult: 0.5, cashbackAdd: 1 },

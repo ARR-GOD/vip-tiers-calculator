@@ -71,10 +71,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setCu
   const activeCustomers = customers.filter(c => c.total_ordered_TTC > 0).length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
         <div className="section-subheader">{lang === 'fr' ? 'ÉTAPE 2' : 'STEP 2'}</div>
-        <h2 className="text-[22px] font-bold text-[#111827]">{t.title}</h2>
+        <h2 className="text-[28px] font-bold text-[#111827]">{t.title}</h2>
         <p className="text-[15px] text-[#6B7280] mt-0.5">{t.subtitle}</p>
       </div>
 
@@ -120,8 +120,8 @@ export default function Step1_DataSettings({ config, setConfig, customers, setCu
       {/* Data + Params */}
       <div>
         <div className="section-header">{lang === 'fr' ? 'DONNÉES & PARAMÈTRES' : 'DATA & PARAMETERS'}</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="card" style={{ padding: 24 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="card">
             <div className="section-subheader">{t.dataSource.toUpperCase()}</div>
             <div className="flex gap-2 mb-3">
               <button onClick={() => fileInputRef.current?.click()}
@@ -149,7 +149,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setCu
             </div>
           </div>
 
-          <div className="card space-y-4" style={{ padding: 24 }}>
+          <div className="card space-y-4">
             <div className="section-subheader">{t.keyParams.toUpperCase()}</div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -223,7 +223,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setCu
 
 function ConfigCard({ title, tooltip, options, selected, onChange }) {
   return (
-    <div className="card" style={{ padding: 16 }}>
+    <div className="card" style={{ padding: '16px 20px' }}>
       <div className="flex items-center gap-1 mb-2">
         <span className="text-[12px] font-semibold text-[#374151]">{title}</span>
         {tooltip && <Tooltip text={tooltip} />}
@@ -231,10 +231,8 @@ function ConfigCard({ title, tooltip, options, selected, onChange }) {
       <div className="flex flex-col gap-1">
         {options.map(opt => (
           <button key={String(opt.value)} onClick={() => onChange(opt.value)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all border
-              ${selected === opt.value
-                ? 'bg-primary-50 text-primary border-primary-200'
-                : 'text-[#6B7280] hover:bg-gray-50 border-transparent'}`}>
+            className={`selection-card text-[12px] font-medium text-left
+              ${selected === opt.value ? 'selected' : ''}`}>
             <span>{opt.label}</span>
           </button>
         ))}

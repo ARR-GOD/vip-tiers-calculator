@@ -77,10 +77,10 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   // ── LUXURY PLACEHOLDER ──
   if (!config.hasMissions) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-3">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 3' : 'STEP 3'}</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
+          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
         </div>
         <div className="card flex flex-col items-center justify-center text-center" style={{ padding: '64px 32px' }}>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: '#FFFBEB' }}>
@@ -100,11 +100,11 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 3' : 'STEP 3'}</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
+          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez les actions qui génèrent des points au-delà des achats.' : 'Define point-earning actions beyond purchases.'}</p>
         </div>
         <button onClick={addCustom} className="btn-primary"><Plus size={14} /> {t ? 'Ajouter' : 'Add'}</button>
@@ -222,19 +222,19 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
       <div>
         <div className="section-header">{t ? 'RÉSUMÉ' : 'SUMMARY'}</div>
         <div className="grid grid-cols-3 gap-3">
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">{t ? 'POINTS / AN' : 'POINTS / YR'}</div>
-            <div className="text-[32px] font-bold text-primary text-right">{formatCompact(totalPts)}</div>
+            <div className="text-[28px] font-bold text-primary text-right">{formatCompact(totalPts)}</div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'points générés' : 'points generated'}</div>
           </div>
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">{t ? 'COMPLÉTIONS' : 'COMPLETIONS'}</div>
-            <div className="text-[32px] font-bold text-[#111827] text-right">{formatNumber(totalCompletions)}</div>
+            <div className="text-[28px] font-bold text-[#111827] text-right">{formatNumber(totalCompletions)}</div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'par an' : 'per year'}</div>
           </div>
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">{t ? 'MISSIONS ACTIVES' : 'ACTIVE MISSIONS'}</div>
-            <div className="text-[32px] font-bold text-[#111827] text-right">{allMissions.filter(m => m.enabled).length}</div>
+            <div className="text-[28px] font-bold text-[#111827] text-right">{allMissions.filter(m => m.enabled).length}</div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'missions' : 'missions'}</div>
           </div>
         </div>

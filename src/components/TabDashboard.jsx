@@ -181,7 +181,7 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
           {tiers.map((tier, i) => (
             <div key={i} className="text-center py-2">
               <div className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: tier.color }} />
-              <span className="text-xs font-bold" style={{ color: tier.color === '#FFD700' ? '#8B6914' : tier.color === '#E5E4E2' ? '#666' : tier.color }}>
+              <span className="text-xs font-bold" style={{ color: tier.color }}>
                 {tier.name}
               </span>
             </div>

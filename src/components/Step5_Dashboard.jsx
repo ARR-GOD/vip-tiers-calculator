@@ -64,11 +64,11 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Dashboard du programme' : 'Program Dashboard'}</h2>
+          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Dashboard du programme' : 'Program Dashboard'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Vue d\'ensemble et projections financières.' : 'Overview and financial projections.'}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
       <div ref={dashRef}>
         {/* KPI cards */}
         <div className="section-header">{t ? 'INDICATEURS CLÉS' : 'KEY METRICS'}</div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <KPICard label={t ? 'CLIENTS' : 'CUSTOMERS'} value={formatNumber(funnel.totalCustomers)} sub={t ? 'total' : 'total'} />
           <KPICard label={t ? 'CA TOTAL' : 'TOTAL REVENUE'} value={formatCurrency(funnel.totalRevenue)} sub={t ? 'par an' : 'per year'} />
           <KPICard label={t ? 'COÛT PROGRAMME' : 'PROGRAM COST'} value={formatCurrency(funnel.rewardsCost)} sub={t ? 'récompenses' : 'rewards'} color="red" />
@@ -106,7 +106,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
         </div>
 
         {/* Funnel */}
-        <div className="card mb-5" style={{ padding: 24 }}>
+        <div className="card mb-3" >
           <div className="section-header" style={{ marginBottom: 12 }}>{t ? 'ENTONNOIR DU PROGRAMME' : 'PROGRAM FUNNEL'}</div>
           <div className="grid grid-cols-6 gap-2">
             {[
@@ -128,9 +128,9 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
 
         {/* Charts row */}
         <div className="section-header">{t ? 'VISUALISATIONS' : 'VISUALIZATIONS'}</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
           {/* Donut */}
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card" >
             <div className="section-header" style={{ marginBottom: 12 }}>{t ? 'RÉPARTITION CLIENTS' : 'CUSTOMER DISTRIBUTION'}</div>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -144,7 +144,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
           </div>
 
           {/* Bar chart */}
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card" >
             <div className="section-header" style={{ marginBottom: 12 }}>{t ? 'CA VS COÛT VS PROFIT' : 'REVENUE VS COST VS PROFIT'}</div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={barData}>
@@ -162,7 +162,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
         </div>
 
         {/* 12-month projection */}
-        <div className="card mb-5" style={{ padding: 24 }}>
+        <div className="card mb-3" >
           <div className="section-header" style={{ marginBottom: 12 }}>{t ? 'PROJECTION 12 MOIS' : '12-MONTH PROJECTION'}</div>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={monthlyProjection}>
@@ -246,11 +246,11 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
 function KPICard({ label, value, sub, color }) {
   const textColor = color === 'red' ? 'text-[#DC2626]' : color === 'green' ? 'text-[#059669]' : 'text-[#111827]';
   return (
-    <div className="card" style={{ padding: 24 }}>
+    <div className="card" >
       <div className="flex items-start justify-between">
         <div className="section-subheader">{label}</div>
       </div>
-      <div className={`text-[32px] font-bold text-right ${textColor}`}>{value}</div>
+      <div className={`text-[28px] font-bold text-right ${textColor}`}>{value}</div>
       <div className="text-[12px] text-[#6B7280] text-right">{sub}</div>
     </div>
   );

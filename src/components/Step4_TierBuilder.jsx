@@ -5,13 +5,13 @@ import BenchmarkBadge from './BenchmarkBadge';
 import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
 
-const FIXED_COLORS = ['#CD7F32', '#A8A9AD', '#FFD700', '#E5E4E2'];
+const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#6B7280'];
 
 function getPillColor(value, max) {
   const pct = max > 0 ? (value / max) * 100 : 0;
-  if (pct >= 100) return { bg: 'rgba(16,185,129,0.15)', text: '#059669', bar: '#10B981' };
-  if (pct >= 50) return { bg: 'rgba(245,158,11,0.15)', text: '#D97706', bar: '#F59E0B' };
-  return { bg: 'rgba(239,68,68,0.15)', text: '#DC2626', bar: '#EF4444' };
+  if (pct >= 100) return { bg: 'rgba(16,185,129,0.12)', text: '#059669', bar: '#10B981' };
+  if (pct >= 50) return { bg: 'rgba(245,158,11,0.12)', text: '#D97706', bar: '#F59E0B' };
+  return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
 export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang }) {
@@ -78,11 +78,11 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   const maxRevenue = Math.max(...tierStats.map(s => s?.revenue || 0), 1);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 5' : 'STEP 5'}</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
+          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez vos paliers et attribuez les récompenses.' : 'Define your tiers and assign rewards.'}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       {/* Tier cards in 2-col grid */}
       <div>
         <div className="section-header">{t ? 'PALIERS VIP' : 'VIP TIERS'}</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           {tiers.map((tier, tierIdx) => {
             const stat = tierStats[tierIdx];
             const fin = tierFinancials[tierIdx];
@@ -119,18 +119,18 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
             const pillColors = getPillColor(stat?.revenue || 0, maxRevenue * 0.5);
 
             return (
-              <div key={tierIdx} className="card overflow-hidden">
+              <div key={tierIdx} className="card overflow-hidden" style={{ borderLeft: `3px solid ${tier.color || FIXED_COLORS[tierIdx] || '#6B4EFF'}` }}>
                 {/* Card header: purple label + name left, KPI number right */}
-                <div style={{ padding: 24 }}>
+                <div>
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="section-subheader">{tier.name.toUpperCase()}</div>
                       <input type="text" value={tier.name}
                         onChange={e => updateTier(tierIdx, 'name', e.target.value)}
-                        className="text-[22px] font-bold text-[#111827] bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary focus:outline-none w-full max-w-[180px]" style={{ padding: 0 }} />
+                        className="text-[20px] font-bold text-[#111827] bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary focus:outline-none w-full max-w-[180px]" style={{ padding: 0 }} />
                     </div>
                     <div className="text-right">
-                      <div className="text-[32px] font-bold text-[#111827]">{stat?.count || 0}</div>
+                      <div className="text-[28px] font-bold text-[#111827]">{stat?.count || 0}</div>
                       <div className="text-[12px] text-[#6B7280]">{t ? 'clients' : 'customers'}</div>
                     </div>
                   </div>
@@ -260,26 +260,26 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       {/* Total row */}
       <div>
         <div className="section-header">{t ? 'TOTAL PROGRAMME / AN' : 'PROGRAM TOTAL / YR'}</div>
-        <div className="card" style={{ padding: 24 }}>
-          <div className="grid grid-cols-4 gap-4">
+        <div className="card">
+          <div className="grid grid-cols-4 gap-3">
             <div className="text-center">
               <div className="section-subheader">{t ? 'COÛT TOTAL' : 'TOTAL COST'}</div>
-              <div className="text-[32px] font-bold text-[#DC2626]">-{formatCurrency(totalFinancials.rewardsCost)}</div>
+              <div className="text-[28px] font-bold text-[#DC2626]">-{formatCurrency(totalFinancials.rewardsCost)}</div>
               <div className="text-[12px] text-[#6B7280]">{t ? 'récompenses' : 'rewards'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'REV. INCRÉMENTAL' : 'INCR. REVENUE'}</div>
-              <div className="text-[32px] font-bold text-[#111827]">{formatCurrency(totalFinancials.incrementalRevenue)}</div>
+              <div className="text-[28px] font-bold text-[#111827]">{formatCurrency(totalFinancials.incrementalRevenue)}</div>
               <div className="text-[12px] text-[#6B7280]">{t ? 'généré' : 'generated'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'MARGE BRUTE' : 'GROSS PROFIT'}</div>
-              <div className="text-[32px] font-bold text-[#111827]">{formatCurrency(totalFinancials.grossProfit)}</div>
+              <div className="text-[28px] font-bold text-[#111827]">{formatCurrency(totalFinancials.grossProfit)}</div>
               <div className="text-[12px] text-[#6B7280]">{t ? 'sur rev. incr.' : 'on incr. rev.'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'PROFIT NET' : 'NET PROFIT'}</div>
-              <div className={`text-[32px] font-bold ${totalFinancials.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+              <div className={`text-[28px] font-bold ${totalFinancials.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
                 {totalFinancials.netProfit >= 0 ? '+' : ''}{formatCurrency(totalFinancials.netProfit)}
               </div>
               <div className="text-[12px] text-[#6B7280]">{t ? 'par an' : 'per year'}</div>

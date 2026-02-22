@@ -63,10 +63,10 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
   // ── INPUT / ERROR PHASE ──
   if (phase === 'input' || phase === 'error') {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-3">
         <div className="text-center">
           <div className="section-subheader">ANALYSE</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">
+          <h2 className="text-[28px] font-bold text-[#111827]">
             {t ? 'Analysez votre marque' : 'Analyze your brand'}
           </h2>
           <p className="text-[15px] text-[#6B7280] mt-1.5">
@@ -76,7 +76,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           </p>
         </div>
 
-        <div className="card" style={{ padding: 24 }}>
+        <div className="card">
           <div className="section-subheader">{t ? 'URL DE VOTRE SITE' : 'YOUR WEBSITE URL'}</div>
           <div className="flex gap-3 mt-2">
             <div className="flex-1 relative">
@@ -134,11 +134,11 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
   const prog = PROGRAM_LABELS[editValues.recommended_program] || PROGRAM_LABELS.mid;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="max-w-2xl mx-auto space-y-3">
       {/* Header */}
       <div className="text-center">
         <div className="section-subheader">ANALYSE</div>
-        <h2 className="text-[22px] font-bold text-[#111827]">
+        <h2 className="text-[28px] font-bold text-[#111827]">
           {editValues.brand_name || url}
         </h2>
         {editValues.brand_description && (
@@ -147,7 +147,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       </div>
 
       {/* Program Type Card */}
-      <div className="card" style={{ padding: 24, borderLeft: `4px solid ${pos.color}` }}>
+      <div className="card" style={{ borderLeft: `3px solid ${pos.color}` }}>
         <div className="section-subheader">{t ? 'TYPE DE PROGRAMME RECOMMAND\u00c9' : 'RECOMMENDED PROGRAM TYPE'}</div>
         <div className="flex items-center gap-3 mt-1 mb-1.5">
           <span className="text-[18px] font-bold text-[#111827]">{t ? prog.fr : prog.en}</span>
@@ -159,7 +159,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       </div>
 
       {/* Detected Parameters */}
-      <div className="card" style={{ padding: 24 }}>
+      <div className="card">
         <div className="section-subheader">{t ? 'PARAM\u00c8TRES D\u00c9TECT\u00c9S' : 'DETECTED PARAMETERS'}</div>
         <div className="grid grid-cols-2 gap-4 mt-2">
           <EditableField
@@ -187,7 +187,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
       {/* Tier Names */}
       {editValues.suggested_tier_names?.length > 0 && (
-        <div className="card" style={{ padding: 24 }}>
+        <div className="card">
           <div className="section-subheader">{t ? 'NOMS DES PALIERS' : 'TIER NAMES'}</div>
           <div className="flex gap-3 mt-2">
             {editValues.suggested_tier_names.map((name, i) => (
@@ -212,7 +212,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
       {/* Suggested Missions */}
       {editValues.suggested_missions?.length > 0 && (
-        <div className="card" style={{ padding: 24 }}>
+        <div className="card">
           <div className="section-subheader">{t ? 'MISSIONS SUGG\u00c9R\u00c9ES' : 'SUGGESTED MISSIONS'}</div>
           <div className="space-y-2 mt-2">
             {editValues.suggested_missions.map((mission, i) => (

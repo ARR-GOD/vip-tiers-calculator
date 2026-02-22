@@ -40,7 +40,7 @@ export default function ProgramTypeBanner({ programType, brandName, lang, onEdit
 
   return (
     <div style={{ backgroundColor: cfg.bgColor, borderBottom: `1px solid ${cfg.borderColor}` }}>
-      <div className="max-w-[960px] mx-auto px-6 py-2.5 flex items-center gap-3 text-[12px]">
+      <div className="max-w-[1100px] mx-auto px-6 py-2.5 flex items-center gap-3 text-[12px]">
         <Icon size={14} style={{ color: cfg.color }} />
         <span className="font-bold" style={{ color: cfg.color }}>
           {t ? cfg.labelFr : cfg.labelEn}

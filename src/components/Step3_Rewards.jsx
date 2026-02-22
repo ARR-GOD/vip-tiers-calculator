@@ -35,11 +35,11 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
     : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 4' : 'STEP 4'}</div>
-          <h2 className="text-[22px] font-bold text-[#111827]">{t ? 'Catalogue de récompenses' : 'Rewards Catalog'}</h2>
+          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de récompenses' : 'Rewards Catalog'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez vos récompenses. L\'attribution par palier se fait à l\'étape suivante.' : 'Define your rewards. Tier assignment happens in the next step.'}</p>
         </div>
         <button onClick={addReward} className="btn-primary"><Plus size={14} /> {t ? 'Ajouter' : 'Add'}</button>
@@ -180,21 +180,21 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
       <div>
         <div className="section-header">{t ? 'RÉSUMÉ' : 'SUMMARY'}</div>
         <div className="grid grid-cols-3 gap-3">
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">{t ? 'RÉCOMPENSES' : 'REWARDS'}</div>
-            <div className="text-[32px] font-bold text-[#111827] text-right">{rewards.length}</div>
+            <div className="text-[28px] font-bold text-[#111827] text-right">{rewards.length}</div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'dans le catalogue' : 'in catalog'}</div>
           </div>
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">BURN / PERK</div>
-            <div className="text-[32px] font-bold text-[#111827] text-right">
+            <div className="text-[28px] font-bold text-[#111827] text-right">
               {rewards.filter(r => r.rewardUsage === 'burn' || r.rewardUsage === 'both').length} / {rewards.filter(r => r.rewardUsage === 'perk' || r.rewardUsage === 'both').length}
             </div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'répartition' : 'split'}</div>
           </div>
-          <div className="card" style={{ padding: 24 }}>
+          <div className="card">
             <div className="section-subheader">ROI</div>
-            <div className={`text-[32px] font-bold text-right ${parseFloat(avgROI) >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+            <div className={`text-[28px] font-bold text-right ${parseFloat(avgROI) >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
               {avgROI > 0 ? `+${avgROI}%` : `${avgROI}%`}
             </div>
             <div className="text-[12px] text-[#6B7280] text-right">{t ? 'ROI moyen' : 'avg ROI'}</div>

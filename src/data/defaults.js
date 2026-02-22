@@ -1,16 +1,16 @@
 // ── Tier defaults ──
-export const DEFAULT_TIER_COLORS = ['#CD7F32', '#A8A9AD', '#FFD700', '#E5E4E2'];
+export const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#6B7280'];
 export const DEFAULT_TIER_NAMES_FR = ['Bronze', 'Argent', 'Or', 'Platine'];
 export const DEFAULT_TIER_NAMES_EN = ['Bronze', 'Silver', 'Gold', 'Platinum'];
 
 export const TIER_COLOR_MAP = {
-  Bronze: '#CD7F32',
-  Argent: '#A8A9AD',
-  Silver: '#A8A9AD',
-  Or: '#FFD700',
-  Gold: '#FFD700',
-  Platine: '#E5E4E2',
-  Platinum: '#E5E4E2',
+  Bronze: '#B87333',
+  Argent: '#9CA3AF',
+  Silver: '#9CA3AF',
+  Or: '#D97706',
+  Gold: '#D97706',
+  Platine: '#6B7280',
+  Platinum: '#6B7280',
 };
 
 // ── Missions ──
@@ -63,19 +63,19 @@ export const DEFAULT_MISSIONS = [
 // ── Engagement scenarios (scale engagement rates globally) ──
 export const ENGAGEMENT_SCENARIOS = {
   low: {
-    nameFr: 'Conservateur', nameEn: 'Conservative', emoji: '🟡',
+    nameFr: 'Conservateur', nameEn: 'Conservative',
     multiplier: 0.6,
     descFr: 'Engagement faible — seuls les clients les plus motivés participent.',
     descEn: 'Low engagement — only the most motivated customers participate.',
   },
   medium: {
-    nameFr: 'Base', nameEn: 'Base', emoji: '🟠',
+    nameFr: 'Base', nameEn: 'Base',
     multiplier: 1.0,
     descFr: 'Engagement moyen — estimation réaliste.',
     descEn: 'Average engagement — realistic estimate.',
   },
   high: {
-    nameFr: 'Optimiste', nameEn: 'Optimistic', emoji: '🔴',
+    nameFr: 'Optimiste', nameEn: 'Optimistic',
     multiplier: 1.4,
     descFr: 'Engagement élevé — programme très actif.',
     descEn: 'High engagement — very active program.',
@@ -94,9 +94,9 @@ export const REWARD_TYPES = [
 ];
 
 export const REWARD_USAGE_OPTIONS = [
-  { value: 'burn', labelFr: 'Burn (points)', labelEn: 'Burn (points)', emoji: '🔥' },
-  { value: 'perk', labelFr: 'Perk (palier)', labelEn: 'Perk (tier)', emoji: '🏆' },
-  { value: 'both', labelFr: 'Les deux', labelEn: 'Both', emoji: '🔀' },
+  { value: 'burn', labelFr: 'Burn (points)', labelEn: 'Burn (points)' },
+  { value: 'perk', labelFr: 'Perk (palier)', labelEn: 'Perk (tier)' },
+  { value: 'both', labelFr: 'Les deux', labelEn: 'Both' },
 ];
 
 // ── Default rewards catalog ──

@@ -75,7 +75,7 @@ export default function RewardEconomicsTable({ rewards, setRewards, tiers, tierS
               <th className="text-center py-2 px-2 text-gray-400 font-medium">{t.pointsCost}</th>
               <th className="text-center py-2 px-2 text-gray-400 font-medium">{t.realCost}</th>
               {tiers.map((tier, i) => (
-                <th key={i} className="text-center py-2 px-1 font-medium" style={{ color: tier.color === '#FFD700' ? '#8B6914' : tier.color }}>
+                <th key={i} className="text-center py-2 px-1 font-medium" style={{ color: tier.color }}>
                   {tier.name}
                 </th>
               ))}

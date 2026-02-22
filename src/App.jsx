@@ -32,9 +32,9 @@ const INITIAL_SETTINGS = {
 };
 
 const INITIAL_TIERS = [
-  { name: 'Bronze', color: '#CD7F32', threshold: 100, pointsThreshold: 0, pointsMultiplier: 1, perks: [] },
-  { name: 'Argent', color: '#A8A9AD', threshold: 50, pointsThreshold: 1000, pointsMultiplier: 1.5, perks: [] },
-  { name: 'Or', color: '#FFD700', threshold: 15, pointsThreshold: 3000, pointsMultiplier: 2, perks: [] },
+  { name: 'Bronze', color: '#B87333', threshold: 100, pointsThreshold: 0, pointsMultiplier: 1, perks: [] },
+  { name: 'Argent', color: '#9CA3AF', threshold: 50, pointsThreshold: 1000, pointsMultiplier: 1.5, perks: [] },
+  { name: 'Or', color: '#D97706', threshold: 15, pointsThreshold: 3000, pointsMultiplier: 2, perks: [] },
 ];
 
 const STEPS = [
@@ -132,7 +132,7 @@ function App() {
     <div className="min-h-screen bg-surface flex flex-col">
       {/* ─── Navbar ─── */}
       <header className="sticky top-0 z-40 bg-white" style={{ height: 56, borderBottom: '1px solid #E5E7EB' }}>
-        <div className="max-w-[960px] mx-auto px-6 h-full flex items-center justify-between">
+        <div className="max-w-[1100px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Menu size={18} className="text-gray-400" />
             <div>
@@ -169,7 +169,7 @@ function App() {
       )}
       {phase === 'wizard' && step > 0 && !brandAnalysis && onboardingAnswers && (
         <div className="bg-primary-50" style={{ borderBottom: '1px solid #E8E1FF' }}>
-          <div className="max-w-[960px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+          <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
             <span className="text-gray-600">{onboardingAnswers.industry}</span>
             <span className="text-gray-300">|</span>
@@ -184,7 +184,7 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 max-w-[960px] mx-auto w-full px-6 pt-8 pb-24">
+      <main className="flex-1 max-w-[1100px] mx-auto w-full px-6 pt-6 pb-24">
         {phase === 'brand' ? (
           <StepBrand_Analyzer
             lang={lang}
@@ -233,7 +233,7 @@ function App() {
       {/* ─── Bottom Navigation (hidden during brand phase) ─── */}
       {phase === 'wizard' && (
         <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white" style={{ borderTop: '1px solid #E5E7EB' }}>
-          <div className="max-w-[960px] mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="max-w-[1100px] mx-auto px-6 py-4 flex items-center justify-between">
             <button
               onClick={() => {
                 if (step === 0 && brandAnalysis) {

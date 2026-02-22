@@ -15,10 +15,10 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
   const canContinue = industry && priceRange;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-3">
       <div className="text-center">
         <div className="section-subheader">{t ? 'CONFIGURATION' : 'SETUP'}</div>
-        <h2 className="text-[22px] font-bold text-[#111827]">
+        <h2 className="text-[28px] font-bold text-[#111827]">
           {t ? 'Configurez votre programme VIP' : 'Configure your VIP Program'}
         </h2>
         <p className="text-[15px] text-[#6B7280] mt-1.5">
@@ -27,16 +27,13 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
       </div>
 
       {/* Industry */}
-      <div className="card" style={{ padding: 24 }}>
+      <div className="card">
         <div className="section-subheader">{t ? 'SECTEUR D\'ACTIVITÉ' : 'INDUSTRY'}</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {INDUSTRIES.map(ind => (
             <button key={ind.id} onClick={() => setIndustry(ind.id)}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-[13px] font-medium transition-all border
-                ${industry === ind.id
-                  ? 'bg-primary-50 text-primary border-primary-200 shadow-sm'
-                  : 'bg-white text-[#6B7280] border-gray-100 hover:border-gray-200'}`}>
-              <span className="text-xl">{ind.emoji}</span>
+              className={`selection-card flex flex-col items-center gap-1.5 text-[13px] font-medium
+                ${industry === ind.id ? 'selected' : ''}`}>
               <span>{t ? ind.nameFr : ind.nameEn}</span>
             </button>
           ))}
@@ -44,15 +41,13 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
       </div>
 
       {/* Price Range */}
-      <div className="card" style={{ padding: 24 }}>
+      <div className="card">
         <div className="section-subheader">{t ? 'GAMME DE PRIX' : 'PRICE RANGE'}</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {PRICE_RANGES.map(pr => (
             <button key={pr.id} onClick={() => setPriceRange(pr.id)}
-              className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all border text-center
-                ${priceRange === pr.id
-                  ? 'bg-primary-50 text-primary border-primary-200 shadow-sm'
-                  : 'bg-white text-[#6B7280] border-gray-100 hover:border-gray-200'}`}>
+              className={`selection-card text-[13px] font-medium text-center
+                ${priceRange === pr.id ? 'selected' : ''}`}>
               {t ? pr.labelFr : pr.labelEn}
             </button>
           ))}
@@ -60,7 +55,7 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
       </div>
 
       {/* Goals */}
-      <div className="card" style={{ padding: 24 }}>
+      <div className="card">
         <div className="section-subheader">
           {t ? 'OBJECTIFS' : 'GOALS'}
           <span className="text-[#9CA3AF] font-normal ml-1 text-[10px] normal-case tracking-normal">({t ? 'optionnel' : 'optional'})</span>
@@ -68,10 +63,8 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
         <div className="grid grid-cols-2 gap-2">
           {GOALS.map(g => (
             <button key={g.id} onClick={() => toggleGoal(g.id)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[13px] font-medium transition-all border
-                ${goals.includes(g.id)
-                  ? 'bg-primary-50 text-primary border-primary-200'
-                  : 'bg-white text-[#6B7280] border-gray-100 hover:border-gray-200'}`}>
+              className={`selection-card flex items-center gap-2 text-[13px] font-medium
+                ${goals.includes(g.id) ? 'selected' : ''}`}>
               <span>{t ? g.labelFr : g.labelEn}</span>
             </button>
           ))}

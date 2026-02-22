@@ -1,6 +1,6 @@
 import { DEFAULT_MISSIONS } from './defaults';
 
-const DEFAULT_TIER_COLORS = ['#CD7F32', '#A8A9AD', '#FFD700'];
+const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706'];
 
 const PROGRAM_TYPE_CONFIG = {
   luxury: {
