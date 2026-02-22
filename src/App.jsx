@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Menu } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
+import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
 import Step2_Missions from './components/Step2_Missions';
 import Step3_Rewards from './components/Step3_Rewards';
@@ -39,11 +40,12 @@ const INITIAL_TIERS = [
 
 const STEPS = [
   { id: 0, labelFr: 'Programme', labelEn: 'Program' },
-  { id: 1, labelFr: 'Données', labelEn: 'Data' },
-  { id: 2, labelFr: 'Missions', labelEn: 'Missions' },
-  { id: 3, labelFr: 'Récompenses', labelEn: 'Rewards' },
-  { id: 4, labelFr: 'Paliers', labelEn: 'Tiers' },
-  { id: 5, labelFr: 'Dashboard', labelEn: 'Dashboard' },
+  { id: 1, labelFr: 'Import', labelEn: 'Import' },
+  { id: 2, labelFr: 'Configuration', labelEn: 'Config' },
+  { id: 3, labelFr: 'Missions', labelEn: 'Missions' },
+  { id: 4, labelFr: 'Récompenses', labelEn: 'Rewards' },
+  { id: 5, labelFr: 'Paliers', labelEn: 'Tiers' },
+  { id: 6, labelFr: 'Dashboard', labelEn: 'Dashboard' },
 ];
 
 function App() {
@@ -83,13 +85,13 @@ function App() {
     setMissions(defaults.missions);
     setBurnRate(defaults.burnRate);
     setPhase('wizard');
-    setStep(1);
+    setStep(1); // Go to CSV import step
   };
 
   const handleBrandSkip = () => {
     setBrandAnalysis(null);
     setPhase('wizard');
-    setStep(0);
+    setStep(0); // Go to manual onboarding
   };
 
   const handleStep0Complete = (answers) => {
@@ -101,7 +103,7 @@ function App() {
     setRewards(defaults.rewards);
     setMissions(defaults.missions);
     setBurnRate(defaults.burnRate);
-    setStep(1);
+    setStep(1); // Go to CSV import step
   };
 
   const reset = () => {
@@ -117,6 +119,10 @@ function App() {
     setBrandAnalysis(null);
     setPhase('brand');
     setStep(0);
+    // Clear recommendation dismiss flags
+    for (let i = 1; i <= 6; i++) {
+      try { localStorage.removeItem(`vip_reco_dismissed_step${i}`); } catch { /* noop */ }
+    }
   };
 
   const copyShareableLink = () => {
@@ -159,7 +165,7 @@ function App() {
       </header>
 
       {/* ─── Program type / Onboarding banner ─── */}
-      {phase === 'wizard' && step > 0 && brandAnalysis && (
+      {phase === 'wizard' && step > 1 && brandAnalysis && (
         <ProgramTypeBanner
           programType={brandAnalysis.recommended_program}
           brandName={brandAnalysis.brand_name}
@@ -167,7 +173,7 @@ function App() {
           onEdit={() => { setPhase('brand'); }}
         />
       )}
-      {phase === 'wizard' && step > 0 && !brandAnalysis && onboardingAnswers && (
+      {phase === 'wizard' && step > 1 && !brandAnalysis && onboardingAnswers && (
         <div className="bg-primary-50" style={{ borderBottom: '1px solid #E8E1FF' }}>
           <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
@@ -199,33 +205,40 @@ function App() {
                 onComplete={handleStep0Complete} onSkip={() => setStep(1)} />
             )}
             {step === 1 && (
-              <Step1_DataSettings config={config} setConfig={setConfig}
-                customers={customers} setCustomers={setCustomers}
-                settings={settings} setSettings={setSettings} lang={lang} />
+              <StepData_Import customers={customers} setCustomers={setCustomers} lang={lang}
+                brandAnalysis={brandAnalysis} config={config} settings={settings} />
             )}
             {step === 2 && (
+              <Step1_DataSettings config={config} setConfig={setConfig}
+                customers={customers} settings={settings} setSettings={setSettings}
+                lang={lang} brandAnalysis={brandAnalysis} />
+            )}
+            {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
-                burnRate={burnRate} />
-            )}
-            {step === 3 && (
-              <Step3_Rewards rewards={rewards} setRewards={setRewards}
-                settings={settings} config={config} lang={lang} />
+                burnRate={burnRate} brandAnalysis={brandAnalysis} />
             )}
             {step === 4 && (
+              <Step3_Rewards rewards={rewards} setRewards={setRewards}
+                settings={settings} config={config} lang={lang}
+                brandAnalysis={brandAnalysis} customers={customers} />
+            )}
+            {step === 5 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
                 rewards={rewards} setRewards={setRewards}
                 burnRate={burnRate} setBurnRate={setBurnRate}
                 customers={customers} settings={settings} config={config}
-                missions={missions} customMissions={customMissions} lang={lang} />
+                missions={missions} customMissions={customMissions} lang={lang}
+                brandAnalysis={brandAnalysis} />
             )}
-            {step === 5 && (
+            {step === 6 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
                 settings={settings} config={config}
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
-                programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')} />
+                programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
+                brandAnalysis={brandAnalysis} />
             )}
           </div>
         )}

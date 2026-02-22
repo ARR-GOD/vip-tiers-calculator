@@ -3,8 +3,10 @@ import { Plus, Trash2, Crown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatNumber, formatCompact, derivePointsFromCashback, getCashbackRecommendation } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
+import RecommendationBlock from './RecommendationBlock';
+import { getRecommendation } from '../utils/recommendations';
 
-export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate }) {
+export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate, brandAnalysis }) {
   const t = lang === 'fr';
   const [scenario, setScenario] = useState('medium');
   const scenarioData = ENGAGEMENT_SCENARIOS[scenario];
@@ -74,12 +76,14 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
     });
   }, [tiers, tierStats, missionsByTier, settings.cashbackRate, pointsPerEuro, burnRate]);
 
+  const reco = getRecommendation(3, { brandAnalysis, config, settings, customers, lang });
+
   // ── LUXURY PLACEHOLDER ──
   if (!config.hasMissions) {
     return (
       <div className="space-y-3">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 3' : 'STEP 3'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 4' : 'STEP 4'}</div>
           <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
         </div>
         <div className="card flex flex-col items-center justify-center text-center" style={{ padding: '64px 32px' }}>
@@ -103,12 +107,14 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 3' : 'STEP 3'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 4' : 'STEP 4'}</div>
           <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez les actions qui génèrent des points au-delà des achats.' : 'Define point-earning actions beyond purchases.'}</p>
         </div>
         <button onClick={addCustom} className="btn-primary"><Plus size={14} /> {t ? 'Ajouter' : 'Add'}</button>
       </div>
+
+      <RecommendationBlock stepKey={3} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
 
       {/* Scenario */}
       <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>

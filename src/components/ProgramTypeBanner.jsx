@@ -1,4 +1,4 @@
-import { Crown, Zap, Users } from 'lucide-react';
+import { Crown, Zap, Users, Coins } from 'lucide-react';
 
 const PROGRAM_CONFIG = {
   luxury: {
@@ -30,6 +30,16 @@ const PROGRAM_CONFIG = {
     labelEn: 'Engagement Program',
     descFr: 'Points \u00b7 Toutes missions \u00b7 Cashback & bons',
     descEn: 'Points \u00b7 All missions \u00b7 Cashback & vouchers',
+  },
+  cashback: {
+    Icon: Coins,
+    color: '#D97706',
+    bgColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    labelFr: 'Programme Cashback',
+    labelEn: 'Cashback Program',
+    descFr: 'Maximum de cashback \u00b7 Simplicité',
+    descEn: 'Maximum cashback \u00b7 Simplicity',
   },
 };
 

@@ -4,6 +4,8 @@ import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
 import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
+import RecommendationBlock from './RecommendationBlock';
+import { getRecommendation } from '../utils/recommendations';
 
 const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
 
@@ -22,7 +24,7 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis }) {
   const t = lang === 'fr';
 
   const tierStats = useMemo(() => {
@@ -124,11 +126,13 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     el.scrollTo({ left: idx * cardW, behavior: 'smooth' });
   };
 
+  const reco = getRecommendation(5, { brandAnalysis, config, settings, customers, lang });
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 5' : 'STEP 5'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
           <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez vos paliers et attribuez les récompenses.' : 'Define your tiers and assign rewards.'}</p>
         </div>
@@ -143,6 +147,8 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
           <BenchmarkBadge benchmarkKey="tierCount" value={tiers.length} lang={lang} />
         </div>
       </div>
+
+      <RecommendationBlock stepKey={5} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
 
       {/* Burn rate */}
       <div className="card flex items-center gap-4" style={{ padding: 16 }}>

@@ -5,6 +5,8 @@ import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import { computeCustomerScores, assignTiers, computeTierStats, computeRewardsCost, computeProgramFunnel, compute12MonthProjection, computeTierFinancials, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
+import RecommendationBlock from './RecommendationBlock';
+import { getRecommendation } from '../utils/recommendations';
 
 const SCENARIO_MULTIPLIERS = { conservative: 0.6, base: 1, optimistic: 1.4 };
 
@@ -88,9 +90,13 @@ const DIFFERENTIATION_TIPS = {
     fr: 'Adoptez la profondeur du catalogue Sephora : proposez un large choix de récompenses accessibles dès le premier palier, avec des missions variées pour maximiser l\'engagement quotidien.',
     en: 'Adopt Sephora\'s catalog depth: offer a wide choice of accessible rewards from the first tier, with varied missions to maximize daily engagement.',
   },
+  cashback: {
+    fr: 'Maximisez la transparence comme Yves Rocher : un cashback généreux et clairement communiqué fidélise les acheteurs fréquents. Ajoutez des missions simples pour créer de l\'engagement au-delà de l\'achat.',
+    en: 'Maximize transparency like Yves Rocher: generous, clearly communicated cashback retains frequent buyers. Add simple missions to create engagement beyond purchase.',
+  },
 };
 
-export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType }) {
+export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
   const [scenario, setScenario] = useState('base');
@@ -149,11 +155,13 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
   const effectiveType = programType || (config.hasMissions ? 'mid' : 'luxury');
   const tip = DIFFERENTIATION_TIPS[effectiveType] || DIFFERENTIATION_TIPS.mid;
 
+  const reco = getRecommendation(6, { brandAnalysis, config, settings, customers, lang });
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 7' : 'STEP 7'}</div>
           <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Dashboard du programme' : 'Program Dashboard'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Vue d\'ensemble et projections financières.' : 'Overview and financial projections.'}</p>
         </div>
@@ -162,6 +170,8 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
           <button onClick={exportPNG} className="btn-secondary"><Image size={13} /> PNG</button>
         </div>
       </div>
+
+      <RecommendationBlock stepKey={6} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
 
       {/* Scenario */}
       <div className="card flex items-center gap-3" style={{ padding: 16 }}>

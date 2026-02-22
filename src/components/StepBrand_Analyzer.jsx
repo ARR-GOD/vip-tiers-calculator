@@ -9,20 +9,32 @@ const POSITIONING_LABELS = {
 
 const PROGRAM_LABELS = {
   luxury: {
-    fr: 'Programme Prestige', en: 'Prestige Program',
+    fr: 'Prestige', en: 'Prestige',
     descFr: 'Pas de points, perks exclusifs, paliers sur le CA',
     descEn: 'No points, exclusive perks, spend-based tiers',
   },
   mid: {
-    fr: 'Programme \u00c9quilibr\u00e9', en: 'Balanced Program',
-    descFr: 'Points + missions, mix perks & r\u00e9ductions',
+    fr: 'Équilibré', en: 'Balanced',
+    descFr: 'Points + missions, mix perks & réductions',
     descEn: 'Points + missions, mix perks & discounts',
   },
   mass: {
-    fr: 'Programme Engagement', en: 'Engagement Program',
+    fr: 'Engagé', en: 'Engaged',
     descFr: 'Points, toutes missions, cashback & bons',
     descEn: 'Points, all missions, cashback & vouchers',
   },
+  cashback: {
+    fr: 'Cashback', en: 'Cashback',
+    descFr: 'Maximum de cashback, simplicité',
+    descEn: 'Maximum cashback, simplicity',
+  },
+};
+
+const PROGRAM_TO_POSITIONING = {
+  luxury: 'premium',
+  mid: 'mid-market',
+  mass: 'mass',
+  cashback: 'mass',
 };
 
 const TONE_LABELS = { luxury: 'Luxe', friendly: 'Amical', playful: 'Ludique', professional: 'Professionnel' };
@@ -33,6 +45,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
   const [phase, setPhase] = useState(initialData ? 'results' : 'input'); // input | loading | results | error
   const [editValues, setEditValues] = useState(initialData || null);
   const [error, setError] = useState('');
+  const [originalDetectedType, setOriginalDetectedType] = useState(initialData?._originalDetectedProgram || initialData?.recommended_program || null);
 
   const handleAnalyze = async () => {
     if (!url.trim()) return;
@@ -53,11 +66,17 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
       const data = await res.json();
       setEditValues(data);
+      setOriginalDetectedType(data.recommended_program);
       setPhase('results');
     } catch (err) {
       setError(err.message);
       setPhase('error');
     }
+  };
+
+  const handleComplete = () => {
+    // Preserve original detected type for future edits
+    onComplete({ ...editValues, _originalDetectedProgram: originalDetectedType });
   };
 
   // ── INPUT / ERROR PHASE ──
@@ -71,7 +90,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           </h2>
           <p className="text-[15px] text-[#6B7280] mt-1.5">
             {t
-              ? "Entrez l'URL de votre site pour pr\u00e9-configurer automatiquement votre programme."
+              ? "Entrez l'URL de votre site pour pré-configurer automatiquement votre programme."
               : 'Enter your website URL to auto-configure your program.'}
           </p>
         </div>
@@ -109,7 +128,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
         <div className="flex justify-center">
           <button onClick={onSkip} className="text-[13px] text-[#6B7280] hover:text-primary transition-colors">
-            {t ? 'Passer et configurer manuellement \u2192' : 'Skip and configure manually \u2192'}
+            {t ? 'Passer et configurer manuellement →' : 'Skip and configure manually →'}
           </button>
         </div>
       </div>
@@ -130,8 +149,8 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
   }
 
   // ── RESULTS PHASE ──
-  const pos = POSITIONING_LABELS[editValues.positioning] || POSITIONING_LABELS['mid-market'];
-  const prog = PROGRAM_LABELS[editValues.recommended_program] || PROGRAM_LABELS.mid;
+  const posKey = PROGRAM_TO_POSITIONING[editValues.recommended_program] || editValues.positioning || 'mid-market';
+  const pos = POSITIONING_LABELS[posKey] || POSITIONING_LABELS['mid-market'];
 
   return (
     <div className="max-w-2xl mx-auto space-y-3">
@@ -146,21 +165,40 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
         )}
       </div>
 
-      {/* Program Type Card */}
-      <div className="card" style={{ borderLeft: `3px solid ${pos.color}` }}>
-        <div className="section-subheader">{t ? 'TYPE DE PROGRAMME RECOMMAND\u00c9' : 'RECOMMENDED PROGRAM TYPE'}</div>
-        <div className="flex items-center gap-3 mt-1 mb-1.5">
-          <span className="text-[18px] font-bold text-[#111827]">{t ? prog.fr : prog.en}</span>
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: `${pos.color}15`, color: pos.color }}>
-            {t ? pos.fr : pos.en}
-          </span>
+      {/* Program Type Selector (Change 3) */}
+      <div className="card">
+        <div className="section-subheader">{t ? 'TYPE DE PROGRAMME' : 'PROGRAM TYPE'}</div>
+        <p className="text-[12px] text-[#9CA3AF] mb-3">
+          {t ? "C'est un choix stratégique, pas juste une détection automatique." : "This is a strategic choice, not just automatic detection."}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {['luxury', 'mid', 'mass', 'cashback'].map(type => {
+            const label = PROGRAM_LABELS[type];
+            const isSelected = editValues.recommended_program === type;
+            const isDetected = originalDetectedType === type;
+            return (
+              <button key={type}
+                onClick={() => setEditValues(prev => ({ ...prev, recommended_program: type }))}
+                className={`selection-card text-left ${isSelected ? 'selected' : ''}`}
+                style={{ padding: '12px 16px' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[14px] font-semibold text-[#111827]">{t ? label.fr : label.en}</span>
+                  {isDetected && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase" style={{ backgroundColor: '#F5F3FF', color: '#6B4EFF' }}>
+                      {t ? 'Détecté' : 'Detected'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[12px] text-[#6B7280] mt-0.5">{t ? label.descFr : label.descEn}</p>
+              </button>
+            );
+          })}
         </div>
-        <p className="text-[13px] text-[#6B7280]">{t ? prog.descFr : prog.descEn}</p>
       </div>
 
       {/* Detected Parameters */}
       <div className="card">
-        <div className="section-subheader">{t ? 'PARAM\u00c8TRES D\u00c9TECT\u00c9S' : 'DETECTED PARAMETERS'}</div>
+        <div className="section-subheader">{t ? 'PARAMÈTRES DÉTECTÉS' : 'DETECTED PARAMETERS'}</div>
         <div className="grid grid-cols-2 gap-4 mt-2">
           <EditableField
             label={t ? 'Secteur' : 'Industry'}
@@ -169,7 +207,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           />
           <EditableField
             label={t ? 'Panier moyen' : 'Avg Order Value'}
-            value={`${editValues.estimated_aov}\u20ac`}
+            value={`${editValues.estimated_aov}€`}
             onChange={(v) => setEditValues(prev => ({ ...prev, estimated_aov: parseInt(v) || 60 }))}
           />
           <EditableField
@@ -213,7 +251,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       {/* Suggested Missions */}
       {editValues.suggested_missions?.length > 0 && (
         <div className="card">
-          <div className="section-subheader">{t ? 'MISSIONS SUGG\u00c9R\u00c9ES' : 'SUGGESTED MISSIONS'}</div>
+          <div className="section-subheader">{t ? 'MISSIONS SUGGÉRÉES' : 'SUGGESTED MISSIONS'}</div>
           <div className="space-y-2 mt-2">
             {editValues.suggested_missions.map((mission, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F3F0FF' }}>
@@ -228,14 +266,14 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       {/* Actions */}
       <div className="flex items-center justify-between pt-2 pb-8">
         <button
-          onClick={() => { setPhase('input'); setEditValues(null); }}
+          onClick={() => { setPhase('input'); setEditValues(null); setOriginalDetectedType(null); }}
           className="flex items-center gap-2 text-[13px] text-[#6B7280] hover:text-primary transition-colors"
         >
           <RotateCcw size={14} />
           {t ? 'Recommencer' : 'Start over'}
         </button>
         <button
-          onClick={() => onComplete(editValues)}
+          onClick={handleComplete}
           className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl text-[14px] font-semibold hover:bg-primary-600 transition-all"
         >
           {t ? "C'est correct, continuer" : 'Looks good, continue'}

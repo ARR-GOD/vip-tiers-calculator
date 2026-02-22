@@ -3,8 +3,10 @@ import { Plus, Trash2 } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS } from '../data/defaults';
 import { formatCurrency, formatNumber } from '../utils/calculations';
+import RecommendationBlock from './RecommendationBlock';
+import { getRecommendation } from '../utils/recommendations';
 
-export default function Step3_Rewards({ rewards, setRewards, settings, config, lang }) {
+export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, customers }) {
   const t = lang === 'fr';
 
   const addReward = () => {
@@ -38,12 +40,14 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 4' : 'STEP 4'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 5' : 'STEP 5'}</div>
           <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Catalogue de récompenses' : 'Rewards Catalog'}</h2>
           <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez vos récompenses. L\'attribution par palier se fait à l\'étape suivante.' : 'Define your rewards. Tier assignment happens in the next step.'}</p>
         </div>
         <button onClick={addReward} className="btn-primary"><Plus size={14} /> {t ? 'Ajouter' : 'Add'}</button>
       </div>
+
+      {(() => { const reco = getRecommendation(4, { brandAnalysis, config, settings, customers, lang }); return <RecommendationBlock stepKey={4} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />; })()}
 
       {/* Rewards table */}
       <div className="card overflow-hidden">

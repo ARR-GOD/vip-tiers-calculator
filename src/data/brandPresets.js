@@ -51,6 +51,22 @@ const PROGRAM_TYPE_CONFIG = {
     ],
     missionFilter: () => true,
   },
+  cashback: {
+    tierBasis: 'spend',
+    hasMissions: true,
+    rewardType: 'both',
+    cashbackRate: 7,
+    burnRate: 60,
+    thresholds: [100, 55, 20],
+    multipliers: [1, 1.25, 1.75],
+    rewards: (aov) => [
+      { id: 'r1', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.05)}€`, nameEn: `${Math.round(aov * 0.05)}€ voucher`, rewardUsage: 'burn', pointsCost: 200, realCost: Math.round(aov * 0.05), minPurchase: 0 },
+      { id: 'r2', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.1)}€`, nameEn: `${Math.round(aov * 0.1)}€ voucher`, rewardUsage: 'burn', pointsCost: 500, realCost: Math.round(aov * 0.1), minPurchase: Math.round(aov * 0.5) },
+      { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.2)}€`, nameEn: `${Math.round(aov * 0.2)}€ voucher`, rewardUsage: 'burn', pointsCost: 1000, realCost: Math.round(aov * 0.2), minPurchase: Math.round(aov * 0.6) },
+      { id: 'r4', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
+    ],
+    missionFilter: () => true,
+  },
 };
 
 export function applyBrandDefaults(brandAnalysis, lang) {
