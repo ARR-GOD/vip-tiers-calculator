@@ -19,7 +19,7 @@ const INITIAL_CONFIG = {
   tierBasis: 'spend',
   hasMissions: true,
   rewardType: 'both',
-  pointsExpire: false,
+  pointsExpire: true,
   expirationMonths: 12,
   expirationType: 'rolling',
 };

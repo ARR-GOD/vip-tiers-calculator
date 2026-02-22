@@ -192,7 +192,15 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
             ref={scrollRef}
             onScroll={handleScroll}
             className="flex gap-3 overflow-x-auto tier-scroll"
-            style={{ scrollBehavior: 'smooth', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            style={{
+              scrollBehavior: 'smooth',
+              scrollSnapType: 'x mandatory',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              maskImage: showArrows ? 'linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)' : 'none',
+              WebkitMaskImage: showArrows ? 'linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)' : 'none',
+            }}
           >
             {tiers.map((tier, tierIdx) => {
               const stat = tierStats[tierIdx];

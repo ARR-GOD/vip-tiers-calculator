@@ -166,11 +166,20 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
       </div>
 
       {/* Privacy */}
-      <div className="flex items-center gap-2 px-1">
-        <Lock size={14} className="text-[#9CA3AF] shrink-0" />
-        <span className="text-[12px] text-[#9CA3AF]">
-          {t ? "Vos données restent dans votre navigateur. Rien n'est envoyé à un serveur." : 'Your data stays in your browser. Nothing is sent to a server.'}
-        </span>
+      <div className="card" style={{ backgroundColor: '#F9FAFB', padding: '12px 16px' }}>
+        <div className="flex items-start gap-2.5">
+          <Lock size={14} className="text-[#9CA3AF] shrink-0 mt-0.5" />
+          <div>
+            <span className="text-[12px] text-[#6B7280] font-medium block">
+              {t ? "Vos données restent dans votre navigateur. Rien n'est envoyé à un serveur." : 'Your data stays in your browser. Nothing is sent to a server.'}
+            </span>
+            <span className="text-[11px] text-[#9CA3AF] block mt-1">
+              {t
+                ? 'Le champ customer_id peut être un identifiant anonyme — ne partagez pas de données personnelles (nom, email, téléphone).'
+                : 'The customer_id field can be an anonymous identifier — do not share personal data (name, email, phone).'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Secondary actions */}

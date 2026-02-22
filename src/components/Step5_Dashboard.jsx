@@ -423,12 +423,12 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
       <div
         className="mt-6"
         style={{
-          background: 'linear-gradient(135deg, #6B4EFF 0%, #4F35CC 100%)',
-          borderRadius: 16,
-          padding: 32,
+          backgroundColor: '#6B4EFF',
+          borderRadius: 10,
+          padding: '24px 28px',
         }}
       >
-        <h3 className="text-[24px] font-bold text-white mb-4">
+        <h3 className="text-[22px] font-bold text-white mb-3">
           {t ? 'Ce qui vous différencie' : 'What sets you apart'}
         </h3>
         <div className="space-y-3 mb-6">
@@ -474,7 +474,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
         <div className="flex items-center gap-3">
           <button
             onClick={exportPNG}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold transition-all"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all"
             style={{ backgroundColor: 'white', color: '#6B4EFF' }}
           >
             <FileText size={15} />
@@ -487,8 +487,8 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
               const url = `${window.location.origin}${window.location.pathname}?state=${encoded}`;
               navigator.clipboard.writeText(url);
             }}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-semibold transition-all"
-            style={{ backgroundColor: 'transparent', color: 'white', border: '1.5px solid rgba(255,255,255,0.5)' }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all"
+            style={{ backgroundColor: 'transparent', color: 'white', border: '1.5px solid rgba(255,255,255,0.4)' }}
           >
             <Link2 size={15} />
             {t ? 'Partager la configuration' : 'Share configuration'}
