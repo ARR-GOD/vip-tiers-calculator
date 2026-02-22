@@ -9,7 +9,7 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
 
   const setTierCount = (count) => {
     const names = lang === 'fr' ? ['Bronze', 'Argent', 'Or', 'Platine'] : ['Bronze', 'Silver', 'Gold', 'Platinum'];
-    const colors = ['#B87333', '#9CA3AF', '#D97706', '#6B7280'];
+    const colors = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
     if (count > tiers.length) {
       const newTiers = [...tiers];
       for (let i = tiers.length; i < count; i++) {

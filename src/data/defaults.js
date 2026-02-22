@@ -1,5 +1,5 @@
 // ── Tier defaults ──
-export const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#6B7280'];
+export const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
 export const DEFAULT_TIER_NAMES_FR = ['Bronze', 'Argent', 'Or', 'Platine'];
 export const DEFAULT_TIER_NAMES_EN = ['Bronze', 'Silver', 'Gold', 'Platinum'];
 
@@ -9,8 +9,8 @@ export const TIER_COLOR_MAP = {
   Silver: '#9CA3AF',
   Or: '#D97706',
   Gold: '#D97706',
-  Platine: '#6B7280',
-  Platinum: '#6B7280',
+  Platine: '#7C3AED',
+  Platinum: '#7C3AED',
 };
 
 // ── Missions ──
