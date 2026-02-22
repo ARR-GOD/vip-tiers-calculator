@@ -2,6 +2,79 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+/**
+ * Clean raw HTML: extract meta tags + visible text, strip scripts/styles/noise.
+ * This prevents third-party tools (Shoplift, Klaviyo, etc.) from polluting brand analysis.
+ */
+function cleanHtml(html, url) {
+  const parts = [];
+
+  // 1. Extract key meta tags (title, description, og:*)
+  const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+  if (title) parts.push(`Page title: ${title}`);
+
+  const metaPatterns = [
+    { name: 'description', re: /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i },
+    { name: 'og:title', re: /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i },
+    { name: 'og:description', re: /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i },
+    { name: 'og:site_name', re: /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i },
+  ];
+  // Also try reversed attribute order (content before property)
+  const metaPatternsAlt = [
+    { name: 'description', re: /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i },
+    { name: 'og:title', re: /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i },
+    { name: 'og:description', re: /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i },
+    { name: 'og:site_name', re: /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:site_name["']/i },
+  ];
+  for (const p of metaPatterns) {
+    const m = html.match(p.re) || html.match(metaPatternsAlt.find(a => a.name === p.name)?.re);
+    if (m?.[1]) parts.push(`${p.name}: ${m[1].trim()}`);
+  }
+
+  parts.push(`URL: ${url}`);
+  parts.push('---');
+
+  // 2. Extract Shopify product JSON-LD (structured data)
+  const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const m of jsonLdMatches) {
+    try {
+      const data = JSON.parse(m[1]);
+      if (data['@type'] === 'Organization' || data['@type'] === 'WebSite') {
+        parts.push(`Structured data (${data['@type']}): ${JSON.stringify(data).slice(0, 2000)}`);
+      }
+    } catch { /* skip invalid JSON-LD */ }
+  }
+
+  // 3. Strip scripts, styles, SVGs, noscript, and common third-party noise
+  let cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '') // nav is noisy
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ''); // footer is noisy
+
+  // 4. Extract visible text from remaining HTML
+  cleaned = cleaned
+    .replace(/<[^>]+>/g, ' ')          // strip all tags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')             // collapse whitespace
+    .trim();
+
+  // 5. Take the meaningful portion
+  if (cleaned.length > 15000) cleaned = cleaned.slice(0, 15000);
+  parts.push('Visible page text:');
+  parts.push(cleaned);
+
+  return parts.join('\n');
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -18,9 +91,11 @@ export default async function handler(req, res) {
     const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
     const fetchRes = await fetch(normalizedUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LoyolyBot/1.0)',
-        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
       },
+      redirect: 'follow',
       signal: AbortSignal.timeout(10000),
     });
 
@@ -29,7 +104,7 @@ export default async function handler(req, res) {
     }
 
     const html = await fetchRes.text();
-    const truncatedHtml = html.slice(0, 50000);
+    const cleanedContent = cleanHtml(html, normalizedUrl);
 
     // Extract brand logo from HTML meta tags
     let brandLogo = null;
@@ -64,7 +139,8 @@ export default async function handler(req, res) {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: `You are a brand analyst for an e-commerce loyalty program tool.
-Analyze the provided website HTML and extract brand characteristics.
+Analyze the provided website content (meta tags + visible text) and extract brand characteristics.
+Focus on the actual brand, NOT third-party tools (Shopify, Shoplift, Klaviyo, etc.).
 You MUST respond with valid JSON only, no markdown, no explanation.
 
 The JSON schema:
@@ -92,7 +168,7 @@ Rules:
       messages: [
         {
           role: 'user',
-          content: `Analyze this e-commerce website HTML and extract brand characteristics:\n\n${truncatedHtml}`,
+          content: `Analyze this e-commerce website and extract brand characteristics:\n\n${cleanedContent}`,
         },
       ],
     });
