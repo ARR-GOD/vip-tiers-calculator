@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Download, Image } from 'lucide-react';
+import { Download, Image, ChevronDown, Check, X } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
@@ -8,10 +8,93 @@ import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
 
 const SCENARIO_MULTIPLIERS = { conservative: 0.6, base: 1, optimistic: 1.4 };
 
-export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang }) {
+const COMPETITORS = [
+  {
+    id: 'sephora',
+    brand: 'Sephora',
+    program: 'Beauty Insider',
+    initials: 'SE',
+    color: '#000000',
+    modelFr: 'Points',
+    modelEn: 'Points',
+    descFr: '3 paliers, cashback ~3-5%',
+    descEn: '3 tiers, cashback ~3-5%',
+    strengthsFr: ['Catalogue de récompenses très profond', 'Programme reconnu et aspirationnel'],
+    strengthsEn: ['Very deep rewards catalog', 'Recognized and aspirational program'],
+    weaknessFr: 'Complexité du barème de points',
+    weaknessEn: 'Complex points schedule',
+    cashback: '3-5%',
+  },
+  {
+    id: 'yvesrocher',
+    brand: 'Yves Rocher',
+    program: 'Club',
+    initials: 'YR',
+    color: '#2D8C3C',
+    modelFr: 'Cashback',
+    modelEn: 'Cashback',
+    descFr: 'Paliers sur CA, cashback 8-12%',
+    descEn: 'Spend-based tiers, cashback 8-12%',
+    strengthsFr: ['Mécanique simple et transparente', 'Forte rétention sur les paliers hauts'],
+    strengthsEn: ['Simple and transparent mechanics', 'Strong retention on high tiers'],
+    weaknessFr: 'Peu de gamification / engagement',
+    weaknessEn: 'Low gamification / engagement',
+    cashback: '8-12%',
+  },
+  {
+    id: 'venum',
+    brand: 'Venum',
+    program: 'Fight Club',
+    initials: 'VN',
+    color: '#D4AF37',
+    modelFr: 'Points + Missions',
+    modelEn: 'Points + Missions',
+    descFr: '2 paliers, cashback 5-8%',
+    descEn: '2 tiers, cashback 5-8%',
+    strengthsFr: ['Missions communautaires engageantes', 'Fort sentiment d\'appartenance'],
+    strengthsEn: ['Engaging community missions', 'Strong sense of belonging'],
+    weaknessFr: 'Nombre limité de paliers',
+    weaknessEn: 'Limited number of tiers',
+    cashback: '5-8%',
+  },
+  {
+    id: 'lululemon',
+    brand: 'Lululemon',
+    program: 'Membership',
+    initials: 'LL',
+    color: '#C41230',
+    modelFr: 'Perks VIP',
+    modelEn: 'VIP Perks',
+    descFr: 'Pas de points, perks exclusifs',
+    descEn: 'No points, exclusive perks',
+    strengthsFr: ['Expérience premium sans friction', 'Perks exclusifs à forte valeur perçue'],
+    strengthsEn: ['Frictionless premium experience', 'High perceived value exclusive perks'],
+    weaknessFr: 'Pas de mécanique de rétention progressive',
+    weaknessEn: 'No progressive retention mechanic',
+    cashback: '0%',
+  },
+];
+
+const DIFFERENTIATION_TIPS = {
+  luxury: {
+    fr: 'Inspirez-vous de Lululemon : misez sur des perks exclusifs à forte valeur perçue (accès anticipé, événements privés, personnalisation) plutôt que sur du cashback. Votre programme doit renforcer le sentiment de privilège.',
+    en: 'Take inspiration from Lululemon: focus on exclusive perks with high perceived value (early access, private events, personalization) rather than cashback. Your program should reinforce a sense of privilege.',
+  },
+  mid: {
+    fr: 'Combinez le meilleur d\'Yves Rocher (paliers transparents) et de Venum (missions engageantes). Un mix points + missions avec des perks aspirationnels sur les paliers hauts vous différenciera.',
+    en: 'Combine the best of Yves Rocher (transparent tiers) and Venum (engaging missions). A mix of points + missions with aspirational perks on high tiers will differentiate you.',
+  },
+  mass: {
+    fr: 'Adoptez la profondeur du catalogue Sephora : proposez un large choix de récompenses accessibles dès le premier palier, avec des missions variées pour maximiser l\'engagement quotidien.',
+    en: 'Adopt Sephora\'s catalog depth: offer a wide choice of accessible rewards from the first tier, with varied missions to maximize daily engagement.',
+  },
+};
+
+export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
   const [scenario, setScenario] = useState('base');
+  const [benchmarkOpen, setBenchmarkOpen] = useState(false);
   const scenarioMult = SCENARIO_MULTIPLIERS[scenario];
 
   const { tierStats, assignedCustomers } = useMemo(() => {
@@ -62,6 +145,9 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
       saveAs(dataUrl, 'vip-tiers-dashboard.png');
     } catch (err) { console.error(err); }
   };
+
+  const effectiveType = programType || (config.hasMissions ? 'mid' : 'luxury');
+  const tip = DIFFERENTIATION_TIPS[effectiveType] || DIFFERENTIATION_TIPS.mid;
 
   return (
     <div className="space-y-3">
@@ -238,6 +324,89 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
             </tfoot>
           </table>
         </div>
+      </div>
+
+      {/* ─── Benchmark concurrents ─── */}
+      <div className="mt-6">
+        <button
+          onClick={() => setBenchmarkOpen(o => !o)}
+          className="w-full flex items-center justify-between px-0 py-2 group"
+        >
+          <div className="section-header" style={{ marginBottom: 0 }}>
+            {t ? 'BENCHMARK CONCURRENTS' : 'COMPETITOR BENCHMARK'}
+          </div>
+          <ChevronDown
+            size={18}
+            className="text-[#9CA3AF] transition-transform"
+            style={{ transform: benchmarkOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </button>
+
+        {benchmarkOpen && (
+          <div className="space-y-3 mt-2" style={{ animation: 'fadeSlideIn 0.15s ease' }}>
+            {/* Competitor cards — 2-col grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {COMPETITORS.map((comp) => (
+                <div key={comp.id} className="card">
+                  {/* Header row: logo + name + model pill */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[13px] font-bold shrink-0"
+                      style={{ backgroundColor: comp.color }}
+                    >
+                      {comp.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[15px] font-semibold text-[#111827] leading-tight">{comp.program}</div>
+                      <div className="text-[12px] text-[#9CA3AF]">{comp.brand}</div>
+                    </div>
+                    <span className="pill pill-purple text-[11px] shrink-0">
+                      {t ? comp.modelFr : comp.modelEn}
+                    </span>
+                  </div>
+
+                  <div className="text-[13px] text-[#6B7280] mb-3">
+                    {t ? comp.descFr : comp.descEn}
+                  </div>
+
+                  {/* Strengths */}
+                  <div className="space-y-1.5 mb-2">
+                    {(t ? comp.strengthsFr : comp.strengthsEn).map((s, j) => (
+                      <div key={j} className="flex items-start gap-2">
+                        <Check size={14} className="text-[#10B981] shrink-0 mt-0.5" />
+                        <span className="text-[13px] text-[#374151]">{s}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Weakness */}
+                  <div className="flex items-start gap-2 mb-3">
+                    <X size={14} className="text-[#EF4444] shrink-0 mt-0.5" />
+                    <span className="text-[13px] text-[#374151]">{t ? comp.weaknessFr : comp.weaknessEn}</span>
+                  </div>
+
+                  {/* Cashback badge */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-[11px] text-[#9CA3AF] uppercase tracking-wider">
+                      {t ? 'Cashback équivalent' : 'Cashback equivalent'}
+                    </span>
+                    <span className="pill pill-gray text-[12px]">{comp.cashback}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Differentiation recommendation */}
+            <div className="card" style={{ borderLeft: '3px solid #6B4EFF' }}>
+              <div className="section-subheader">
+                {t ? 'COMMENT VOUS DÉMARQUER' : 'HOW TO DIFFERENTIATE'}
+              </div>
+              <p className="text-[14px] text-[#374151] leading-relaxed mt-1">
+                {t ? tip.fr : tip.en}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

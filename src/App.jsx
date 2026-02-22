@@ -224,7 +224,8 @@ function App() {
               <Step5_Dashboard tiers={tiers} customers={customers}
                 settings={settings} config={config}
                 missions={missions} customMissions={customMissions}
-                rewards={rewards} burnRate={burnRate} lang={lang} />
+                rewards={rewards} burnRate={burnRate} lang={lang}
+                programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')} />
             )}
           </div>
         )}
