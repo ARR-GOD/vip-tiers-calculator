@@ -217,7 +217,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           <div className="space-y-2 mt-2">
             {editValues.suggested_missions.map((mission, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F3F0FF' }}>
-                <span className="text-primary text-[10px]">\u25cf</span>
+                <span className="text-primary text-[10px]">●</span>
                 <span className="text-[13px] text-[#111827]">{mission}</span>
               </div>
             ))}
