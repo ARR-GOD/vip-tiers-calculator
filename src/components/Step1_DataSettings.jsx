@@ -199,6 +199,39 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
               )}
             </div>
           )}
+
+          {/* Points per euro setting */}
+          <div className="pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <label className="text-[12px] font-medium text-[#374151]">{t.pointsPerEuro}</label>
+                <Tooltip text={t.pointsPerEuroTip} />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <input type="number" min={1} max={1000} value={settings.pointsPerEuro || 100}
+                  onChange={e => setSettings(p => ({ ...p, pointsPerEuro: parseInt(e.target.value) || 100 }))}
+                  className="w-full px-3 py-2 pr-16 text-[15px]" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#9CA3AF]">pts = 1€</span>
+              </div>
+            </div>
+            <div className="mt-2 text-[11px] text-[#9CA3AF]">
+              {lang === 'fr'
+                ? `→ ${settings.cashbackRate}% de cashback × ${settings.pointsPerEuro || 100} pts/€ = ${((settings.cashbackRate * (settings.pointsPerEuro || 100)) / 100).toFixed(1)} pts gagnés par 1€ dépensé`
+                : `→ ${settings.cashbackRate}% cashback × ${settings.pointsPerEuro || 100} pts/€ = ${((settings.cashbackRate * (settings.pointsPerEuro || 100)) / 100).toFixed(1)} pts earned per 1€ spent`}
+            </div>
+            <div className="mt-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F3F0FF' }}>
+              <div className="text-[11px] text-primary font-medium">
+                💡 {lang === 'fr' ? 'Recommandation' : 'Recommendation'}:{' '}
+                <span className="font-normal text-[#6B7280]">
+                  {lang === 'fr'
+                    ? `Avec un taux de ${settings.cashbackRate}%, nous recommandons ${settings.cashbackRate <= 5 ? '100' : settings.cashbackRate <= 10 ? '10' : '1'} pts = 1€. Cela donne ${settings.cashbackRate <= 5 ? settings.cashbackRate : settings.cashbackRate <= 10 ? (settings.cashbackRate / 10).toFixed(1) : (settings.cashbackRate / 100).toFixed(2)} pts par € dépensé — un ratio facile à communiquer.`
+                    : `With a ${settings.cashbackRate}% rate, we recommend ${settings.cashbackRate <= 5 ? '100' : settings.cashbackRate <= 10 ? '10' : '1'} pts = 1€. This gives ${settings.cashbackRate <= 5 ? settings.cashbackRate : settings.cashbackRate <= 10 ? (settings.cashbackRate / 10).toFixed(1) : (settings.cashbackRate / 100).toFixed(2)} pts per € spent — an easy ratio to communicate.`}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -247,6 +280,7 @@ const FR = {
   cashbackRate: 'Taux de cashback (base)', cashbackTip: '% de la valeur d\'achat retourné en points.',
   ofMargin: 'de la marge',
   recoLabel: 'Recommandation :',
+  pointsPerEuro: 'Valeur des points', pointsPerEuroTip: 'Combien de points valent 1€ de récompense. Ex: 100 pts = 1€.',
 };
 
 const EN = {
@@ -262,4 +296,5 @@ const EN = {
   cashbackRate: 'Cashback rate (base)', cashbackTip: '% of purchase value returned as points.',
   ofMargin: 'of margin',
   recoLabel: 'Recommendation:',
+  pointsPerEuro: 'Points value', pointsPerEuroTip: 'How many points equal 1€ in reward value. E.g.: 100 pts = 1€.',
 };

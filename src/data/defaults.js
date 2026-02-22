@@ -17,6 +17,12 @@ export const TIER_COLOR_MAP = {
 // Each mission has per-tier engagement rates (% of tier customers who complete it per year)
 export const DEFAULT_MISSIONS = [
   {
+    id: 'purchase', icon: '🛒',
+    nameFr: 'Réaliser un achat', nameEn: 'Make a purchase',
+    points: 1, frequency: 4, enabled: true, isPurchaseMission: true,
+    engagementByTier: [100, 100, 100],
+  },
+  {
     id: 'referral', icon: '🤝',
     nameFr: 'Parrainage', nameEn: 'Referral',
     points: 500, frequency: 1, enabled: true,

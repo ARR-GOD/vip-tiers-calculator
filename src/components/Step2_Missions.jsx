@@ -13,7 +13,7 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
 
   const tierStats = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
     const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
     return computeTierStats(assigned, tiers);
   }, [customers, settings, tiers, config]);
@@ -64,7 +64,7 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   const totalCompletions = missionsByTier.reduce((s, d) => s + d.totalCompletions, 0);
 
   const cashbackReco = getCashbackRecommendation(settings.grossMargin);
-  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
 
   // Per-tier point circulation data
   const tierPointsData = useMemo(() => {
@@ -157,15 +157,23 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
             <tbody>
               {allMissions.map(m => {
                 const isCustom = customMissions.some(c => c.id === m.id);
+                const isPurchase = m.isPurchaseMission;
                 const totalMissionPts = missionsByTier.reduce((s, td) => {
                   const mb = td.missionBreakdown.find(b => b.missionId === m.id);
                   return s + (mb?.pointsGenerated || 0);
                 }, 0);
 
+                // Purchase mission: show dynamic pts = cashbackRate% × AOV × pointsPerEuro / 100
+                const purchasePts = isPurchase ? Math.round(settings.cashbackRate * (settings.aov || 60) * (settings.pointsPerEuro || 100) / 100) : null;
+
                 return (
                   <tr key={m.id} className={`border-b border-gray-50 hover:bg-gray-50 ${!m.enabled ? 'opacity-40' : ''}`} style={{ transition: 'all 0.15s ease' }}>
                     <td className="px-4 py-2">
-                      <input type="checkbox" checked={m.enabled} onChange={() => toggleMission(m.id)} className="w-3.5 h-3.5 rounded" />
+                      {isPurchase ? (
+                        <span className="w-3.5 h-3.5 rounded bg-primary/20 border border-primary flex items-center justify-center text-[8px] text-primary">✓</span>
+                      ) : (
+                        <input type="checkbox" checked={m.enabled} onChange={() => toggleMission(m.id)} className="w-3.5 h-3.5 rounded" />
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
@@ -177,12 +185,23 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                         ) : (
                           <span className="font-medium text-[#374151]">{t ? m.nameFr : m.nameEn}</span>
                         )}
+                        {isPurchase && (
+                          <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded font-medium">
+                            {t ? 'auto' : 'auto'}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <input type="number" value={m.points} min={0}
-                        onChange={e => updateField(m.id, 'points', parseInt(e.target.value) || 0)}
-                        className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
+                      {isPurchase ? (
+                        <span className="text-[12px] text-[#6B7280]" title={t ? `${settings.cashbackRate}% × ${settings.aov}€ × ${settings.pointsPerEuro || 100}pts/€` : `${settings.cashbackRate}% × ${settings.aov}€ × ${settings.pointsPerEuro || 100}pts/€`}>
+                          {purchasePts}
+                        </span>
+                      ) : (
+                        <input type="number" value={m.points} min={0}
+                          onChange={e => updateField(m.id, 'points', parseInt(e.target.value) || 0)}
+                          className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
+                      )}
                     </td>
                     <td className="px-3 py-2 text-center">
                       <input type="number" value={m.frequency} min={0} step={0.1}
@@ -190,13 +209,17 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                         className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <div className="flex items-center justify-center gap-0.5">
-                        <input type="number" min={0} max={100}
-                          value={m.engagementByTier?.[0] ?? 20}
-                          onChange={e => updateEngagement(m.id, parseInt(e.target.value) || 0)}
-                          className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
-                        <span className="text-[10px] text-[#9CA3AF]">%</span>
-                      </div>
+                      {isPurchase ? (
+                        <span className="text-[12px] text-[#9CA3AF]">100%</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-0.5">
+                          <input type="number" min={0} max={100}
+                            value={m.engagementByTier?.[0] ?? 20}
+                            onChange={e => updateEngagement(m.id, parseInt(e.target.value) || 0)}
+                            className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
+                          <span className="text-[10px] text-[#9CA3AF]">%</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-center font-medium text-[#374151]">{formatCompact(totalMissionPts)}</td>
                     <td className="px-2 py-2">

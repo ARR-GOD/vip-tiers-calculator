@@ -101,7 +101,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
 
   const { tierStats, assignedCustomers } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
     const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
     return { tierStats: computeTierStats(assigned, tiers), assignedCustomers: assigned };
   }, [customers, settings, tiers, config]);

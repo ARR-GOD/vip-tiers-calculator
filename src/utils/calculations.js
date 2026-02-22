@@ -3,12 +3,13 @@
 // ══════════════════════════════════════════════════════════════
 
 // ── Points derivation from cashback rate ──
-// Fixed: 100 pts = 1€. So cashbackRate% → that many pts per €.
-export function derivePointsFromCashback(cashbackRate) {
+// pointsToEuro: how many points = 1€ of reward value (configurable, default 100)
+// pointsPerEuro: how many points a customer earns per 1€ spent = cashbackRate% × pointsToEuro
+export function derivePointsFromCashback(cashbackRate, pointsToEuro = 100) {
   const rate = parseFloat(cashbackRate) || 3;
-  const pointsToEuro = 100; // 100 pts = 1€
-  const pointsPerEuro = rate; // 3% → 3 pts/€
-  return { pointsToEuro, pointsPerEuro };
+  const pto = parseInt(pointsToEuro) || 100;
+  const pointsPerEuro = rate * pto / 100; // 3% cashback, 100pts=1€ → 3 pts/€
+  return { pointsToEuro: pto, pointsPerEuro };
 }
 
 // ── Cashback recommendation based on gross margin ──
@@ -287,7 +288,7 @@ export function resizeMissionEngagement(missions, newTierCount) {
 // ── Program funnel calculation ──
 export function computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, scenarioMultiplier = 1) {
   const { cashbackRate, grossMargin } = settings;
-  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate);
+  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate, settings.pointsPerEuro);
 
   const totalCustomers = tierStats.reduce((s, t) => s + t.count, 0);
   const totalRevenue = tierStats.reduce((s, t) => s + t.revenue, 0);
@@ -343,7 +344,7 @@ export function computeExpirationImpact(expirationMonths, isRolling) {
 export function compute12MonthProjection(tierStats, rewards, settings, tiers, missions, customMissions, scenarioMultiplier = 1) {
   const months = [];
   const { cashbackRate, grossMargin } = settings;
-  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate);
+  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate, settings.pointsPerEuro);
 
   for (let m = 1; m <= 12; m++) {
     const factor = m / 12;

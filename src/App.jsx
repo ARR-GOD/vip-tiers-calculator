@@ -30,6 +30,7 @@ const INITIAL_SETTINGS = {
   aov: 60,
   grossMargin: 60,
   cashbackRate: 3,
+  pointsPerEuro: 100, // 100 points = 1€ de récompense
 };
 
 const INITIAL_TIERS = [

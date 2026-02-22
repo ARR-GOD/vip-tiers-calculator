@@ -168,6 +168,7 @@ export function applyOnboardingDefaults(answers, lang) {
     aov: Math.round(preset.aov * priceAdj.aovMult),
     grossMargin: preset.grossMargin,
     cashbackRate,
+    pointsPerEuro: 100,
   };
 
   const missions = DEFAULT_MISSIONS.map(m => ({

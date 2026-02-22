@@ -108,10 +108,11 @@ export function applyBrandDefaults(brandAnalysis, lang) {
     aov: Math.round(aov),
     grossMargin: margin,
     cashbackRate: programCfg.cashbackRate,
+    pointsPerEuro: 100,
   };
 
   const missions = DEFAULT_MISSIONS
-    .filter(programCfg.missionFilter)
+    .filter(m => m.isPurchaseMission || programCfg.missionFilter(m))
     .map(m => ({
       ...m,
       enabled: true,

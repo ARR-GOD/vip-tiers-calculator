@@ -11,7 +11,7 @@ export default function TabConfig({ tiers, setTiers, missions, setMissions, cust
 
   // Computed stats
   const sorted = useMemo(() => computeCustomerScores(customers, settings.segmentationType, settings.caWeight), [customers, settings]);
-  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
   const assigned = useMemo(() => assignTiers(sorted, tiers, config.tierBasis, { pointsPerEuro }), [sorted, tiers, config.tierBasis, pointsPerEuro]);
   const tierStats = useMemo(() => computeTierStats(assigned, tiers), [assigned, tiers]);
 

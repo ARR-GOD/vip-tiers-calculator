@@ -11,7 +11,7 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
   const summaryRef = useRef(null);
 
   // Core calculations
-  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
   const sorted = useMemo(() => computeCustomerScores(customers, settings.segmentationType, settings.caWeight), [customers, settings]);
   const assigned = useMemo(() => assignTiers(sorted, tiers, config.tierBasis, { pointsPerEuro }), [sorted, tiers, config, pointsPerEuro]);
   const tierStats = useMemo(() => computeTierStats(assigned, tiers), [assigned, tiers]);

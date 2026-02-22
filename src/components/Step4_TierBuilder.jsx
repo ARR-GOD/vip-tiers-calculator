@@ -29,7 +29,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
   const tierStats = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate);
+    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
     const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
     return computeTierStats(assigned, tiers);
   }, [customers, settings, tiers, config]);
