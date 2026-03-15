@@ -65,6 +65,23 @@ export function assignTiers(sortedCustomers, tiers, tierBasis, programConfig) {
 function assignTiersByPercentile(sortedCustomers, tiers) {
   const total = sortedCustomers.length;
   if (total === 0) return [];
+
+  // Use absolute spend thresholds if defined
+  const hasSpendThresholds = tiers.some(t => t.spendThreshold != null);
+  if (hasSpendThresholds) {
+    return sortedCustomers.map(customer => {
+      let assignedTier = 0;
+      for (let i = tiers.length - 1; i >= 0; i--) {
+        if (customer.total_ordered_TTC >= (tiers[i].spendThreshold || 0)) {
+          assignedTier = i;
+          break;
+        }
+      }
+      return { ...customer, tier: assignedTier };
+    });
+  }
+
+  // Fallback: percentile-based
   const thresholds = tiers.map(t => t.threshold);
   return sortedCustomers.map((customer, index) => {
     const percentile = ((index + 1) / total) * 100;
@@ -330,6 +347,76 @@ export function computeProgramFunnel(tierStats, missions, customMissions, reward
       ? ((rewardCosts.incrementalRevenue * (grossMargin / 100) - rewardCosts.totalCost) / rewardCosts.totalCost * 100)
       : 0,
   };
+}
+
+// ── Referral economics ──
+export function computeReferralEconomics(referralConfig, aov) {
+  if (!referralConfig || !referralConfig.enabled) {
+    return { costReferrerPerYear: 0, costRefereePerYear: 0, totalCostPerYear: 0, revenuePerYear: 0, roi: 0 };
+  }
+  const { referrerType, referrerValue, refereeType, refereeValue, estimatedReferralsPerMonth, conversionRate, avgFirstOrderValue } = referralConfig;
+  const referralsPerYear = (estimatedReferralsPerMonth || 0) * 12;
+  const convRate = (conversionRate || 0) / 100;
+  const convertedPerYear = referralsPerYear * convRate;
+
+  // Cost per referrer reward
+  const costPerReferrer = referrerType === 'percent'
+    ? (referrerValue / 100) * (aov || 60)
+    : referrerValue;
+  const costReferrerPerYear = referralsPerYear * costPerReferrer;
+
+  // Cost per referee reward
+  const costPerReferee = refereeType === 'percent'
+    ? (refereeValue / 100) * (avgFirstOrderValue || 80)
+    : refereeValue;
+  const costRefereePerYear = convertedPerYear * costPerReferee;
+
+  const totalCostPerYear = costReferrerPerYear + costRefereePerYear;
+  const revenuePerYear = convertedPerYear * (avgFirstOrderValue || 80);
+  const roi = totalCostPerYear > 0 ? ((revenuePerYear - totalCostPerYear) / totalCostPerYear) * 100 : 0;
+
+  return { costReferrerPerYear, costRefereePerYear, totalCostPerYear, revenuePerYear, roi };
+}
+
+// ── Points economy (emitted / burned / dormant) ──
+export function computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate) {
+  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
+
+  // Points emitted per year per tier
+  const perTier = tiers.map((tier, i) => {
+    const stat = tierStats[i];
+    if (!stat || stat.count === 0) return { emitted: 0, burned: 0, dormant: 0 };
+
+    // Purchase points
+    const purchasePoints = Math.round(stat.revenue * (settings.cashbackRate / 100) * pointsPerEuro * (tier.pointsMultiplier || 1));
+
+    // Mission points
+    const allMissions = [...missions, ...customMissions].filter(m => m.enabled);
+    const missionPoints = allMissions.reduce((sum, m) => {
+      const rate = (m.engagementByTier?.[i] ?? 20) / 100;
+      return sum + Math.round(stat.count * rate * (m.frequency || 1) * m.points);
+    }, 0);
+
+    const emitted = purchasePoints + missionPoints;
+
+    // Burned = emitted × burnRate × avg utilization of burn rewards
+    const burnRewards = rewards.filter(r => r.rewardUsage === 'burn');
+    const avgUtil = burnRewards.length > 0
+      ? burnRewards.reduce((s, r) => s + (r.utilizationByTier?.[i] ?? 30), 0) / burnRewards.length / 100
+      : 0.3;
+    const burned = Math.round(emitted * (burnRate / 100) * avgUtil);
+    const dormant = emitted - burned;
+
+    return { emitted, burned, dormant, purchasePoints, missionPoints };
+  });
+
+  const totalEmitted = perTier.reduce((s, t) => s + t.emitted, 0);
+  const totalBurned = perTier.reduce((s, t) => s + t.burned, 0);
+  const totalDormant = totalEmitted - totalBurned;
+  const utilizationRate = totalEmitted > 0 ? (totalBurned / totalEmitted) * 100 : 0;
+  const provisionEur = totalDormant / (pointsPerEuro || 100);
+
+  return { perTier, totalEmitted, totalBurned, totalDormant, utilizationRate, provisionEur };
 }
 
 // ── Expiration impact (rough estimate) ──

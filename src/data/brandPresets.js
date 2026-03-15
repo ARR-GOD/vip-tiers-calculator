@@ -33,7 +33,7 @@ const PROGRAM_TYPE_CONFIG = {
       { id: 'r3', type: 'gift_voucher', nameFr: `Bon de ${Math.round(aov * 0.15)}€`, nameEn: `${Math.round(aov * 0.15)}€ voucher`, rewardUsage: 'burn', pointsCost: 1000, realCost: Math.round(aov * 0.15), minPurchase: Math.round(aov * 1.5) },
       { id: 'r4', type: 'experience', nameFr: 'Accès avant-première', nameEn: 'Early access', rewardUsage: 'perk', pointsCost: 0, realCost: 2, minPurchase: 0 },
     ],
-    missionFilter: (m) => ['referral', 'review', 'birthday', 'first_purchase', 'account_creation'].includes(m.id),
+    missionFilter: (m) => ['review', 'birthday', 'first_purchase', 'account_creation'].includes(m.id),
   },
   mass: {
     tierBasis: 'spend',
@@ -71,10 +71,12 @@ export function applyBrandDefaults(brandAnalysis, lang) {
     ? suggested_tier_names
     : (lang === 'fr' ? ['Bronze', 'Argent', 'Or'] : ['Bronze', 'Silver', 'Gold']);
 
+  const spendThresholds = [0, Math.round(aov * 5), Math.round(aov * 20)];
   const tiers = tierNames.map((name, i) => ({
     name,
-    color: DEFAULT_TIER_COLORS[i] || '#8B74FF',
+    color: DEFAULT_TIER_COLORS[i] || '#5A8AFF',
     threshold: programCfg.thresholds[i],
+    spendThreshold: spendThresholds[i] || 0,
     pointsThreshold: i * 1000,
     pointsMultiplier: programCfg.multipliers[i],
     perks: [],

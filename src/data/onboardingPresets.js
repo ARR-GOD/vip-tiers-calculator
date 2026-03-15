@@ -132,10 +132,13 @@ export function applyOnboardingDefaults(answers, lang) {
   burnRate = Math.max(10, Math.min(80, burnRate));
 
   const tierNames = lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn;
+  const aov = preset.aov || 60;
+  const spendThresholds = [0, Math.round(aov * 5), Math.round(aov * 20)];
   const tiers = tierNames.map((name, i) => ({
     name,
-    color: DEFAULT_TIER_COLORS[i] || '#8B74FF',
+    color: DEFAULT_TIER_COLORS[i] || '#5A8AFF',
     threshold: preset.tierThresholds[i],
+    spendThreshold: spendThresholds[i] || 0,
     pointsThreshold: i * 1000,
     pointsMultiplier: Math.round((preset.multipliers[i] + multiplierBoost) * 100) / 100,
     perks: [],
