@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X } from 'lucide-react';
+import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X, ChevronRight } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { parseSampleData } from '../data/sampleData';
@@ -7,7 +7,7 @@ import { formatCurrency, formatNumber } from '../utils/calculations';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
 
-export default function StepData_Import({ customers, setCustomers, lang, brandAnalysis, config, settings }) {
+export default function StepData_Import({ customers, setCustomers, lang, brandAnalysis, config, settings, onNext }) {
   const t = lang === 'fr';
   const fileInputRef = useRef(null);
   const [fileName, setFileName] = useState(null);
@@ -84,10 +84,10 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
     <div className="max-w-2xl mx-auto space-y-3">
       <div>
         <div className="section-subheader">{t ? 'ÉTAPE 2 — DONNÉES CLIENTS' : 'STEP 2 — CUSTOMER DATA'}</div>
-        <h2 className="text-[28px] font-bold text-[#111827]">
+        <h2 className="text-[28px] font-bold text-[#52473C]">
           {t ? 'Importez vos données clients' : 'Import your customer data'}
         </h2>
-        <p className="text-[15px] text-[#6B7280] mt-0.5">
+        <p className="text-[15px] text-[#645648] mt-0.5">
           {t ? 'Chargez votre fichier pour des projections basées sur vos vrais clients.' : 'Upload your file for projections based on your real customers.'}
         </p>
       </div>
@@ -97,17 +97,17 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
       {/* Upload Zone */}
       <div
         className={`card flex flex-col items-center justify-center text-center cursor-pointer transition-all ${isDragging ? 'ring-2 ring-primary' : ''}`}
-        style={{ padding: '48px 32px', borderStyle: 'dashed', borderWidth: 2, borderColor: isDragging ? '#6B4EFF' : '#E5E7EB', backgroundColor: isDragging ? '#F5F3FF' : '#ffffff' }}
+        style={{ padding: '48px 32px', borderStyle: 'dashed', borderWidth: 2, borderColor: isDragging ? '#2965FE' : '#D9D5CB', backgroundColor: isDragging ? '#E8EFFE' : '#EEEDE6' }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
       >
-        <Upload size={48} className={`mb-4 ${isDragging ? 'text-primary' : 'text-gray-300'}`} />
-        <p className="text-[15px] font-medium text-[#374151]">
+        <Upload size={48} className={`mb-4 ${isDragging ? 'text-primary' : 'text-[#8A7D6B]'}`} />
+        <p className="text-[15px] font-medium text-[#645648]">
           {t ? 'Glissez votre fichier CSV ou XLSX ici' : 'Drag your CSV or XLSX file here'}
         </p>
-        <p className="text-[13px] text-[#9CA3AF] mt-1">{t ? 'ou' : 'or'}</p>
+        <p className="text-[13px] text-[#8A7D6B] mt-1">{t ? 'ou' : 'or'}</p>
         <button
           onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
           className="btn-primary mt-3"
@@ -126,8 +126,8 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
         <div className="card" style={{ borderLeft: '3px solid #10B981' }}>
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle size={16} className="text-emerald-500" />
-            <span className="text-[13px] font-medium text-[#111827]">{fileName}</span>
-            <button onClick={resetToSample} className="ml-auto text-gray-400 hover:text-red-500 transition-all"><X size={14} /></button>
+            <span className="text-[13px] font-medium text-[#52473C]">{fileName}</span>
+            <button onClick={resetToSample} className="ml-auto text-[#8A7D6B] hover:text-red-500 transition-all"><X size={14} /></button>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <MiniStat value={formatNumber(customers.length)} label={t ? 'Clients' : 'Customers'} />
@@ -143,22 +143,22 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
         <div className="overflow-x-auto mt-2">
           <table className="w-full text-[12px]">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-2 font-medium text-[#6B7280]">customer_id</th>
-                <th className="text-right px-4 py-2 font-medium text-[#6B7280]">total_ordered_TTC</th>
-                <th className="text-right px-4 py-2 font-medium text-[#6B7280]">number_of_orders</th>
+              <tr className="bg-[#EEEDE6] border-b border-[#D9D5CB]">
+                <th className="text-left px-4 py-2 font-medium text-[#645648]">customer_id</th>
+                <th className="text-right px-4 py-2 font-medium text-[#645648]">total_ordered_TTC</th>
+                <th className="text-right px-4 py-2 font-medium text-[#645648]">number_of_orders</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-50">
-                <td className="px-4 py-2 text-[#374151]">CLI_001</td>
-                <td className="px-4 py-2 text-right text-[#374151]">234.50</td>
-                <td className="px-4 py-2 text-right text-[#374151]">4</td>
+              <tr className="border-b border-[#E5E1D8]">
+                <td className="px-4 py-2 text-[#645648]">CLI_001</td>
+                <td className="px-4 py-2 text-right text-[#645648]">234.50</td>
+                <td className="px-4 py-2 text-right text-[#645648]">4</td>
               </tr>
               <tr>
-                <td className="px-4 py-2 text-[#374151]">CLI_002</td>
-                <td className="px-4 py-2 text-right text-[#374151]">1 200.00</td>
-                <td className="px-4 py-2 text-right text-[#374151]">12</td>
+                <td className="px-4 py-2 text-[#645648]">CLI_002</td>
+                <td className="px-4 py-2 text-right text-[#645648]">1 200.00</td>
+                <td className="px-4 py-2 text-right text-[#645648]">12</td>
               </tr>
             </tbody>
           </table>
@@ -166,14 +166,14 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
       </div>
 
       {/* Privacy */}
-      <div className="card" style={{ backgroundColor: '#F9FAFB', padding: '12px 16px' }}>
+      <div className="card" style={{ backgroundColor: '#EEEDE6', padding: '12px 16px' }}>
         <div className="flex items-start gap-2.5">
-          <Lock size={14} className="text-[#9CA3AF] shrink-0 mt-0.5" />
+          <Lock size={14} className="text-[#8A7D6B] shrink-0 mt-0.5" />
           <div>
-            <span className="text-[12px] text-[#6B7280] font-medium block">
+            <span className="text-[12px] text-[#645648] font-medium block">
               {t ? "Vos données restent dans votre navigateur. Rien n'est envoyé à un serveur." : 'Your data stays in your browser. Nothing is sent to a server.'}
             </span>
-            <span className="text-[11px] text-[#9CA3AF] block mt-1">
+            <span className="text-[11px] text-[#8A7D6B] block mt-1">
               {t
                 ? 'Le champ customer_id peut être un identifiant anonyme — ne partagez pas de données personnelles (nom, email, téléphone).'
                 : 'The customer_id field can be an anonymous identifier — do not share personal data (name, email, phone).'}
@@ -189,15 +189,24 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
           {t ? 'Utiliser les données de démonstration' : 'Use demo data'}
         </button>
       </div>
+
+      {/* Inline next */}
+      {onNext && (
+        <div className="flex justify-end pt-6">
+          <button onClick={onNext} className="btn-primary">
+            {t ? 'Suivant' : 'Next'} <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function MiniStat({ value, label }) {
   return (
-    <div className="text-center p-2.5 bg-gray-50 rounded-lg">
-      <div className="text-[15px] font-bold text-[#111827]">{value}</div>
-      <div className="text-[11px] text-[#9CA3AF] mt-0.5">{label}</div>
+    <div className="text-center p-2.5 bg-[#EEEDE6] rounded-lg">
+      <div className="text-[15px] font-bold text-[#52473C]">{value}</div>
+      <div className="text-[11px] text-[#8A7D6B] mt-0.5">{label}</div>
     </div>
   );
 }

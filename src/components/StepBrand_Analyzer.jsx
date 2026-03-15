@@ -20,7 +20,7 @@ const LOADING_MESSAGES_EN = [
 
 const POSITIONING_LABELS = {
   premium: { fr: 'Premium', en: 'Premium', color: '#B8860B' },
-  'mid-market': { fr: 'Milieu de gamme', en: 'Mid-Market', color: '#6B4EFF' },
+  'mid-market': { fr: 'Milieu de gamme', en: 'Mid-Market', color: '#2965FE' },
   mass: { fr: 'Grand public', en: 'Mass Market', color: '#10B981' },
 };
 
@@ -96,10 +96,10 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       <div className="max-w-2xl mx-auto space-y-3">
         <div className="text-center">
           <div className="section-subheader">ANALYSE</div>
-          <h2 className="text-[28px] font-bold text-[#111827]">
+          <h2 className="text-[28px] font-bold text-[#52473C]">
             {t ? 'Analysez votre marque' : 'Analyze your brand'}
           </h2>
-          <p className="text-[15px] text-[#6B7280] mt-1.5">
+          <p className="text-[15px] text-[#645648] mt-1.5">
             {t
               ? "Entrez l'URL de votre site pour pré-configurer automatiquement votre programme."
               : 'Enter your website URL to auto-configure your program.'}
@@ -110,7 +110,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           <div className="section-subheader">{t ? 'URL DE VOTRE SITE' : 'YOUR WEBSITE URL'}</div>
           <div className="flex gap-3 mt-2">
             <div className="flex-1 relative">
-              <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A7D6B]" />
               <input
                 type="text"
                 value={url}
@@ -138,7 +138,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
         </div>
 
         <div className="flex justify-center">
-          <button onClick={onSkip} className="text-[13px] text-[#6B7280] hover:text-primary transition-colors">
+          <button onClick={onSkip} className="text-[13px] text-[#645648] hover:text-primary transition-colors">
             {t ? 'Passer et configurer manuellement →' : 'Skip and configure manually →'}
           </button>
         </div>
@@ -164,23 +164,23 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           {editValues.brand_logo ? (
             <img src={editValues.brand_logo} alt={editValues.brand_name} className="brand-avatar" />
           ) : editValues.brand_name ? (
-            <span className="brand-avatar-initials" style={{ backgroundColor: '#6B4EFF' }}>
+            <span className="brand-avatar-initials" style={{ backgroundColor: '#2965FE' }}>
               {editValues.brand_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}
             </span>
           ) : null}
-          <h2 className="text-[28px] font-bold text-[#111827]">
+          <h2 className="text-[28px] font-bold text-[#52473C]">
             {editValues.brand_name || url}
           </h2>
         </div>
         {editValues.brand_description && (
-          <p className="text-[15px] text-[#6B7280] mt-1">{editValues.brand_description}</p>
+          <p className="text-[15px] text-[#645648] mt-1">{editValues.brand_description}</p>
         )}
       </div>
 
       {/* Program Type Selector (Change 3) */}
       <div className="card">
         <div className="section-subheader">{t ? 'TYPE DE PROGRAMME' : 'PROGRAM TYPE'}</div>
-        <p className="text-[12px] text-[#9CA3AF] mb-3">
+        <p className="text-[12px] text-[#8A7D6B] mb-3">
           {t ? "C'est un choix stratégique, pas juste une détection automatique." : "This is a strategic choice, not just automatic detection."}
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -194,14 +194,14 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
                 className={`selection-card text-left ${isSelected ? 'selected' : ''}`}
                 style={{ padding: '12px 16px' }}>
                 <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-semibold text-[#111827]">{t ? label.fr : label.en}</span>
+                  <span className="text-[14px] font-semibold text-[#52473C]">{t ? label.fr : label.en}</span>
                   {isDetected && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase" style={{ backgroundColor: '#F5F3FF', color: '#6B4EFF' }}>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase" style={{ backgroundColor: '#E8EFFE', color: '#2965FE' }}>
                       {t ? 'Détecté' : 'Detected'}
                     </span>
                   )}
                 </div>
-                <p className="text-[12px] text-[#6B7280] mt-0.5">{t ? label.descFr : label.descEn}</p>
+                <p className="text-[12px] text-[#645648] mt-0.5">{t ? label.descFr : label.descEn}</p>
               </button>
             );
           })}
@@ -242,8 +242,8 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
           <div className="section-subheader">{t ? 'NOMS DES PALIERS' : 'TIER NAMES'}</div>
           <div className="flex gap-3 mt-2">
             {editValues.suggested_tier_names.map((name, i) => (
-              <div key={i} className="flex-1 p-3 rounded-lg bg-gray-50 text-center">
-                <div className="text-[10px] text-[#9CA3AF] uppercase mb-1">
+              <div key={i} className="flex-1 p-3 rounded-lg bg-[#EEEDE6] text-center">
+                <div className="text-[10px] text-[#8A7D6B] uppercase mb-1">
                   {t ? `Palier ${i + 1}` : `Tier ${i + 1}`}
                 </div>
                 <input
@@ -253,7 +253,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
                     newNames[i] = e.target.value;
                     setEditValues(prev => ({ ...prev, suggested_tier_names: newNames }));
                   }}
-                  className="w-full text-center text-[15px] font-semibold text-[#111827] bg-transparent border-none outline-none focus:ring-1 focus:ring-primary rounded px-1"
+                  className="w-full text-center text-[15px] font-semibold text-[#52473C] bg-transparent border-none outline-none focus:ring-1 focus:ring-primary rounded px-1"
                 />
               </div>
             ))}
@@ -269,7 +269,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
             {editValues.suggested_missions.map((mission, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F3F0FF' }}>
                 <span className="text-primary text-[10px]">●</span>
-                <span className="text-[13px] text-[#111827]">{mission}</span>
+                <span className="text-[13px] text-[#52473C]">{mission}</span>
               </div>
             ))}
           </div>
@@ -280,7 +280,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
       <div className="flex items-center justify-between pt-2 pb-8">
         <button
           onClick={() => { setPhase('input'); setEditValues(null); setOriginalDetectedType(null); }}
-          className="flex items-center gap-2 text-[13px] text-[#6B7280] hover:text-primary transition-colors"
+          className="flex items-center gap-2 text-[13px] text-[#645648] hover:text-primary transition-colors"
         >
           <RotateCcw size={14} />
           {t ? 'Recommencer' : 'Start over'}
@@ -328,17 +328,17 @@ function LoadingPhase({ url, lang }) {
       {/* Progress bar */}
       <div className="w-full max-w-xs mb-8">
         <div className="progress-bar-track">
-          <div className="progress-bar-fill" style={{ width: `${progress}%`, backgroundColor: '#6B4EFF' }} />
+          <div className="progress-bar-fill" style={{ width: `${progress}%`, backgroundColor: '#2965FE' }} />
         </div>
       </div>
 
       {/* Animated message */}
-      <p className="text-[16px] font-medium text-[#111827] h-8 flex items-center"
+      <p className="text-[16px] font-medium text-[#52473C] h-8 flex items-center"
         style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.4s ease' }}>
         {messages[msgIndex]}
       </p>
 
-      <p className="text-[13px] text-[#9CA3AF] mt-3">{url}</p>
+      <p className="text-[13px] text-[#8A7D6B] mt-3">{url}</p>
     </div>
   );
 }
@@ -383,31 +383,31 @@ function IndustrySelect({ label, value, onChange, lang }) {
 
   return (
     <div className="relative">
-      <div className="text-[11px] text-[#9CA3AF] uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-[11px] text-[#8A7D6B] uppercase tracking-wider mb-1">{label}</div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 text-[15px] font-medium text-[#111827] w-full text-left group"
+        className="flex items-center gap-1.5 text-[15px] font-medium text-[#52473C] w-full text-left group"
       >
         <span className="truncate">{displayLabel}</span>
-        <Pencil size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+        <Pencil size={12} className="text-[#8A7D6B] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-56 max-h-52 overflow-y-auto">
+        <div className="absolute z-30 mt-1 bg-[#EEEDE6] border border-[#D9D5CB] rounded-lg shadow-lg p-2 w-56 max-h-52 overflow-y-auto">
           {INDUSTRY_OPTIONS.map(opt => {
             const isActive = selected.includes(opt.id);
             return (
               <button key={opt.id}
                 onClick={() => toggle(opt.id)}
-                className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-[13px] transition-all ${isActive ? 'bg-primary-50 text-primary font-medium' : 'text-[#374151] hover:bg-gray-50'}`}
+                className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-[13px] transition-all ${isActive ? 'bg-primary-50 text-primary font-medium' : 'text-[#645648] hover:bg-[#EEEDE6]'}`}
               >
-                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${isActive ? 'bg-primary border-primary text-white' : 'border-gray-300'}`}>
+                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${isActive ? 'bg-primary border-primary text-white' : 'border-[#D9D5CB]'}`}>
                   {isActive && '✓'}
                 </span>
                 {t ? opt.fr : opt.en}
               </button>
             );
           })}
-          <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-gray-100 text-[12px] text-primary font-medium text-center py-1">
+          <button onClick={() => setOpen(false)} className="w-full mt-1 pt-1 border-t border-[#D9D5CB] text-[12px] text-primary font-medium text-center py-1">
             {t ? 'Fermer' : 'Done'}
           </button>
         </div>
@@ -427,17 +427,17 @@ function EditableField({ label, value, onChange }) {
   if (editing) {
     return (
       <div>
-        <div className="text-[11px] text-[#9CA3AF] uppercase tracking-wider mb-1">{label}</div>
+        <div className="text-[11px] text-[#8A7D6B] uppercase tracking-wider mb-1">{label}</div>
         <div className="flex items-center gap-1">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="flex-1 px-2 py-1 border border-gray-200 rounded text-[14px] focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="flex-1 px-2 py-1 border border-[#D9D5CB] rounded text-[14px] focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
           />
           <button onClick={commit} className="text-emerald-500 hover:text-emerald-700 p-1"><Check size={14} /></button>
-          <button onClick={cancel} className="text-gray-400 hover:text-gray-600 p-1"><X size={14} /></button>
+          <button onClick={cancel} className="text-[#8A7D6B] hover:text-[#645648] p-1"><X size={14} /></button>
         </div>
       </div>
     );
@@ -445,10 +445,10 @@ function EditableField({ label, value, onChange }) {
 
   return (
     <div className="group cursor-pointer" onClick={() => { setDraft(value); setEditing(true); }}>
-      <div className="text-[11px] text-[#9CA3AF] uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-[11px] text-[#8A7D6B] uppercase tracking-wider mb-1">{label}</div>
       <div className="flex items-center gap-1.5">
-        <span className="text-[15px] font-medium text-[#111827]">{value}</span>
-        <Pencil size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <span className="text-[15px] font-medium text-[#52473C]">{value}</span>
+        <Pencil size={12} className="text-[#8A7D6B] opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
   );

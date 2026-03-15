@@ -38,7 +38,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onSkip} />
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden transition-step">
+      <div className="relative w-full max-w-lg bg-[#EEEDE6] rounded-2xl shadow-2xl overflow-hidden transition-step">
         {/* Header */}
         <div className="bg-primary px-6 py-5 text-white">
           <div className="flex items-center justify-between">
@@ -46,7 +46,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
               <Sparkles size={18} />
               <h2 className="font-bold text-sm">{t.title}</h2>
             </div>
-            <button onClick={onSkip} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
+            <button onClick={onSkip} className="p-1 hover:bg-[#EEEDE6]/20 rounded-lg transition-colors">
               <X size={16} />
             </button>
           </div>
@@ -54,7 +54,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
           {/* Progress */}
           <div className="flex gap-1 mt-3">
             {[0, 1, 2].map(i => (
-              <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? 'bg-white' : 'bg-white/30'}`} />
+              <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? 'bg-[#EEEDE6]' : 'bg-[#EEEDE6]/30'}`} />
             ))}
           </div>
         </div>
@@ -63,7 +63,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
         <div className="p-6">
           {step === 0 && (
             <div>
-              <h3 className="font-semibold text-gray-800 text-sm mb-3">{t.industryQ}</h3>
+              <h3 className="font-semibold text-[#52473C] text-sm mb-3">{t.industryQ}</h3>
               <div className="grid grid-cols-3 gap-2">
                 {INDUSTRIES.map(ind => (
                   <button
@@ -72,7 +72,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center
                       ${answers.industry === ind.id
                         ? 'border-primary bg-primary-50 text-primary'
-                        : 'border-gray-100 hover:border-gray-200 text-gray-600'}`}
+                        : 'border-[#D9D5CB] hover:border-[#D9D5CB] text-[#645648]'}`}
                   >
                     <span className="text-2xl">{ind.emoji}</span>
                     <span className="text-xs font-medium">{lang === 'fr' ? ind.labelFr : ind.labelEn}</span>
@@ -84,7 +84,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
 
           {step === 1 && (
             <div>
-              <h3 className="font-semibold text-gray-800 text-sm mb-3">{t.priceQ}</h3>
+              <h3 className="font-semibold text-[#52473C] text-sm mb-3">{t.priceQ}</h3>
               <div className="grid grid-cols-2 gap-2">
                 {PRICE_RANGES.map(pr => (
                   <button
@@ -93,7 +93,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
                     className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all
                       ${answers.priceRange === pr.id
                         ? 'border-primary bg-primary-50 text-primary'
-                        : 'border-gray-100 hover:border-gray-200 text-gray-600'}`}
+                        : 'border-[#D9D5CB] hover:border-[#D9D5CB] text-[#645648]'}`}
                   >
                     <span className="text-lg">{pr.emoji}</span>
                     <span className="text-xs font-medium">{lang === 'fr' ? pr.labelFr : pr.labelEn}</span>
@@ -105,7 +105,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
 
           {step === 2 && (
             <div>
-              <h3 className="font-semibold text-gray-800 text-sm mb-3">{t.goalsQ}</h3>
+              <h3 className="font-semibold text-[#52473C] text-sm mb-3">{t.goalsQ}</h3>
               <div className="space-y-2">
                 {GOALS.map(goal => (
                   <button
@@ -114,17 +114,17 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
                     className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left
                       ${answers.goals.includes(goal.id)
                         ? 'border-primary bg-primary-50'
-                        : 'border-gray-100 hover:border-gray-200'}`}
+                        : 'border-[#D9D5CB] hover:border-[#D9D5CB]'}`}
                   >
                     <span className="text-lg">{goal.emoji}</span>
                     <div>
-                      <div className={`text-xs font-semibold ${answers.goals.includes(goal.id) ? 'text-primary' : 'text-gray-700'}`}>
+                      <div className={`text-xs font-semibold ${answers.goals.includes(goal.id) ? 'text-primary' : 'text-[#645648]'}`}>
                         {lang === 'fr' ? goal.labelFr : goal.labelEn}
                       </div>
-                      <div className="text-[10px] text-gray-400">{lang === 'fr' ? goal.descFr : goal.descEn}</div>
+                      <div className="text-[10px] text-[#8A7D6B]">{lang === 'fr' ? goal.descFr : goal.descEn}</div>
                     </div>
                     <div className={`ml-auto w-4 h-4 rounded border-2 flex items-center justify-center text-[8px] transition-colors
-                      ${answers.goals.includes(goal.id) ? 'bg-primary border-primary text-white' : 'border-gray-300'}`}>
+                      ${answers.goals.includes(goal.id) ? 'bg-primary border-primary text-white' : 'border-[#D9D5CB]'}`}>
                       {answers.goals.includes(goal.id) && '✓'}
                     </div>
                   </button>
@@ -138,7 +138,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
         <div className="px-6 pb-5 flex items-center justify-between">
           <button
             onClick={onSkip}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-xs text-[#8A7D6B] hover:text-[#645648] transition-colors"
           >
             {t.skip}
           </button>
@@ -146,7 +146,7 @@ export default function OnboardingModal({ lang, onComplete, onSkip }) {
             {step > 0 && (
               <button
                 onClick={() => setStep(step - 1)}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium text-[#8A7D6B] hover:bg-[#E5E1D8] transition-colors"
               >
                 <ArrowLeft size={12} /> {t.back}
               </button>

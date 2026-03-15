@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { Plus, Minus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Minus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
-import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent } from '../utils/calculations';
+import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
@@ -12,9 +12,9 @@ const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
 // Per-tier badge styling: bg + text color for the header badge
 const TIER_BADGE_STYLES = [
   { bg: '#FDF3E7', text: '#B87333' }, // Bronze
-  { bg: '#F3F4F6', text: '#6B7280' }, // Silver
+  { bg: '#E5E1D8', text: '#8A7D6B' }, // Silver
   { bg: '#FFFBEB', text: '#D97706' }, // Gold
-  { bg: '#F5F3FF', text: '#7C3AED' }, // Platinum
+  { bg: '#E8EFFE', text: '#7C3AED' }, // Platinum
 ];
 
 function getPillColor(value, max) {
@@ -24,7 +24,7 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, onNext }) {
   const t = lang === 'fr';
 
   const tierStats = useMemo(() => {
@@ -38,13 +38,18 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     return tiers.map((_, i) => computeTierFinancials(i, tierStats[i], rewards, settings.grossMargin, burnRate));
   }, [tiers, tierStats, rewards, settings.grossMargin, burnRate]);
 
+  const pointsEconomy = useMemo(() => {
+    return computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate);
+  }, [tierStats, tiers, missions, customMissions, rewards, settings, burnRate]);
+
   const addTier = () => {
     const idx = tiers.length;
     const names = t ? DEFAULT_TIER_NAMES_FR : DEFAULT_TIER_NAMES_EN;
     setTiers(prev => [...prev, {
       name: names[idx] || `Tier ${idx + 1}`,
-      color: FIXED_COLORS[idx] || '#8B74FF',
+      color: FIXED_COLORS[idx] || '#5A8AFF',
       threshold: Math.max(5, Math.round(prev[prev.length - 1]?.threshold * 0.5 || 10)),
+      spendThreshold: (prev[prev.length - 1]?.spendThreshold || 0) * 2 || 5000,
       pointsThreshold: (idx) * 1500,
       pointsMultiplier: 1 + idx * 0.5,
       perks: [],
@@ -133,14 +138,14 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       <div className="flex items-center justify-between">
         <div>
           <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
-          <h2 className="text-[28px] font-bold text-[#111827]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
-          <p className="text-[15px] text-[#6B7280] mt-0.5">{t ? 'Définissez vos paliers et attribuez les récompenses.' : 'Define your tiers and assign rewards.'}</p>
+          <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
+          <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Définissez vos paliers et attribuez les récompenses.' : 'Define your tiers and assign rewards.'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={removeTier} disabled={tiers.length <= 2} className="btn-secondary px-2 py-1.5 disabled:opacity-30">
             <Minus size={14} />
           </button>
-          <span className="text-[13px] font-medium text-[#6B7280]">{tiers.length} {t ? 'paliers' : 'tiers'}</span>
+          <span className="text-[13px] font-medium text-[#645648]">{tiers.length} {t ? 'paliers' : 'tiers'}</span>
           <button onClick={addTier} disabled={tiers.length >= 4} className="btn-secondary px-2 py-1.5 disabled:opacity-30">
             <Plus size={14} />
           </button>
@@ -152,7 +157,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
       {/* Burn rate */}
       <div className="card flex items-center gap-4" style={{ padding: 16 }}>
-        <label className="text-[13px] font-medium text-[#374151]">{t ? 'Taux de burn global' : 'Global burn rate'}</label>
+        <label className="text-[13px] font-medium text-[#645648]">{t ? 'Taux de burn global' : 'Global burn rate'}</label>
         <Tooltip text={t ? '% des clients qui utilisent leurs points pour des récompenses burn.' : '% of customers who redeem points for burn rewards.'} />
         <input type="range" min={10} max={80} step={5} value={burnRate}
           onChange={e => setBurnRate(parseInt(e.target.value))}
@@ -169,10 +174,10 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
           {showArrows && (
             <button
               onClick={() => scrollTo('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:shadow-lg transition-shadow"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 w-10 h-10 rounded-full bg-[#EEEDE6] shadow-md flex items-center justify-center hover:shadow-lg transition-shadow"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
             >
-              <ChevronLeft size={18} className="text-[#374151]" />
+              <ChevronLeft size={18} className="text-[#645648]" />
             </button>
           )}
 
@@ -180,10 +185,10 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
           {showArrows && (
             <button
               onClick={() => scrollTo('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:shadow-lg transition-shadow"
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 w-10 h-10 rounded-full bg-[#EEEDE6] shadow-md flex items-center justify-center hover:shadow-lg transition-shadow"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
             >
-              <ChevronRight size={18} className="text-[#374151]" />
+              <ChevronRight size={18} className="text-[#645648]" />
             </button>
           )}
 
@@ -208,7 +213,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
               const revPct = stat ? (stat.revenue / maxRevenue) * 100 : 0;
               const pillColors = getPillColor(stat?.revenue || 0, maxRevenue * 0.5);
               const badgeStyle = TIER_BADGE_STYLES[tierIdx] || TIER_BADGE_STYLES[0];
-              const tierColor = tier.color || FIXED_COLORS[tierIdx] || '#6B4EFF';
+              const tierColor = tier.color || FIXED_COLORS[tierIdx] || '#2965FE';
 
               return (
                 <div
@@ -232,11 +237,11 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         </span>
                         <input type="text" value={tier.name}
                           onChange={e => updateTier(tierIdx, 'name', e.target.value)}
-                          className="text-[20px] font-bold text-[#111827] bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary focus:outline-none w-full max-w-[180px] block" style={{ padding: 0 }} />
+                          className="text-[20px] font-bold text-[#52473C] bg-transparent border-b border-transparent hover:border-[#D9D5CB] focus:border-primary focus:outline-none w-full max-w-[180px] block" style={{ padding: 0 }} />
                       </div>
                       <div className="text-right">
-                        <div className="text-[28px] font-bold text-[#111827]">{stat?.count || 0}</div>
-                        <div className="text-[12px] text-[#6B7280]">{t ? 'clients' : 'customers'}</div>
+                        <div className="text-[28px] font-bold text-[#52473C]">{stat?.count || 0}</div>
+                        <div className="text-[12px] text-[#645648]">{t ? 'clients' : 'customers'}</div>
                       </div>
                     </div>
 
@@ -249,60 +254,88 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         <span className="pill" style={{ background: pillColors.bg, color: pillColors.text }}>
                           {formatPercent(stat?.percentage || 0)}
                         </span>
-                        <span className="text-[12px] text-[#6B7280]">{t ? 'du total clients' : 'of total customers'}</span>
+                        <span className="text-[12px] text-[#645648]">{t ? 'du total clients' : 'of total customers'}</span>
                       </div>
                     </div>
 
                     {/* Tier config inputs */}
-                    <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3">
+                    <div className="mt-4 pt-4 border-t border-[#D9D5CB] grid grid-cols-2 gap-3">
                       {config.tierBasis === 'spend' ? (
                         <div>
-                          <label className="text-[11px] text-[#9CA3AF] mb-1 block">{t ? 'Top % clients' : 'Top % customers'}</label>
+                          <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? "Seuil d'entrée" : 'Entry threshold'}</label>
                           <div className="flex items-center gap-1">
-                            <input type="number" value={tier.threshold} min={1} max={100}
-                              onChange={e => updateTier(tierIdx, 'threshold', parseInt(e.target.value) || 1)}
-                              className="w-16 px-2 py-1 text-[13px] text-center" />
-                            <span className="text-[11px] text-[#9CA3AF]">%</span>
+                            <input type="number" value={tier.spendThreshold ?? 0} min={0}
+                              onChange={e => updateTier(tierIdx, 'spendThreshold', parseInt(e.target.value) || 0)}
+                              className="w-20 px-2 py-1 text-[13px] text-center" />
+                            <span className="text-[11px] text-[#8A7D6B]">€</span>
+                          </div>
+                          <div className="text-[10px] text-[#8A7D6B] mt-1">
+                            {(() => {
+                              const qualifying = customers.filter(c => c.total_ordered_TTC >= (tier.spendThreshold || 0)).length;
+                              return t ? `${qualifying} clients qualifiés` : `${qualifying} qualifying`;
+                            })()}
                           </div>
                         </div>
                       ) : (
                         <div>
-                          <label className="text-[11px] text-[#9CA3AF] mb-1 block">{t ? 'Seuil points' : 'Points threshold'}</label>
+                          <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Seuil points' : 'Points threshold'}</label>
                           <input type="number" value={tier.pointsThreshold} min={0}
                             onChange={e => updateTier(tierIdx, 'pointsThreshold', parseInt(e.target.value) || 0)}
                             className="w-20 px-2 py-1 text-[13px] text-center" />
                         </div>
                       )}
                       <div>
-                        <label className="text-[11px] text-[#9CA3AF] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
+                        <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
                         <div className="flex items-center gap-1">
                           <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
                             onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
                             className="w-16 px-2 py-1 text-[13px] text-center" />
-                          <span className="text-[11px] text-[#9CA3AF]">&times;</span>
+                          <span className="text-[11px] text-[#8A7D6B]">&times;</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Tier stats grid */}
-                    <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+                    <div className="mt-3 pt-3 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <div className="text-[15px] font-bold text-[#111827]">{formatCurrency(stat?.revenue || 0)}</div>
-                        <div className="text-[11px] text-[#9CA3AF]">{t ? 'CA' : 'Revenue'}</div>
+                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.revenue || 0)}</div>
+                        <div className="text-[11px] text-[#8A7D6B]">{t ? 'CA' : 'Revenue'}</div>
                       </div>
                       <div>
-                        <div className="text-[15px] font-bold text-[#111827]">{formatCurrency(stat?.avgLTV || 0)}</div>
-                        <div className="text-[11px] text-[#9CA3AF]">LTV</div>
+                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.avgLTV || 0)}</div>
+                        <div className="text-[11px] text-[#8A7D6B]">LTV</div>
                       </div>
                       <div>
-                        <div className="text-[15px] font-bold text-[#111827]">{formatCurrency(stat?.avgAOV || 0)}</div>
-                        <div className="text-[11px] text-[#9CA3AF]">AOV</div>
+                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.avgAOV || 0)}</div>
+                        <div className="text-[11px] text-[#8A7D6B]">AOV</div>
                       </div>
                     </div>
                   </div>
 
+                    {/* Per-tier points economy */}
+                    {(() => {
+                      const pte = pointsEconomy.perTier[tierIdx];
+                      if (!pte) return null;
+                      return (
+                        <div className="mt-2 pt-2 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <div className="text-[13px] font-bold text-blue-700">{formatCompact(pte.emitted)}</div>
+                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Pts émis' : 'Emitted'}</div>
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-bold text-green-700">{formatCompact(pte.burned)}</div>
+                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Brûlés' : 'Burned'}</div>
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-bold text-orange-600">{formatCompact(pte.dormant)}</div>
+                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Dormants' : 'Dormant'}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                   {/* Rewards assignment */}
-                  <div style={{ padding: '12px 24px', backgroundColor: '#FAFAFA', borderTop: '1px solid #E5E7EB', margin: '16px -24px -20px -24px' }}>
+                  <div style={{ padding: '12px 24px', backgroundColor: '#EEEDE6', borderTop: '1px solid #D9D5CB', margin: '16px -24px -20px -24px' }}>
                     <div className="section-header" style={{ marginBottom: 8, fontSize: 11 }}>
                       {t ? 'RÉCOMPENSES' : 'REWARDS'}
                     </div>
@@ -313,7 +346,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                           <input type="checkbox" checked={isAssigned}
                             onChange={() => toggleRewardForTier(reward.id, tierIdx)}
                             className="w-3 h-3 rounded" />
-                          <span className="text-[11px] flex-1 truncate text-[#374151]" title={t ? reward.nameFr : reward.nameEn}>
+                          <span className="text-[11px] flex-1 truncate text-[#645648]" title={t ? reward.nameFr : reward.nameEn}>
                             {t ? reward.nameFr : reward.nameEn}
                           </span>
                           {isAssigned && (
@@ -322,7 +355,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                                 value={reward.utilizationByTier?.[tierIdx] ?? 30}
                                 onChange={e => updateUtilization(reward.id, tierIdx, parseInt(e.target.value) || 0)}
                                 className="w-10 px-0.5 py-0 text-[10px] text-center" />
-                              <span className="text-[9px] text-[#9CA3AF]">%</span>
+                              <span className="text-[9px] text-[#8A7D6B]">%</span>
                             </div>
                           )}
                         </div>
@@ -330,25 +363,25 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                     })}
 
                     {/* Per-tier financials */}
-                    <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="mt-3 pt-3 border-t border-[#D9D5CB]">
                       <div className="section-header" style={{ marginBottom: 8, fontSize: 11 }}>
                         {t ? 'FINANCES / AN' : 'FINANCIALS / YR'}
                       </div>
                       <div className="space-y-1 text-[12px]">
                         <div className="flex justify-between">
-                          <span className="text-[#9CA3AF]">{t ? 'Coût récompenses' : 'Rewards cost'}</span>
+                          <span className="text-[#8A7D6B]">{t ? 'Coût récompenses' : 'Rewards cost'}</span>
                           <span className="font-medium text-[#DC2626]">-{formatCurrency(fin.rewardsCost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[#9CA3AF]">{t ? 'Rev. incrémental' : 'Incr. revenue'}</span>
-                          <span className="font-medium text-[#374151]">{formatCurrency(fin.incrementalRevenue)}</span>
+                          <span className="text-[#8A7D6B]">{t ? 'Rev. incrémental' : 'Incr. revenue'}</span>
+                          <span className="font-medium text-[#645648]">{formatCurrency(fin.incrementalRevenue)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[#9CA3AF]">{t ? 'Marge brute' : 'Gross profit'}</span>
-                          <span className="font-medium text-[#374151]">{formatCurrency(fin.grossProfit)}</span>
+                          <span className="text-[#8A7D6B]">{t ? 'Marge brute' : 'Gross profit'}</span>
+                          <span className="font-medium text-[#645648]">{formatCurrency(fin.grossProfit)}</span>
                         </div>
-                        <div className="flex justify-between pt-1.5 border-t border-gray-100">
-                          <span className="font-medium text-[#374151]">{t ? 'Profit net' : 'Net profit'}</span>
+                        <div className="flex justify-between pt-1.5 border-t border-[#D9D5CB]">
+                          <span className="font-medium text-[#645648]">{t ? 'Profit net' : 'Net profit'}</span>
                           <span className={`font-bold ${fin.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
                             {fin.netProfit >= 0 ? '+' : ''}{formatCurrency(fin.netProfit)}
                           </span>
@@ -372,7 +405,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                   style={{
                     width: activeIdx === i ? 20 : 8,
                     height: 8,
-                    backgroundColor: activeIdx === i ? '#6B4EFF' : '#D1D5DB',
+                    backgroundColor: activeIdx === i ? '#2965FE' : '#D9D5CB',
                   }}
                 />
               ))}
@@ -389,28 +422,37 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
             <div className="text-center">
               <div className="section-subheader">{t ? 'COÛT TOTAL' : 'TOTAL COST'}</div>
               <div className="text-[28px] font-bold text-[#DC2626]">-{formatCurrency(totalFinancials.rewardsCost)}</div>
-              <div className="text-[12px] text-[#6B7280]">{t ? 'récompenses' : 'rewards'}</div>
+              <div className="text-[12px] text-[#645648]">{t ? 'récompenses' : 'rewards'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'REV. INCRÉMENTAL' : 'INCR. REVENUE'}</div>
-              <div className="text-[28px] font-bold text-[#111827]">{formatCurrency(totalFinancials.incrementalRevenue)}</div>
-              <div className="text-[12px] text-[#6B7280]">{t ? 'généré' : 'generated'}</div>
+              <div className="text-[28px] font-bold text-[#52473C]">{formatCurrency(totalFinancials.incrementalRevenue)}</div>
+              <div className="text-[12px] text-[#645648]">{t ? 'généré' : 'generated'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'MARGE BRUTE' : 'GROSS PROFIT'}</div>
-              <div className="text-[28px] font-bold text-[#111827]">{formatCurrency(totalFinancials.grossProfit)}</div>
-              <div className="text-[12px] text-[#6B7280]">{t ? 'sur rev. incr.' : 'on incr. rev.'}</div>
+              <div className="text-[28px] font-bold text-[#52473C]">{formatCurrency(totalFinancials.grossProfit)}</div>
+              <div className="text-[12px] text-[#645648]">{t ? 'sur rev. incr.' : 'on incr. rev.'}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'PROFIT NET' : 'NET PROFIT'}</div>
               <div className={`text-[28px] font-bold ${totalFinancials.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
                 {totalFinancials.netProfit >= 0 ? '+' : ''}{formatCurrency(totalFinancials.netProfit)}
               </div>
-              <div className="text-[12px] text-[#6B7280]">{t ? 'par an' : 'per year'}</div>
+              <div className="text-[12px] text-[#645648]">{t ? 'par an' : 'per year'}</div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Inline next */}
+      {onNext && (
+        <div className="flex justify-end pt-6">
+          <button onClick={onNext} className="btn-primary">
+            {t ? 'Voir le Dashboard' : 'View Dashboard'} <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

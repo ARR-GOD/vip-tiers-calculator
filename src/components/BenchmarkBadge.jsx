@@ -26,15 +26,15 @@ export function BenchmarkBar({ benchmarkKey, value }) {
   const highPct = (b.high / max) * 100;
 
   return (
-    <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden mt-1.5">
+    <div className="relative h-2 bg-[#E5E1D8] rounded-full overflow-hidden mt-1.5">
       <div className="absolute inset-y-0 left-0 bg-amber-100" style={{ width: `${lowPct}%` }} />
       <div className="absolute inset-y-0 bg-emerald-100" style={{ left: `${lowPct}%`, width: `${highPct - lowPct}%` }} />
       <div className="absolute inset-y-0 bg-red-100" style={{ left: `${highPct}%`, right: 0 }} />
       <div
         className="absolute top-0 w-2.5 h-2.5 rounded-full border-2 border-white -translate-x-1/2"
-        style={{ left: `${pct}%`, backgroundColor: '#6B4EFF', boxShadow: '0 1px 3px rgba(107,78,255,0.3)' }}
+        style={{ left: `${pct}%`, backgroundColor: '#2965FE', boxShadow: '0 1px 3px rgba(41,101,254,0.3)' }}
       />
-      <div className="absolute top-0 bottom-0 w-px bg-gray-300" style={{ left: `${medPct}%` }} />
+      <div className="absolute top-0 bottom-0 w-px bg-[#D9D5CB]" style={{ left: `${medPct}%` }} />
     </div>
   );
 }

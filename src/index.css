@@ -1,29 +1,52 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #6B4EFF;
-  --color-primary-light: #8B74FF;
-  --color-primary-dark: #5338E0;
-  --color-primary-50: #F5F3FF;
-  --color-primary-100: #E8E1FF;
-  --color-primary-200: #D1C4FF;
-  --color-primary-700: #4A35B3;
-  --color-primary-900: #2D1F6E;
-  --color-success: #10B981;
+  /* ─── Primary (bleu Loyoly) ─── */
+  --color-primary: #2965FE;
+  --color-primary-light: #5A8AFF;
+  --color-primary-dark: #1E4FD9;
+  --color-primary-50: #E8EFFE;
+  --color-primary-100: #CFD8FE;
+  --color-primary-200: #A3B8FD;
+  --color-primary-700: #1A47B8;
+  --color-primary-900: #0F2A6E;
+
+  /* ─── Surfaces ─── */
+  --color-surface: #F5F4F0;
+  --color-card: #EEEDE6;
+  --color-card-border: #D9D5CB;
+  --color-header: #2B251F;
+  --color-hover: #E5E1D8;
+
+  /* ─── Accent (or Loyoly) ─── */
+  --color-accent: #FED44B;
+  --color-accent-bg: #FFF8E1;
+  --color-accent-text: #92400E;
+
+  /* ─── Texte ─── */
+  --color-title: #52473C;
+  --color-body: #645648;
+  --color-muted: #8A7D6B;
+
+  /* ─── Statuts (inchangés) ─── */
+  --color-success: #059669;
   --color-warning: #F59E0B;
-  --color-danger: #EF4444;
-  --color-surface: #F6F4F0;
+  --color-danger: #DC2626;
+
+  /* ─── Tiers (inchangés) ─── */
   --color-bronze: #B87333;
   --color-silver: #9CA3AF;
   --color-gold: #D97706;
   --color-platinum: #7C3AED;
+
+  /* ─── Font ─── */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   font-family: var(--font-sans);
   background-color: var(--color-surface);
-  color: #111827;
+  color: var(--color-body);
   margin: 0;
   font-size: 15px;
   font-weight: 500;
@@ -34,8 +57,17 @@ body {
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c4c4d4; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #a0a0b4; }
+::-webkit-scrollbar-thumb { background: #C5C0B5; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A69E90; }
+
+/* ─── Focus rings ─── */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ─── Placeholder ─── */
+::placeholder { color: var(--color-muted); }
 
 /* ─── Transitions ─── */
 * { transition-timing-function: ease; transition-duration: 0.15s; }
@@ -56,11 +88,12 @@ body {
   100% { opacity: 0; }
 }
 
-/* ─── Card — 10px radius, clean ─── */
+/* ─── Card — 10px radius, flat Loyoly ─── */
 .card {
-  background: #ffffff;
+  background: var(--color-card);
+  border: 1px solid var(--color-card-border);
   border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: none;
   padding: 20px 24px;
 }
 
@@ -68,7 +101,7 @@ body {
   transition: box-shadow 0.15s ease;
 }
 .card-hover:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 /* ─── Range slider ─── */
@@ -76,7 +109,7 @@ input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  background: #F3F4F6;
+  background: #D9D5CB;
   border-radius: 999px;
   outline: none;
   width: 100%;
@@ -94,7 +127,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   cursor: pointer;
   border: 3px solid white;
-  box-shadow: 0 1px 3px rgba(107, 78, 255, 0.25);
+  box-shadow: 0 1px 3px rgba(41, 101, 254, 0.25);
   transition: transform 0.15s ease;
   margin-top: -6px;
 }
@@ -108,15 +141,15 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   cursor: pointer;
   border: 3px solid white;
-  box-shadow: 0 1px 3px rgba(107, 78, 255, 0.25);
+  box-shadow: 0 1px 3px rgba(41, 101, 254, 0.25);
 }
 
 /* ─── Inputs — 6px radius ─── */
 input[type="text"], input[type="number"], select, textarea {
   font-size: 15px;
   font-weight: 500;
-  color: #111827;
-  border: 1px solid #E5E7EB;
+  color: var(--color-title);
+  border: 1px solid var(--color-card-border);
   border-radius: 6px;
   height: 40px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -124,7 +157,7 @@ input[type="text"], input[type="number"], select, textarea {
 }
 input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(107, 78, 255, 0.08);
+  box-shadow: 0 0 0 2px rgba(41, 101, 254, 0.08);
   outline: none;
 }
 
@@ -150,14 +183,14 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
 .btn-primary:disabled { opacity: 0.35; pointer-events: none; }
 
 .btn-ghost {
-  background: white;
-  color: #374151;
+  background: var(--color-card);
+  color: var(--color-body);
   padding: 0 20px;
   height: 42px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--color-card-border);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -165,18 +198,18 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   gap: 8px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.btn-ghost:hover { background: #FAFAFA; border-color: #D1D5DB; }
+.btn-ghost:hover { background: var(--color-hover); border-color: #C5C0B5; }
 .btn-ghost:disabled { opacity: 0.35; pointer-events: none; }
 
 .btn-secondary {
-  background: white;
-  color: #374151;
+  background: var(--color-card);
+  color: var(--color-body);
   padding: 0 16px;
   height: 38px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--color-card-border);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -184,19 +217,19 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   gap: 6px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.btn-secondary:hover { background: #FAFAFA; border-color: #D1D5DB; }
+.btn-secondary:hover { background: var(--color-hover); border-color: #C5C0B5; }
 
 /* ─── Section headers — subtle, 11px ─── */
 .section-header {
   font-size: 11px;
   font-weight: 600;
-  color: #9CA3AF;
+  color: var(--color-muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   margin-bottom: 8px;
 }
 
-/* ─── Small purple label above names ─── */
+/* ─── Small blue label above names ─── */
 .section-subheader {
   font-size: 11px;
   font-weight: 600;
@@ -215,16 +248,16 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   font-size: 13px;
   font-weight: 600;
 }
-.pill-green { background: rgba(16,185,129,0.12); color: #059669; }
-.pill-red { background: rgba(239,68,68,0.12); color: #DC2626; }
+.pill-green { background: rgba(5,150,105,0.12); color: #059669; }
+.pill-red { background: rgba(220,38,38,0.12); color: #DC2626; }
 .pill-orange { background: rgba(245,158,11,0.12); color: #D97706; }
-.pill-purple { background: rgba(107,78,255,0.12); color: var(--color-primary); }
-.pill-gray { background: rgba(107,114,128,0.1); color: #6B7280; }
+.pill-purple { background: rgba(41,101,254,0.12); color: var(--color-primary); }
+.pill-gray { background: rgba(138,125,107,0.1); color: var(--color-muted); }
 
 /* ─── Progress bar track ─── */
 .progress-bar-track {
   height: 6px;
-  background: #F3F4F6;
+  background: var(--color-card-border);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -249,7 +282,7 @@ input[type="checkbox"] {
   width: 36px;
   height: 20px;
   border-radius: 999px;
-  background: #D1D5DB;
+  background: #C5C0B5;
   position: relative;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -274,22 +307,22 @@ input[type="checkbox"] {
 
 /* ─── Selection cards — 8px radius ─── */
 .selection-card {
-  background: white;
-  border: 1px solid #E5E7EB;
+  background: var(--color-card);
+  border: 1px solid var(--color-card-border);
   border-radius: 8px;
   padding: 10px 16px;
   font-size: 14px;
-  color: #111827;
+  color: var(--color-title);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .selection-card:hover {
-  border-color: #D1D5DB;
-  background: #FAFAFA;
+  border-color: #C5C0B5;
+  background: var(--color-hover);
 }
 .selection-card.selected {
-  background: #F5F3FF;
-  border: 1.5px solid #6B4EFF;
+  background: var(--color-primary-50);
+  border: 1.5px solid var(--color-primary);
 }
 
 /* ─── Tier carousel scrollbar hide ─── */

@@ -13,9 +13,9 @@ const PROGRAM_CONFIG = {
   },
   mid: {
     Icon: Zap,
-    color: '#6B4EFF',
-    bgColor: '#F3F0FF',
-    borderColor: '#E8E1FF',
+    color: '#2965FE',
+    bgColor: '#E8EFFE',
+    borderColor: '#CFD8FE',
     labelFr: 'Programme \u00c9quilibr\u00e9',
     labelEn: 'Balanced Program',
     descFr: 'Points + missions \u00b7 Perks & r\u00e9ductions',
@@ -41,7 +41,7 @@ function BrandAvatar({ brandName, brandLogo, size = 20 }) {
   }
   const initials = (brandName || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return (
-    <span style={{ width: size, height: size, borderRadius: '50%', background: '#6B4EFF', color: 'white', fontSize: size * 0.45, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <span style={{ width: size, height: size, borderRadius: '50%', background: '#2965FE', color: 'white', fontSize: size * 0.45, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       {initials}
     </span>
   );
@@ -61,13 +61,13 @@ export default function ProgramTypeBanner({ programType, brandName, brandLogo, l
         </span>
         {brandName && (
           <>
-            <span className="text-gray-300">|</span>
+            <span className="text-[#8A7D6B]">|</span>
             <BrandAvatar brandName={brandName} brandLogo={brandLogo} size={20} />
-            <span className="text-[#6B7280]">{brandName}</span>
+            <span className="text-[#645648]">{brandName}</span>
           </>
         )}
-        <span className="text-gray-300">|</span>
-        <span className="text-[#9CA3AF]">{t ? cfg.descFr : cfg.descEn}</span>
+        <span className="text-[#8A7D6B]">|</span>
+        <span className="text-[#8A7D6B]">{t ? cfg.descFr : cfg.descEn}</span>
         {onEdit && (
           <button onClick={onEdit} className="ml-auto font-medium hover:underline" style={{ color: cfg.color }}>
             {t ? 'Modifier' : 'Edit'}

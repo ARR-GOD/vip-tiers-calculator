@@ -132,15 +132,15 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
       {/* ── UNIT ECONOMICS + COST SPLIT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Unit Economics */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-800 text-sm mb-4">{t.unitEconomics}</h3>
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+          <h3 className="font-semibold text-[#52473C] text-sm mb-4">{t.unitEconomics}</h3>
           <div className="grid grid-cols-2 gap-3">
             <EconRow label="AOV" value={formatCurrency(parseFloat(settings.aov) || 80)} />
             <EconRow label={t.grossMargin} value={`${settings.grossMargin}%`} />
             <EconRow label={t.cashbackRate} value={`${settings.cashbackRate}%`} />
             <EconRow label={t.burnRateLabel} value={`${burnRate}%`} sub={config.pointsExpire ? `(${t.adjusted}: ${formatNumber(burnRate * (1 - expirationPct / 100))}%)` : null} />
           </div>
-          <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-3">
+          <div className="mt-3 pt-3 border-t border-[#D9D5CB] grid grid-cols-2 gap-3">
             <EconRow label={t.burnCostLabel} value={formatCurrency(costData.burnCost)} icon={<Flame size={10} className="text-orange-500" />} />
             <EconRow label={t.perkCostLabel} value={formatCurrency(costData.perkCost)} icon={<Trophy size={10} className="text-primary" />} />
             <EconRow label={t.totalCostLabel} value={formatCurrency(programCost)} highlight="red" />
@@ -151,8 +151,8 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
         </div>
 
         {/* Revenue distribution chart */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-800 text-sm mb-4 flex items-center gap-2">
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+          <h3 className="font-semibold text-[#52473C] text-sm mb-4 flex items-center gap-2">
             <DollarSign size={14} /> {t.revenueDist}
           </h3>
           <ResponsiveContainer width="100%" height={220}>
@@ -170,14 +170,14 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
       </div>
 
       {/* ── TIER COMPARISON TABLE ── */}
-      <div ref={summaryRef} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div ref={summaryRef} className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] overflow-hidden">
         <div className="p-5 pb-0">
-          <h3 className="font-semibold text-gray-800 text-sm mb-4">{t.tierComparison}</h3>
+          <h3 className="font-semibold text-[#52473C] text-sm mb-4">{t.tierComparison}</h3>
         </div>
 
         <div className="grid px-5 pb-5" style={{ gridTemplateColumns: `180px repeat(${tiers.length}, 1fr)` }}>
           {/* Header */}
-          <div className="text-xs font-semibold text-gray-400 py-2" />
+          <div className="text-xs font-semibold text-[#8A7D6B] py-2" />
           {tiers.map((tier, i) => (
             <div key={i} className="text-center py-2">
               <div className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: tier.color }} />
@@ -230,8 +230,8 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
       {/* ── CHARTS ROW: PIE + ENGAGEMENT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Donut */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-800 text-sm mb-3 flex items-center gap-2">
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+          <h3 className="font-semibold text-[#52473C] text-sm mb-3 flex items-center gap-2">
             <Users size={14} /> {t.clientDist}
           </h3>
           <ResponsiveContainer width="100%" height={220}>
@@ -247,8 +247,8 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
 
         {/* Engagement bar chart */}
         {config.hasMissions && (
-          <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <h3 className="font-semibold text-gray-800 text-sm mb-3 flex items-center gap-2">
+          <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+            <h3 className="font-semibold text-[#52473C] text-sm mb-3 flex items-center gap-2">
               <Award size={14} /> {t.engagementChart}
             </h3>
             <ResponsiveContainer width="100%" height={220}>
@@ -267,22 +267,22 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
 
       {/* ── UPGRADE TIMELINE ── */}
       {upgradeData.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-800 text-sm mb-3">{t.upgradeTimeline}</h3>
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+          <h3 className="font-semibold text-[#52473C] text-sm mb-3">{t.upgradeTimeline}</h3>
           <div className="grid gap-2">
             {upgradeData.map((up, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-[#EEEDE6] rounded-xl">
                 <div className="flex items-center gap-2 min-w-[130px]">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: up.color }} />
                   <span className="text-xs font-medium">{up.from}</span>
-                  <span className="text-gray-300">→</span>
+                  <span className="text-[#8A7D6B]">→</span>
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: up.nextColor }} />
                   <span className="text-xs font-medium">{up.to}</span>
                 </div>
                 <div className="flex gap-4 flex-1">
                   {up.scenarios.map((s, si) => (
                     <div key={si} className="text-center flex-1">
-                      <div className="text-[10px] text-gray-400">{s.scenario}</div>
+                      <div className="text-[10px] text-[#8A7D6B]">{s.scenario}</div>
                       <div className="font-bold text-sm">{s.months ? `${s.months} ${t.months}` : '—'}</div>
                     </div>
                   ))}
@@ -296,11 +296,11 @@ export default function TabDashboard({ tiers, customers, settings, config, missi
       {/* ── EXPORT ── */}
       <div className="flex justify-center gap-3">
         <button onClick={exportCSV}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#EEEDE6] border border-[#D9D5CB] rounded-xl text-xs font-medium text-[#645648] hover:bg-[#EEEDE6]">
           <Download size={14} /> {t.exportCSV}
         </button>
         <button onClick={exportPNG}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#EEEDE6] border border-[#D9D5CB] rounded-xl text-xs font-medium text-[#645648] hover:bg-[#EEEDE6]">
           <Image size={14} /> {t.exportPNG}
         </button>
       </div>
@@ -313,7 +313,7 @@ function KPICard({ icon, label, value, color, bg, highlight }) {
     <div className={`${bg} rounded-xl p-4 ${highlight ? 'ring-2 ring-primary/20' : ''}`}>
       <div className="flex items-center gap-1.5 mb-1">
         <span className={color}>{icon}</span>
-        <span className="text-[10px] text-gray-500 font-medium">{label}</span>
+        <span className="text-[10px] text-[#8A7D6B] font-medium">{label}</span>
       </div>
       <div className={`text-lg font-bold ${color}`}>{value}</div>
     </div>
@@ -321,13 +321,13 @@ function KPICard({ icon, label, value, color, bg, highlight }) {
 }
 
 function EconRow({ label, value, sub, highlight, icon }) {
-  const colorClass = highlight === 'red' ? 'text-red-500' : highlight === 'green' ? 'text-emerald-600' : 'text-gray-800';
+  const colorClass = highlight === 'red' ? 'text-red-500' : highlight === 'green' ? 'text-emerald-600' : 'text-[#52473C]';
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
-      <span className="text-xs text-gray-500 flex items-center gap-1">{icon}{label}</span>
+    <div className="flex justify-between items-center py-1.5 border-b border-[#E5E1D8]">
+      <span className="text-xs text-[#8A7D6B] flex items-center gap-1">{icon}{label}</span>
       <div className="text-right">
         <span className={`text-xs font-semibold ${colorClass}`}>{value}</span>
-        {sub && <div className="text-[10px] text-gray-400">{sub}</div>}
+        {sub && <div className="text-[10px] text-[#8A7D6B]">{sub}</div>}
       </div>
     </div>
   );
@@ -336,11 +336,11 @@ function EconRow({ label, value, sub, highlight, icon }) {
 function CompRow({ label, values, sub, bold }) {
   return (
     <>
-      <div className="text-xs text-gray-500 py-2 border-b border-gray-50 flex items-center">{label}</div>
+      <div className="text-xs text-[#8A7D6B] py-2 border-b border-[#E5E1D8] flex items-center">{label}</div>
       {values.map((v, i) => (
-        <div key={i} className="text-center py-2 border-b border-gray-50">
-          <div className={`text-xs ${bold ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>{v}</div>
-          {sub && sub[i] && <div className="text-[9px] text-gray-400">{sub[i]}</div>}
+        <div key={i} className="text-center py-2 border-b border-[#E5E1D8]">
+          <div className={`text-xs ${bold ? 'font-bold text-[#52473C]' : 'font-medium text-[#645648]'}`}>{v}</div>
+          {sub && sub[i] && <div className="text-[9px] text-[#8A7D6B]">{sub[i]}</div>}
         </div>
       ))}
     </>

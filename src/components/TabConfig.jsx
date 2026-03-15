@@ -43,46 +43,46 @@ export default function TabConfig({ tiers, setTiers, missions, setMissions, cust
 
       {/* ── MISSIONS ── */}
       {config.hasMissions && (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-800 text-sm mb-3">{t.missionsTitle}</h3>
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
+          <h3 className="font-semibold text-[#52473C] text-sm mb-3">{t.missionsTitle}</h3>
           <div className="space-y-1.5">
             {missions.map(m => (
-              <div key={m.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${m.enabled ? 'bg-white' : 'bg-gray-50 opacity-50'}`}>
+              <div key={m.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${m.enabled ? 'bg-[#EEEDE6]' : 'bg-[#EEEDE6] opacity-50'}`}>
                 <button onClick={() => toggleMission(m.id)}
                   className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[8px] transition-colors
-                    ${m.enabled ? 'bg-primary border-primary text-white' : 'border-gray-300'}`}>
+                    ${m.enabled ? 'bg-primary border-primary text-white' : 'border-[#D9D5CB]'}`}>
                   {m.enabled && '✓'}
                 </button>
-                <span className="flex-1 text-xs font-medium text-gray-700">{lang === 'fr' ? m.nameFr : m.nameEn}</span>
+                <span className="flex-1 text-xs font-medium text-[#645648]">{lang === 'fr' ? m.nameFr : m.nameEn}</span>
                 <input type="number" value={m.points} onChange={e => updateMission(m.id, 'points', parseInt(e.target.value) || 0)}
-                  className="w-16 px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-center" />
-                <span className="text-[10px] text-gray-400">pts</span>
+                  className="w-16 px-1.5 py-0.5 border border-[#D9D5CB] rounded text-[10px] text-center" />
+                <span className="text-[10px] text-[#8A7D6B]">pts</span>
                 <input type="number" value={m.frequency} onChange={e => updateMission(m.id, 'frequency', parseFloat(e.target.value) || 0)}
-                  className="w-12 px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-center" step={0.5} />
-                <span className="text-[10px] text-gray-400">/{t.yr}</span>
+                  className="w-12 px-1.5 py-0.5 border border-[#D9D5CB] rounded text-[10px] text-center" step={0.5} />
+                <span className="text-[10px] text-[#8A7D6B]">/{t.yr}</span>
               </div>
             ))}
             {customMissions.map(m => (
-              <div key={m.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+              <div key={m.id} className="flex items-center gap-2 px-3 py-2 bg-[#EEEDE6] rounded-lg">
                 <span className="flex-1 text-xs font-medium">{lang === 'fr' ? m.nameFr : m.nameEn}</span>
                 <input type="number" value={m.points} onChange={e => updateCustomMission(m.id, 'points', parseInt(e.target.value) || 0)}
-                  className="w-16 px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-center" />
-                <span className="text-[10px] text-gray-400">pts</span>
+                  className="w-16 px-1.5 py-0.5 border border-[#D9D5CB] rounded text-[10px] text-center" />
+                <span className="text-[10px] text-[#8A7D6B]">pts</span>
                 <input type="number" value={m.frequency} onChange={e => updateCustomMission(m.id, 'frequency', parseFloat(e.target.value) || 0)}
-                  className="w-12 px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-center" step={0.5} />
-                <span className="text-[10px] text-gray-400">/{t.yr}</span>
-                <button onClick={() => removeCustomMission(m.id)} className="text-gray-400 hover:text-danger"><X size={12} /></button>
+                  className="w-12 px-1.5 py-0.5 border border-[#D9D5CB] rounded text-[10px] text-center" step={0.5} />
+                <span className="text-[10px] text-[#8A7D6B]">/{t.yr}</span>
+                <button onClick={() => removeCustomMission(m.id)} className="text-[#8A7D6B] hover:text-danger"><X size={12} /></button>
               </div>
             ))}
           </div>
           {/* Add mission */}
-          <div className="flex gap-2 items-end mt-3 pt-3 border-t border-gray-100">
+          <div className="flex gap-2 items-end mt-3 pt-3 border-t border-[#D9D5CB]">
             <input type="text" value={newMission.name} onChange={e => setNewMission(p => ({ ...p, name: e.target.value }))}
-              placeholder={t.missionPlaceholder} className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs" />
+              placeholder={t.missionPlaceholder} className="flex-1 px-2 py-1.5 border border-[#D9D5CB] rounded-lg text-xs" />
             <input type="number" value={newMission.pts} onChange={e => setNewMission(p => ({ ...p, pts: parseInt(e.target.value) || 0 }))}
-              className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center" />
+              className="w-16 px-2 py-1.5 border border-[#D9D5CB] rounded-lg text-xs text-center" />
             <input type="number" value={newMission.freq} onChange={e => setNewMission(p => ({ ...p, freq: parseFloat(e.target.value) || 0 }))}
-              className="w-12 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center" step={0.5} />
+              className="w-12 px-2 py-1.5 border border-[#D9D5CB] rounded-lg text-xs text-center" step={0.5} />
             <button onClick={addCustomMission} disabled={!newMission.name.trim()}
               className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium disabled:opacity-40 flex items-center gap-1">
               <Plus size={12} /> {t.add}
@@ -101,10 +101,10 @@ export default function TabConfig({ tiers, setTiers, missions, setMissions, cust
 
       {/* ── BURN RATE ── */}
       {config.rewardType !== 'perks' && (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <label className="text-xs font-medium text-gray-600">{t.burnRate}</label>
+              <label className="text-xs font-medium text-[#645648]">{t.burnRate}</label>
               <Tooltip text={t.burnTooltip} />
             </div>
             <span className="text-sm font-bold text-primary">{burnRate}%</span>

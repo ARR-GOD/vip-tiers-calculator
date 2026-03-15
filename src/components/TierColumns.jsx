@@ -14,7 +14,7 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
       const newTiers = [...tiers];
       for (let i = tiers.length; i < count; i++) {
         newTiers.push({
-          name: names[i] || `Tier ${i + 1}`, color: colors[i] || '#8B74FF',
+          name: names[i] || `Tier ${i + 1}`, color: colors[i] || '#5A8AFF',
           threshold: Math.round((100 / count) * (count - i)),
           pointsThreshold: (i + 1) * 1000, pointsMultiplier: 1 + i * 0.5, perks: [],
         });
@@ -52,21 +52,21 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
   const burnRewards = rewards.filter(r => r.rewardUsage === 'burn' || r.rewardUsage === 'both');
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+    <div className="bg-[#EEEDE6] rounded-xl border border-[#D9D5CB] p-5">
       {/* Header with tier count controls */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-800 text-sm">{t.title}</h3>
+          <h3 className="font-semibold text-[#52473C] text-sm">{t.title}</h3>
           <BenchmarkBadge benchmarkKey="tierCount" value={tierCount} lang={lang} />
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => tierCount > 2 && setTierCount(tierCount - 1)} disabled={tierCount <= 2}
-            className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30">
+            className="w-7 h-7 rounded-lg border border-[#D9D5CB] flex items-center justify-center text-[#645648] hover:bg-[#EEEDE6] disabled:opacity-30">
             <Minus size={12} />
           </button>
           <span className="w-6 text-center font-bold text-primary">{tierCount}</span>
           <button onClick={() => tierCount < 4 && setTierCount(tierCount + 1)} disabled={tierCount >= 4}
-            className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-30">
+            className="w-7 h-7 rounded-lg border border-[#D9D5CB] flex items-center justify-center text-[#645648] hover:bg-[#EEEDE6] disabled:opacity-30">
             <Plus size={12} />
           </button>
         </div>
@@ -80,59 +80,59 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
           const tierBurnRewards = burnRewards.filter(r => r.assignedTiers?.[i]);
 
           return (
-            <div key={i} className="border border-gray-100 rounded-xl overflow-hidden flex flex-col">
+            <div key={i} className="border border-[#D9D5CB] rounded-xl overflow-hidden flex flex-col">
               {/* Tier color header */}
               <div className="h-2" style={{ backgroundColor: tier.color }} />
               <div className="p-3 flex flex-col gap-3 flex-1">
                 {/* Name + Color */}
                 <div className="flex items-center gap-2">
                   <input type="color" value={tier.color} onChange={e => updateTier(i, 'color', e.target.value)}
-                    className="w-6 h-6 rounded cursor-pointer border border-gray-200 flex-shrink-0" />
+                    className="w-6 h-6 rounded cursor-pointer border border-[#D9D5CB] flex-shrink-0" />
                   <input type="text" value={tier.name} onChange={e => updateTier(i, 'name', e.target.value)}
-                    className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm font-semibold" />
+                    className="w-full px-2 py-1 border border-[#D9D5CB] rounded-lg text-sm font-semibold" />
                 </div>
 
                 {/* Threshold */}
                 {config.tierBasis === 'spend' ? (
                   <div>
-                    <label className="text-[10px] text-gray-400 mb-0.5 block">{t.threshold} (top %)</label>
+                    <label className="text-[10px] text-[#8A7D6B] mb-0.5 block">{t.threshold} (top %)</label>
                     <input type="range" min={0} max={100} value={tier.threshold}
                       onChange={e => updateTier(i, 'threshold', parseInt(e.target.value))} />
                     <div className="text-xs text-primary font-semibold text-center">{tier.threshold}%</div>
                   </div>
                 ) : (
                   <div>
-                    <label className="text-[10px] text-gray-400 mb-0.5 block">{t.ptsThreshold}</label>
+                    <label className="text-[10px] text-[#8A7D6B] mb-0.5 block">{t.ptsThreshold}</label>
                     <input type="number" min={0} step={100} value={tier.pointsThreshold}
                       onChange={e => updateTier(i, 'pointsThreshold', parseInt(e.target.value) || 0)}
-                      className="w-full px-2 py-1 border border-gray-200 rounded-lg text-xs text-center" />
+                      className="w-full px-2 py-1 border border-[#D9D5CB] rounded-lg text-xs text-center" />
                   </div>
                 )}
 
                 {/* Multiplier */}
                 <div>
-                  <label className="text-[10px] text-gray-400 mb-0.5 block">{t.multiplier}</label>
+                  <label className="text-[10px] text-[#8A7D6B] mb-0.5 block">{t.multiplier}</label>
                   <input type="range" min={1} max={5} step={0.25} value={tier.pointsMultiplier}
                     onChange={e => updateTier(i, 'pointsMultiplier', parseFloat(e.target.value))} />
                   <div className="text-xs text-primary font-semibold text-center">{tier.pointsMultiplier}x</div>
                 </div>
 
                 {/* Stats Preview */}
-                <div className="bg-gray-50 rounded-lg p-2 space-y-1">
+                <div className="bg-[#EEEDE6] rounded-lg p-2 space-y-1">
                   <StatRow label={t.clients} value={formatNumber(stat.count)} />
                   <StatRow label="% CA" value={formatPercent(stat.revenuePercentage)} />
                   <StatRow label="LTV" value={formatCurrency(stat.avgLTV)} />
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-gray-100" />
+                <div className="border-t border-[#D9D5CB]" />
 
                 {/* Perk Rewards assigned to this tier */}
                 {perkRewards.length > 0 && (
                   <div>
                     <div className="flex items-center gap-1 mb-1.5">
                       <Trophy size={10} className="text-primary" />
-                      <span className="text-[10px] font-semibold text-gray-500">{t.perksLabel}</span>
+                      <span className="text-[10px] font-semibold text-[#8A7D6B]">{t.perksLabel}</span>
                     </div>
                     <div className="space-y-1">
                       {perkRewards.map(r => (
@@ -142,11 +142,11 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
                             className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[7px] transition-colors flex-shrink-0
                               ${r.assignedTiers?.[i]
                                 ? 'bg-primary border-primary text-white'
-                                : 'border-gray-200 group-hover:border-gray-300'}`}
+                                : 'border-[#D9D5CB] group-hover:border-[#D9D5CB]'}`}
                           >
                             {r.assignedTiers?.[i] && '✓'}
                           </button>
-                          <span className={`text-[10px] ${r.assignedTiers?.[i] ? 'text-gray-700' : 'text-gray-400'}`}>
+                          <span className={`text-[10px] ${r.assignedTiers?.[i] ? 'text-[#645648]' : 'text-[#8A7D6B]'}`}>
                             {lang === 'fr' ? r.nameFr : r.nameEn}
                           </span>
                         </label>
@@ -160,7 +160,7 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
                   <div>
                     <div className="flex items-center gap-1 mb-1.5">
                       <Flame size={10} className="text-orange-500" />
-                      <span className="text-[10px] font-semibold text-gray-500">{t.burnLabel}</span>
+                      <span className="text-[10px] font-semibold text-[#8A7D6B]">{t.burnLabel}</span>
                     </div>
                     <div className="space-y-1">
                       {burnRewards.map(r => (
@@ -170,14 +170,14 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
                             className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[7px] transition-colors flex-shrink-0
                               ${r.assignedTiers?.[i]
                                 ? 'bg-orange-500 border-orange-500 text-white'
-                                : 'border-gray-200 group-hover:border-gray-300'}`}
+                                : 'border-[#D9D5CB] group-hover:border-[#D9D5CB]'}`}
                           >
                             {r.assignedTiers?.[i] && '✓'}
                           </button>
-                          <span className={`text-[10px] ${r.assignedTiers?.[i] ? 'text-gray-700' : 'text-gray-400'}`}>
+                          <span className={`text-[10px] ${r.assignedTiers?.[i] ? 'text-[#645648]' : 'text-[#8A7D6B]'}`}>
                             {lang === 'fr' ? r.nameFr : r.nameEn}
                             {(r.rewardUsage === 'burn' || r.rewardUsage === 'both') && (
-                              <span className="text-gray-300 ml-1">({r.pointsCost} pts)</span>
+                              <span className="text-[#8A7D6B] ml-1">({r.pointsCost} pts)</span>
                             )}
                           </span>
                         </label>
@@ -188,7 +188,7 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
 
                 {/* Custom free-text perks */}
                 <div>
-                  <span className="text-[10px] text-gray-400 block mb-1">{t.customPerks}</span>
+                  <span className="text-[10px] text-[#8A7D6B] block mb-1">{t.customPerks}</span>
                   <div className="flex flex-wrap gap-1">
                     {tier.perks.map((perk, pi) => (
                       <span key={pi} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-primary-50 text-primary text-[9px] rounded-full">
@@ -198,7 +198,7 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
                     ))}
                     <input type="text" placeholder="+"
                       onKeyDown={e => { if (e.key === 'Enter' && e.target.value.trim()) { addPerk(i, e.target.value); e.target.value = ''; } }}
-                      className="px-1.5 py-0.5 border border-dashed border-gray-200 rounded-full text-[9px] w-16 outline-none focus:border-primary"
+                      className="px-1.5 py-0.5 border border-dashed border-[#D9D5CB] rounded-full text-[9px] w-16 outline-none focus:border-primary"
                     />
                   </div>
                 </div>
@@ -214,8 +214,8 @@ export default function TierColumns({ tiers, setTiers, rewards, setRewards, tier
 function StatRow({ label, value }) {
   return (
     <div className="flex justify-between text-[10px]">
-      <span className="text-gray-400">{label}</span>
-      <span className="font-semibold text-gray-700">{value}</span>
+      <span className="text-[#8A7D6B]">{label}</span>
+      <span className="font-semibold text-[#645648]">{value}</span>
     </div>
   );
 }

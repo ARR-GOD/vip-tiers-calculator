@@ -18,10 +18,10 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
     <div className="max-w-2xl mx-auto space-y-3">
       <div className="text-center">
         <div className="section-subheader">{t ? 'CONFIGURATION' : 'SETUP'}</div>
-        <h2 className="text-[28px] font-bold text-[#111827]">
+        <h2 className="text-[28px] font-bold text-[#52473C]">
           {t ? 'Configurez votre programme VIP' : 'Configure your VIP Program'}
         </h2>
-        <p className="text-[15px] text-[#6B7280] mt-1.5">
+        <p className="text-[15px] text-[#645648] mt-1.5">
           {t ? 'Ces réponses pré-rempliront les étapes suivantes. Vous pourrez tout modifier.' : 'These answers will pre-fill the next steps. You can change everything later.'}
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function Step0_ProgramSetup({ lang, answers, onComplete, onSkip }
       <div className="card">
         <div className="section-subheader">
           {t ? 'OBJECTIFS' : 'GOALS'}
-          <span className="text-[#9CA3AF] font-normal ml-1 text-[10px] normal-case tracking-normal">({t ? 'optionnel' : 'optional'})</span>
+          <span className="text-[#8A7D6B] font-normal ml-1 text-[10px] normal-case tracking-normal">({t ? 'optionnel' : 'optional'})</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {GOALS.map(g => (

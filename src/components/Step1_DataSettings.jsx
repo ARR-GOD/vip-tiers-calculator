@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge, { BenchmarkBar } from './BenchmarkBadge';
 import { formatCurrency, formatNumber, getCashbackRecommendation } from '../utils/calculations';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
 
-export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis }) {
+export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onNext }) {
   const t = lang === 'fr' ? FR : EN;
   const [cashbackBannerDismissed, setCashbackBannerDismissed] = useState(false);
 
@@ -40,8 +40,8 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
     <div className="space-y-3">
       <div>
         <div className="section-subheader">{lang === 'fr' ? 'ÉTAPE 3' : 'STEP 3'}</div>
-        <h2 className="text-[28px] font-bold text-[#111827]">{t.title}</h2>
-        <p className="text-[15px] text-[#6B7280] mt-0.5">{t.subtitle}</p>
+        <h2 className="text-[28px] font-bold text-[#52473C]">{t.title}</h2>
+        <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
       </div>
 
       <RecommendationBlock stepKey={2} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
@@ -53,11 +53,11 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
           <button
             onClick={() => update('hasMissions', true)}
             className={`card card-hover text-left transition-all ${config.hasMissions ? 'ring-2 ring-primary' : ''}`}
-            style={{ padding: '20px 24px', backgroundColor: config.hasMissions ? '#F5F3FF' : '#ffffff' }}>
-            <div className="text-[15px] font-bold text-[#111827]">
+            style={{ padding: '20px 24px', backgroundColor: config.hasMissions ? '#E8EFFE' : '#ffffff' }}>
+            <div className="text-[15px] font-bold text-[#52473C]">
               {lang === 'fr' ? 'Programme à points' : 'Points Program'}
             </div>
-            <p className="text-[13px] text-[#6B7280] mt-1">
+            <p className="text-[13px] text-[#645648] mt-1">
               {lang === 'fr'
                 ? 'Les clients accumulent des points via achats et missions'
                 : 'Customers accumulate points through purchases and missions'}
@@ -66,11 +66,11 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
           <button
             onClick={() => update('hasMissions', false)}
             className={`card card-hover text-left transition-all ${!config.hasMissions ? 'ring-2 ring-primary' : ''}`}
-            style={{ padding: '20px 24px', backgroundColor: !config.hasMissions ? '#F5F3FF' : '#ffffff' }}>
-            <div className="text-[15px] font-bold text-[#111827]">
+            style={{ padding: '20px 24px', backgroundColor: !config.hasMissions ? '#E8EFFE' : '#ffffff' }}>
+            <div className="text-[15px] font-bold text-[#52473C]">
               {lang === 'fr' ? 'Programme VIP pur' : 'Pure VIP Program'}
             </div>
-            <p className="text-[13px] text-[#6B7280] mt-1">
+            <p className="text-[13px] text-[#645648] mt-1">
               {lang === 'fr'
                 ? 'Paliers basés sur les dépenses, sans système de points'
                 : 'Spend-based tiers, no points system'}
@@ -101,16 +101,16 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
 
       {config.hasMissions && config.pointsExpire && (
         <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
-          <label className="text-[13px] text-[#6B7280]">{t.delay}</label>
+          <label className="text-[13px] text-[#645648]">{t.delay}</label>
           <input type="number" min={1} max={60} value={config.expirationMonths}
             onChange={e => update('expirationMonths', parseInt(e.target.value) || 12)}
             className="w-20 px-2 py-1.5 text-[13px] text-center" />
-          <span className="text-[13px] text-[#9CA3AF]">{t.months}</span>
+          <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
           <div className="flex gap-1.5 ml-2">
             {['rolling', 'fixed'].map(type => (
               <button key={type} onClick={() => update('expirationType', type)}
                 className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
-                  ${config.expirationType === type ? 'bg-primary text-white' : 'bg-gray-100 text-[#6B7280]'}`}>
+                  ${config.expirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
                 {type === 'rolling' ? t.rolling : t.fixed}
               </button>
             ))}
@@ -132,23 +132,23 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             <MiniStat value={formatNumber(Math.round(totalRevenue / (activeCustomers || 1)))} label="LTV" suffix="€" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-[#D9D5CB]">
             <div>
-              <label className="text-[12px] text-[#6B7280] mb-1 block">{t.aov}</label>
+              <label className="text-[12px] text-[#645648] mb-1 block">{t.aov}</label>
               <div className="relative">
                 <input type="number" value={settings.aov}
                   onChange={e => setSettings(p => ({ ...p, aov: parseFloat(e.target.value) || 0 }))}
                   className="w-full px-3 py-2 pr-8 text-[15px]" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#9CA3AF]">€</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">€</span>
               </div>
             </div>
             <div>
-              <label className="text-[12px] text-[#6B7280] mb-1 block">{t.margin}</label>
+              <label className="text-[12px] text-[#645648] mb-1 block">{t.margin}</label>
               <div className="relative">
                 <input type="number" value={settings.grossMargin}
                   onChange={e => setSettings(p => ({ ...p, grossMargin: parseFloat(e.target.value) || 0 }))}
                   className="w-full px-3 py-2 pr-8 text-[15px]" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#9CA3AF]">%</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">%</span>
               </div>
               <BenchmarkBadge benchmarkKey="grossMargin" value={settings.grossMargin} lang={lang} />
             </div>
@@ -156,10 +156,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
 
           {/* Cashback slider — only for points programs */}
           {config.hasMissions && (
-            <div className="pt-3 border-t border-gray-100">
+            <div className="pt-3 border-t border-[#D9D5CB]">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-[12px] font-medium text-[#374151]">{t.cashbackRate}</label>
+                  <label className="text-[12px] font-medium text-[#645648]">{t.cashbackRate}</label>
                   <Tooltip text={t.cashbackTip} />
                 </div>
                 <span className="text-[18px] font-bold text-primary">{settings.cashbackRate}%</span>
@@ -169,7 +169,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
               <BenchmarkBar benchmarkKey="cashbackRate" value={settings.cashbackRate} />
               <div className="mt-2"><BenchmarkBadge benchmarkKey="cashbackRate" value={settings.cashbackRate} lang={lang} /></div>
               {settings.grossMargin > 0 && (
-                <div className="mt-2 text-[11px] text-[#9CA3AF]">
+                <div className="mt-2 text-[11px] text-[#8A7D6B]">
                   = {((settings.cashbackRate / settings.grossMargin) * 100).toFixed(1)}% {t.ofMargin}
                   {settings.cashbackRate > settings.grossMargin * 0.08 && (
                     <span className="ml-2 text-red-500 font-medium">{'>'}8% {t.ofMargin}</span>
@@ -201,10 +201,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
           )}
 
           {/* Points per euro setting */}
-          <div className="pt-3 border-t border-gray-100">
+          <div className="pt-3 border-t border-[#D9D5CB]">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5">
-                <label className="text-[12px] font-medium text-[#374151]">{t.pointsPerEuro}</label>
+                <label className="text-[12px] font-medium text-[#645648]">{t.pointsPerEuro}</label>
                 <Tooltip text={t.pointsPerEuroTip} />
               </div>
             </div>
@@ -213,10 +213,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
                 <input type="number" min={1} max={1000} value={settings.pointsPerEuro || 100}
                   onChange={e => setSettings(p => ({ ...p, pointsPerEuro: parseInt(e.target.value) || 100 }))}
                   className="w-full px-3 py-2 pr-16 text-[15px]" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#9CA3AF]">pts = 1€</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">pts = 1€</span>
               </div>
             </div>
-            <div className="mt-2 text-[11px] text-[#9CA3AF]">
+            <div className="mt-2 text-[11px] text-[#8A7D6B]">
               {lang === 'fr'
                 ? `→ ${settings.cashbackRate}% de cashback × ${settings.pointsPerEuro || 100} pts/€ = ${((settings.cashbackRate * (settings.pointsPerEuro || 100)) / 100).toFixed(1)} pts gagnés par 1€ dépensé`
                 : `→ ${settings.cashbackRate}% cashback × ${settings.pointsPerEuro || 100} pts/€ = ${((settings.cashbackRate * (settings.pointsPerEuro || 100)) / 100).toFixed(1)} pts earned per 1€ spent`}
@@ -224,7 +224,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             <div className="mt-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F3F0FF' }}>
               <div className="text-[11px] text-primary font-medium">
                 💡 {lang === 'fr' ? 'Recommandation' : 'Recommendation'}:{' '}
-                <span className="font-normal text-[#6B7280]">
+                <span className="font-normal text-[#645648]">
                   {lang === 'fr'
                     ? `Avec un taux de ${settings.cashbackRate}%, nous recommandons ${settings.cashbackRate <= 5 ? '100' : settings.cashbackRate <= 10 ? '10' : '1'} pts = 1€. Cela donne ${settings.cashbackRate <= 5 ? settings.cashbackRate : settings.cashbackRate <= 10 ? (settings.cashbackRate / 10).toFixed(1) : (settings.cashbackRate / 100).toFixed(2)} pts par € dépensé — un ratio facile à communiquer.`
                     : `With a ${settings.cashbackRate}% rate, we recommend ${settings.cashbackRate <= 5 ? '100' : settings.cashbackRate <= 10 ? '10' : '1'} pts = 1€. This gives ${settings.cashbackRate <= 5 ? settings.cashbackRate : settings.cashbackRate <= 10 ? (settings.cashbackRate / 10).toFixed(1) : (settings.cashbackRate / 100).toFixed(2)} pts per € spent — an easy ratio to communicate.`}
@@ -234,6 +234,15 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
           </div>
         </div>
       </div>
+
+      {/* Inline next */}
+      {onNext && (
+        <div className="flex justify-end pt-6">
+          <button onClick={onNext} className="btn-primary">
+            {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -242,7 +251,7 @@ function ConfigCard({ title, tooltip, options, selected, onChange }) {
   return (
     <div className="card" style={{ padding: '16px 20px' }}>
       <div className="flex items-center gap-1 mb-2">
-        <span className="text-[12px] font-semibold text-[#374151]">{title}</span>
+        <span className="text-[12px] font-semibold text-[#645648]">{title}</span>
         {tooltip && <Tooltip text={tooltip} />}
       </div>
       <div className="flex flex-col gap-1">
@@ -260,9 +269,9 @@ function ConfigCard({ title, tooltip, options, selected, onChange }) {
 
 function MiniStat({ value, label, suffix }) {
   return (
-    <div className="text-center p-2.5 bg-gray-50 rounded-lg">
-      <div className="text-[15px] font-bold text-[#111827]">{value}{suffix}</div>
-      <div className="text-[11px] text-[#9CA3AF] mt-0.5">{label}</div>
+    <div className="text-center p-2.5 bg-[#EEEDE6] rounded-lg">
+      <div className="text-[15px] font-bold text-[#52473C]">{value}{suffix}</div>
+      <div className="text-[11px] text-[#8A7D6B] mt-0.5">{label}</div>
     </div>
   );
 }

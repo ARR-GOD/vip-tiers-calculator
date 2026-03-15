@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { RotateCcw, Globe, ChevronRight, Link2, Check } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -8,7 +8,7 @@ import Step3_Rewards from './components/Step3_Rewards';
 import Step4_TierBuilder from './components/Step4_TierBuilder';
 import Step5_Dashboard from './components/Step5_Dashboard';
 import { parseSampleData } from './data/sampleData';
-import { DEFAULT_MISSIONS, DEFAULT_REWARDS } from './data/defaults';
+import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
 import { applyBrandDefaults } from './data/brandPresets';
@@ -34,9 +34,9 @@ const INITIAL_SETTINGS = {
 };
 
 const INITIAL_TIERS = [
-  { name: 'Bronze', color: '#B87333', threshold: 100, pointsThreshold: 0, pointsMultiplier: 1, perks: [] },
-  { name: 'Argent', color: '#9CA3AF', threshold: 50, pointsThreshold: 1000, pointsMultiplier: 1.5, perks: [] },
-  { name: 'Or', color: '#D97706', threshold: 15, pointsThreshold: 3000, pointsMultiplier: 2, perks: [] },
+  { name: 'Bronze', color: '#B87333', threshold: 100, spendThreshold: 0, pointsThreshold: 0, pointsMultiplier: 1, perks: [] },
+  { name: 'Argent', color: '#9CA3AF', threshold: 50, spendThreshold: 500, pointsThreshold: 1000, pointsMultiplier: 1.5, perks: [] },
+  { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, pointsMultiplier: 2, perks: [] },
 ];
 
 const STEPS = [
@@ -60,9 +60,11 @@ function App() {
   const [customMissions, setCustomMissions] = useState([]);
   const [rewards, setRewards] = useState(DEFAULT_REWARDS);
   const [burnRate, setBurnRate] = useState(40);
+  const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
   const [phase, setPhase] = useState('brand'); // 'brand' | 'wizard'
   const [brandAnalysis, setBrandAnalysis] = useState(null);
+  const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
 
   const setTiers = useCallback((newTiersOrFn) => {
     setTiersRaw(prev => {
@@ -116,15 +118,33 @@ function App() {
     setCustomMissions([]);
     setRewards(DEFAULT_REWARDS);
     setBurnRate(40);
+    setReferralConfig(INITIAL_REFERRAL);
     setOnboardingAnswers(null);
     setBrandAnalysis(null);
     setPhase('brand');
     setStep(0);
+    setVisitedSteps(new Set([0]));
     // Clear recommendation dismiss flags
     for (let i = 1; i <= 6; i++) {
       try { localStorage.removeItem(`vip_reco_dismissed_step${i}`); } catch { /* noop */ }
     }
   };
+
+  // Track visited steps
+  useEffect(() => {
+    if (phase === 'wizard') {
+      setVisitedSteps(prev => {
+        if (prev.has(step)) return prev;
+        const next = new Set(prev);
+        next.add(step);
+        return next;
+      });
+    }
+  }, [step, phase]);
+
+  const goNext = useCallback(() => {
+    setStep(s => Math.min(STEPS.length - 1, s + 1));
+  }, []);
 
   const copyShareableLink = () => {
     const state = { config, settings, tiers, onboardingAnswers };
@@ -138,24 +158,24 @@ function App() {
   return (
     <div className="min-h-screen bg-surface flex flex-col">
       {/* ─── Navbar ─── */}
-      <header className="sticky top-0 z-40 bg-white" style={{ height: 56, borderBottom: '1px solid #E5E7EB' }}>
+      <header className="sticky top-0 z-40" style={{ height: 56, backgroundColor: '#2B251F' }}>
         <div className="max-w-[1100px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28 }} />
-            <span className="text-[15px] font-bold text-gray-900">VIP Tiers Calculator</span>
+            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
+            <span className="text-[15px] font-bold text-white">VIP Tiers Calculator</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={copyShareableLink}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-all"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
               title={t ? 'Copier le lien' : 'Copy link'}>
               <Link2 size={15} />
             </button>
             <button onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-all">
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
               <Globe size={15} />
             </button>
             <button onClick={reset}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all">
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
               <RotateCcw size={15} />
             </button>
           </div>
@@ -173,14 +193,14 @@ function App() {
         />
       )}
       {phase === 'wizard' && step > 1 && !brandAnalysis && onboardingAnswers && (
-        <div className="bg-primary-50" style={{ borderBottom: '1px solid #E8E1FF' }}>
+        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
           <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
-            <span className="text-gray-600">{onboardingAnswers.industry}</span>
-            <span className="text-gray-300">|</span>
-            <span className="text-gray-600">{onboardingAnswers.priceRange}</span>
-            <span className="text-gray-300">|</span>
-            <span className="text-gray-600">{onboardingAnswers.goals?.join(', ')}</span>
+            <span className="text-[#645648]">{onboardingAnswers.industry}</span>
+            <span className="text-[#8A7D6B]">|</span>
+            <span className="text-[#645648]">{onboardingAnswers.priceRange}</span>
+            <span className="text-[#8A7D6B]">|</span>
+            <span className="text-[#645648]">{onboardingAnswers.goals?.join(', ')}</span>
             <button onClick={() => setStep(0)} className="ml-auto text-primary font-medium hover:underline text-[12px]">
               {t ? 'Modifier' : 'Edit'}
             </button>
@@ -188,8 +208,38 @@ function App() {
         </div>
       )}
 
+      {/* ─── Step Tabs ─── */}
+      {phase === 'wizard' && (
+        <nav className="sticky top-[57px] z-30" style={{ backgroundColor: '#EEEDE6', borderBottom: '1px solid #D9D5CB' }}>
+          <div className="max-w-[1100px] mx-auto px-6 flex items-center gap-1 overflow-x-auto py-2 tier-scroll" style={{ scrollbarWidth: 'none' }}>
+            {STEPS.map((s) => {
+              const isActive = step === s.id;
+              const isVisited = visitedSteps.has(s.id) && !isActive;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStep(s.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap transition-all shrink-0 ${
+                    isActive
+                      ? 'bg-primary text-white'
+                      : isVisited
+                        ? 'text-[#059669] hover:bg-[#E5E1D8]'
+                        : 'text-[#8A7D6B] hover:bg-[#E5E1D8]'
+                  }`}
+                  style={!isActive ? { backgroundColor: 'transparent' } : undefined}
+                >
+                  {isVisited && !isActive && <Check size={12} className="text-[#059669]" />}
+                  <span className="text-[11px] font-normal" style={{ color: isActive ? 'rgba(255,255,255,0.7)' : '#8A7D6B' }}>{s.id + 1}.</span>
+                  {t ? s.labelFr : s.labelEn}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
       {/* ─── Main Content ─── */}
-      <main className="flex-1 max-w-[1100px] mx-auto w-full px-6 pt-6 pb-24">
+      <main className="flex-1 max-w-[1100px] mx-auto w-full px-6 pt-6 pb-12">
         {phase === 'brand' ? (
           <StepBrand_Analyzer
             lang={lang}
@@ -205,23 +255,24 @@ function App() {
             )}
             {step === 1 && (
               <StepData_Import customers={customers} setCustomers={setCustomers} lang={lang}
-                brandAnalysis={brandAnalysis} config={config} settings={settings} />
+                brandAnalysis={brandAnalysis} config={config} settings={settings} onNext={goNext} />
             )}
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
-                lang={lang} brandAnalysis={brandAnalysis} />
+                lang={lang} brandAnalysis={brandAnalysis} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
-                burnRate={burnRate} brandAnalysis={brandAnalysis} />
+                burnRate={burnRate} brandAnalysis={brandAnalysis}
+                referralConfig={referralConfig} setReferralConfig={setReferralConfig} onNext={goNext} />
             )}
             {step === 4 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
                 settings={settings} config={config} lang={lang}
-                brandAnalysis={brandAnalysis} customers={customers} />
+                brandAnalysis={brandAnalysis} customers={customers} onNext={goNext} />
             )}
             {step === 5 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
@@ -229,7 +280,7 @@ function App() {
                 burnRate={burnRate} setBurnRate={setBurnRate}
                 customers={customers} settings={settings} config={config}
                 missions={missions} customMissions={customMissions} lang={lang}
-                brandAnalysis={brandAnalysis} />
+                brandAnalysis={brandAnalysis} onNext={goNext} />
             )}
             {step === 6 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
@@ -237,46 +288,13 @@ function App() {
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
-                brandAnalysis={brandAnalysis} />
+                brandAnalysis={brandAnalysis}
+                referralConfig={referralConfig} />
             )}
           </div>
         )}
       </main>
 
-      {/* ─── Bottom Navigation (hidden during brand phase) ─── */}
-      {phase === 'wizard' && (
-        <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white" style={{ borderTop: '1px solid #E5E7EB' }}>
-          <div className="max-w-[1100px] mx-auto px-6 py-4 flex items-center justify-between">
-            <button
-              onClick={() => {
-                if (step === 0 && brandAnalysis) {
-                  setPhase('brand');
-                } else {
-                  setStep(s => Math.max(0, s - 1));
-                }
-              }}
-              disabled={step === 0 && !brandAnalysis}
-              className="btn-ghost disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={16} />
-              {t ? 'Précédent' : 'Previous'}
-            </button>
-
-            <span className="text-[13px] text-gray-400">
-              {t ? `Étape ${step + 1} sur ${STEPS.length}` : `Step ${step + 1} of ${STEPS.length}`}
-            </span>
-
-            <button
-              onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))}
-              disabled={step === STEPS.length - 1}
-              className="btn-primary disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {t ? 'Suivant' : 'Next'}
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </footer>
-      )}
     </div>
   );
 }
