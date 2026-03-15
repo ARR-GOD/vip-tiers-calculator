@@ -6,6 +6,7 @@ import { toPng } from 'html-to-image';
 import { computeCustomerScores, assignTiers, computeTierStats, computeRewardsCost, computeProgramFunnel, compute12MonthProjection, computeTierFinancials, computeReferralEconomics, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
 import RecommendationBlock from './RecommendationBlock';
+import FirefliesInsightBanner from './FirefliesInsightBanner';
 import { getRecommendation } from '../utils/recommendations';
 
 const SCENARIO_MULTIPLIERS = { conservative: 0.6, base: 1, optimistic: 1.4 };
@@ -92,7 +93,7 @@ const DIFFERENTIATION_TIPS = {
   },
 };
 
-export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis, referralConfig }) {
+export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis, referralConfig, firefliesInsights }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
   const [scenario, setScenario] = useState('base');
@@ -176,6 +177,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
       </div>
 
       <RecommendationBlock stepKey={6} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
+      <FirefliesInsightBanner insights={firefliesInsights} stepKey="dashboard" lang={lang} />
 
       {/* Scenario */}
       <div className="card flex items-center gap-3" style={{ padding: 16 }}>

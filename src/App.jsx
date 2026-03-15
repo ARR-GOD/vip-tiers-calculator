@@ -12,8 +12,11 @@ import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defa
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
 import { applyBrandDefaults } from './data/brandPresets';
+import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
+import StepCSM_Selector from './components/StepCSM_Selector';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
+import { Building2 } from 'lucide-react';
 
 const INITIAL_CONFIG = {
   tierBasis: 'spend',
@@ -62,9 +65,13 @@ function App() {
   const [burnRate, setBurnRate] = useState(40);
   const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('brand'); // 'brand' | 'wizard'
+  const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
+  const [csmMode, setCsmMode] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [firefliesInsights, setFirefliesInsights] = useState(null);
+  const [firefliesLoading, setFirefliesLoading] = useState(false);
 
   const setTiers = useCallback((newTiersOrFn) => {
     setTiersRaw(prev => {
@@ -97,6 +104,57 @@ function App() {
     setStep(0); // Go to manual onboarding
   };
 
+  // CSM mode handlers
+  const handleHubSpotUnavailable = useCallback(() => {
+    setPhase('brand'); // Fallback: skip CSM selector, go to brand analysis
+  }, []);
+
+  const handleSkipToManual = () => {
+    setPhase('brand'); // Go to brand analysis
+  };
+
+  const handleCSMClientSelected = (client, details) => {
+    setSelectedClient({ ...client, contacts: details.contacts || [] });
+    setCsmMode(true);
+
+    // Apply CSM defaults (same shape as applyBrandDefaults / applyOnboardingDefaults)
+    const defaults = applyCsmDefaults(details.company, lang);
+    setConfig(defaults.config);
+    setSettings(defaults.settings);
+    setTiersRaw(defaults.tiers);
+    setRewards(defaults.rewards);
+    setMissions(defaults.missions);
+    setBurnRate(defaults.burnRate);
+
+    // Build onboarding answers for the banner
+    setOnboardingAnswers(buildCsmOnboardingAnswers(details.company));
+
+    // Transition to wizard, skip onboarding (go to CSV import)
+    setPhase('wizard');
+    setStep(1);
+
+    // Fire-and-forget: fetch Fireflies insights
+    const contactEmails = (details.contacts || []).map(c => c.email).filter(Boolean);
+    if (details.company.name || contactEmails.length > 0) {
+      setFirefliesLoading(true);
+      fetch('/api/fireflies-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: details.company.name || client.name || '',
+          contactEmails,
+          domain: details.company.domain || client.domain || '',
+        }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.meetingsFound > 0) setFirefliesInsights(data);
+        })
+        .catch(() => { /* silent fail — Fireflies is non-blocking */ })
+        .finally(() => setFirefliesLoading(false));
+    }
+  };
+
   const handleStep0Complete = (answers) => {
     setOnboardingAnswers(answers);
     const defaults = applyOnboardingDefaults(answers, lang);
@@ -121,7 +179,11 @@ function App() {
     setReferralConfig(INITIAL_REFERRAL);
     setOnboardingAnswers(null);
     setBrandAnalysis(null);
-    setPhase('brand');
+    setCsmMode(false);
+    setSelectedClient(null);
+    setFirefliesInsights(null);
+    setFirefliesLoading(false);
+    setPhase('csm');
     setStep(0);
     setVisitedSteps(new Set([0]));
     // Clear recommendation dismiss flags
@@ -182,8 +244,41 @@ function App() {
         </div>
       </header>
 
+      {/* ─── CSM Client banner ─── */}
+      {phase === 'wizard' && csmMode && selectedClient && (
+        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
+          <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+            <Building2 size={14} className="text-primary shrink-0" />
+            <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>CLIENT</span>
+            <span className="text-[#52473C] font-semibold">{selectedClient.name}</span>
+            {selectedClient.domain && (
+              <>
+                <span className="text-[#8A7D6B]">|</span>
+                <span className="text-[#645648]">{selectedClient.domain}</span>
+              </>
+            )}
+            {selectedClient.plan && (
+              <>
+                <span className="text-[#8A7D6B]">|</span>
+                <span className="pill pill-purple text-[10px]">{selectedClient.plan}</span>
+              </>
+            )}
+            {firefliesLoading && (
+              <span className="text-[11px] text-[#8A7D6B] italic animate-pulse">Fireflies sync...</span>
+            )}
+            {firefliesInsights && !firefliesLoading && (
+              <span className="text-[11px] text-[#059669]">✓ {firefliesInsights.meetingsFound} meeting{firefliesInsights.meetingsFound > 1 ? 's' : ''}</span>
+            )}
+            <button onClick={() => { setCsmMode(false); setSelectedClient(null); setFirefliesInsights(null); setPhase('csm'); }}
+              className="ml-auto text-primary font-medium hover:underline text-[12px]">
+              {t ? 'Changer de client' : 'Change client'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Program type / Onboarding banner ─── */}
-      {phase === 'wizard' && step > 1 && brandAnalysis && (
+      {phase === 'wizard' && step > 1 && !csmMode && brandAnalysis && (
         <ProgramTypeBanner
           programType={brandAnalysis.recommended_program}
           brandName={brandAnalysis.brand_name}
@@ -192,7 +287,7 @@ function App() {
           onEdit={() => { setPhase('brand'); }}
         />
       )}
-      {phase === 'wizard' && step > 1 && !brandAnalysis && onboardingAnswers && (
+      {phase === 'wizard' && step > 1 && !csmMode && !brandAnalysis && onboardingAnswers && (
         <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
           <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
@@ -240,7 +335,14 @@ function App() {
 
       {/* ─── Main Content ─── */}
       <main className="flex-1 max-w-[1100px] mx-auto w-full px-6 pt-6 pb-12">
-        {phase === 'brand' ? (
+        {phase === 'csm' ? (
+          <StepCSM_Selector
+            lang={lang}
+            onClientSelected={handleCSMClientSelected}
+            onSkipToManual={handleSkipToManual}
+            onHubSpotUnavailable={handleHubSpotUnavailable}
+          />
+        ) : phase === 'brand' ? (
           <StepBrand_Analyzer
             lang={lang}
             onComplete={handleBrandComplete}
@@ -267,7 +369,8 @@ function App() {
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
                 burnRate={burnRate} brandAnalysis={brandAnalysis}
-                referralConfig={referralConfig} setReferralConfig={setReferralConfig} onNext={goNext} />
+                referralConfig={referralConfig} setReferralConfig={setReferralConfig}
+                firefliesInsights={firefliesInsights} onNext={goNext} />
             )}
             {step === 4 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
@@ -289,7 +392,8 @@ function App() {
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
                 brandAnalysis={brandAnalysis}
-                referralConfig={referralConfig} />
+                referralConfig={referralConfig}
+                firefliesInsights={firefliesInsights} />
             )}
           </div>
         )}

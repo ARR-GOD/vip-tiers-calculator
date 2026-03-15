@@ -6,6 +6,22 @@
     "api/analyze-brand.js": {
       "memory": 256,
       "maxDuration": 30
+    },
+    "api/hubspot-owners.js": {
+      "memory": 256,
+      "maxDuration": 10
+    },
+    "api/hubspot-clients.js": {
+      "memory": 256,
+      "maxDuration": 15
+    },
+    "api/hubspot-client-details.js": {
+      "memory": 256,
+      "maxDuration": 15
+    },
+    "api/fireflies-insights.js": {
+      "memory": 512,
+      "maxDuration": 60
     }
   }
 }

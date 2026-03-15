@@ -6,8 +6,9 @@ import { ENGAGEMENT_SCENARIOS, MISSION_CATALOG } from '../data/defaults';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
 import StepReferral from './StepReferral';
+import FirefliesInsightBanner from './FirefliesInsightBanner';
 
-export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate, brandAnalysis, referralConfig, setReferralConfig, onNext }) {
+export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate, brandAnalysis, referralConfig, setReferralConfig, firefliesInsights, onNext }) {
   const t = lang === 'fr';
   const [scenario, setScenario] = useState('medium');
   const [showCatalog, setShowCatalog] = useState(false);
@@ -178,6 +179,7 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
       </div>
 
       <RecommendationBlock stepKey={3} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
+      <FirefliesInsightBanner insights={firefliesInsights} stepKey="missions" lang={lang} />
 
       {/* Scenario */}
       <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>

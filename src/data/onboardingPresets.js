@@ -183,3 +183,4 @@ export function applyOnboardingDefaults(answers, lang) {
 }
 
 export { INDUSTRIES, PRICE_RANGES, GOALS } from './defaults';
+export { INDUSTRY_PRESETS };
