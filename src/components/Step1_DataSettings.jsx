@@ -2,28 +2,29 @@ import { useState, useEffect } from 'react';
 import { X, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge, { BenchmarkBar } from './BenchmarkBadge';
-import { formatCurrency, formatNumber, getCashbackRecommendation } from '../utils/calculations';
+import { formatCurrency, formatNumber } from '../utils/calculations';
+import { BENCHMARKS } from '../data/benchmarks';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
 
-export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onNext }) {
+export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onNext }) {
   const t = lang === 'fr' ? FR : EN;
   const [cashbackBannerDismissed, setCashbackBannerDismissed] = useState(false);
 
-  const cashbackReco = getCashbackRecommendation(settings.grossMargin);
-  const recoBracket = cashbackReco?.bracket;
+  const cashbackThresholds = BENCHMARKS.cashbackRate.getThresholds(settings.grossMargin);
+  const thresholdKey = settings.grossMargin < 40 ? 'low' : settings.grossMargin <= 60 ? 'mid' : 'high';
 
   // Reset banner when margin bracket changes
   useEffect(() => {
     setCashbackBannerDismissed(false);
-  }, [recoBracket]);
+  }, [thresholdKey]);
 
-  // Force sensible defaults when switching to VIP pur
+  // Force sensible defaults when switching to VIP pur (points-based tiers don't make sense without points)
   useEffect(() => {
     if (!config.hasMissions) {
       setConfig(prev => ({
         ...prev,
-        tierBasis: 'spend',
+        tierBasis: prev.tierBasis === 'points' ? 'spend' : prev.tierBasis,
         pointsExpire: false,
       }));
     }
@@ -44,7 +45,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
       </div>
 
-      <RecommendationBlock stepKey={2} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
+      <RecommendationBlock stepKey={2} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* ─── Points Toggle (Change 2) ─── */}
       <div>
@@ -85,7 +86,11 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <div className={`grid gap-3 ${config.hasMissions ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-1'}`}>
           {config.hasMissions && (
             <ConfigCard title={t.tierBasis} tooltip={t.tierBasisTip}
-              options={[{ value: 'spend', label: t.spend }, { value: 'points', label: t.points }]}
+              options={[
+                { value: 'spend', label: t.spend },
+                { value: 'orders', label: t.orders },
+                { value: 'points', label: t.points },
+              ]}
               selected={config.tierBasis} onChange={v => update('tierBasis', v)} />
           )}
           <ConfigCard title={t.rewards} tooltip={t.rewardsTip}
@@ -166,28 +171,28 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
               </div>
               <input type="range" min={0.5} max={20} step={0.5} value={settings.cashbackRate}
                 onChange={e => setSettings(p => ({ ...p, cashbackRate: parseFloat(e.target.value) }))} />
-              <BenchmarkBar benchmarkKey="cashbackRate" value={settings.cashbackRate} />
-              <div className="mt-2"><BenchmarkBadge benchmarkKey="cashbackRate" value={settings.cashbackRate} lang={lang} /></div>
+              <BenchmarkBar benchmarkKey="cashbackRate" value={settings.cashbackRate} grossMargin={settings.grossMargin} />
+              <div className="mt-2"><BenchmarkBadge benchmarkKey="cashbackRate" value={settings.cashbackRate} lang={lang} grossMargin={settings.grossMargin} /></div>
               {settings.grossMargin > 0 && (
                 <div className="mt-2 text-[11px] text-[#8A7D6B]">
                   = {((settings.cashbackRate / settings.grossMargin) * 100).toFixed(1)}% {t.ofMargin}
-                  {settings.cashbackRate > settings.grossMargin * 0.08 && (
-                    <span className="ml-2 text-red-500 font-medium">{'>'}8% {t.ofMargin}</span>
+                  {settings.cashbackRate > cashbackThresholds.high && (
+                    <span className="ml-2 text-red-500 font-medium">{'>'}{cashbackThresholds.high}% {lang === 'fr' ? 'seuil haut' : 'high threshold'}</span>
                   )}
                 </div>
               )}
-              {cashbackReco && !cashbackBannerDismissed && (
+              {!cashbackBannerDismissed && (
                 <div className="mt-3 px-3 py-2.5 rounded-lg border flex items-start gap-2"
                   style={{ backgroundColor: '#FFFBEB', borderColor: '#FCD34D' }}>
                   <span className="text-[13px] leading-none mt-0.5">💡</span>
                   <div className="flex-1 text-[12px] text-[#92400E]">
                     <span className="font-medium">{t.recoLabel}</span>{' '}
                     {lang === 'fr'
-                      ? `Avec ${settings.grossMargin}% de marge, le cashback recommandé est ${cashbackReco.minRate}–${cashbackReco.maxRate}%.`
-                      : `With ${settings.grossMargin}% margin, recommended cashback is ${cashbackReco.minRate}–${cashbackReco.maxRate}%.`}
-                    {cashbackReco.bracket === 'low' && (
+                      ? `Avec ${settings.grossMargin}% de marge, le cashback recommandé est ${cashbackThresholds.median}–${cashbackThresholds.high}%.`
+                      : `With ${settings.grossMargin}% margin, recommended cashback is ${cashbackThresholds.median}–${cashbackThresholds.high}%.`}
+                    {settings.grossMargin < 40 && (
                       <div className="mt-1 font-bold">
-                        ⚠️ {lang === 'fr' ? cashbackReco.warningFr : cashbackReco.warningEn}
+                        ⚠️ {lang === 'fr' ? 'Marge faible — privilégiez les perks non-monétaires' : 'Low margin — prefer non-monetary perks'}
                       </div>
                     )}
                   </div>
@@ -278,8 +283,8 @@ function MiniStat({ value, label, suffix }) {
 
 const FR = {
   title: 'Configuration du programme', subtitle: 'Choisissez le type de programme et configurez les paramètres.',
-  tierBasis: 'Base des paliers', tierBasisTip: 'Montant dépensé ou points accumulés.',
-  spend: 'Dépenses (€)', points: 'Points',
+  tierBasis: 'Base des paliers', tierBasisTip: 'Montant dépensé, nombre de commandes ou points accumulés.',
+  spend: 'Dépenses (€)', orders: 'Commandes', points: 'Points',
   rewards: 'Récompenses', rewardsTip: 'Burn (points), Perks (palier) ou les deux.',
   burn: 'Points brûlés', perks: 'Avantages VIP', both: 'Les deux',
   expiration: 'Expiration', expirationTip: 'Les points expirent-ils ?',
@@ -294,8 +299,8 @@ const FR = {
 
 const EN = {
   title: 'Program Configuration', subtitle: 'Choose your program type and configure parameters.',
-  tierBasis: 'Tier basis', tierBasisTip: 'Total spend or accumulated points.',
-  spend: 'Total spend (€)', points: 'Points',
+  tierBasis: 'Tier basis', tierBasisTip: 'Total spend, number of orders, or accumulated points.',
+  spend: 'Total spend (€)', orders: 'Orders', points: 'Points',
   rewards: 'Rewards', rewardsTip: 'Burn (points), Perks (tier benefits) or both.',
   burn: 'Points burned', perks: 'VIP perks', both: 'Both',
   expiration: 'Expiration', expirationTip: 'Do points expire?',

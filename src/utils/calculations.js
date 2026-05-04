@@ -12,22 +12,6 @@ export function derivePointsFromCashback(cashbackRate, pointsToEuro = 100) {
   return { pointsToEuro: pto, pointsPerEuro };
 }
 
-// ── Cashback recommendation based on gross margin ──
-export function getCashbackRecommendation(grossMargin) {
-  if (!grossMargin || grossMargin <= 0) return null;
-  if (grossMargin < 40) {
-    return {
-      bracket: 'low', minRate: 3, maxRate: 6,
-      warningFr: 'Marge faible — privilégiez les perks non-monétaires',
-      warningEn: 'Low margin — prefer non-monetary perks',
-    };
-  } else if (grossMargin <= 60) {
-    return { bracket: 'mid', minRate: 6, maxRate: 12, warningFr: null, warningEn: null };
-  } else {
-    return { bracket: 'high', minRate: 12, maxRate: 20, warningFr: null, warningEn: null };
-  }
-}
-
 // ── Customer scoring ──
 export function computeCustomerScores(customers, segmentationType, caWeight = 0.5) {
   if (!customers || customers.length === 0) return [];
@@ -54,60 +38,90 @@ export function computeCustomerScores(customers, segmentationType, caWeight = 0.
   }).sort((a, b) => b.score - a.score);
 }
 
+// ── Tier basis helpers ──
+// Map a customer to the metric value used by the chosen tierBasis.
+export function metricForBasis(customer, tierBasis, pointsPerEuro = 10) {
+  if (tierBasis === 'orders') return customer.number_of_orders || 0;
+  if (tierBasis === 'points') return (customer.total_ordered_TTC || 0) * pointsPerEuro;
+  return customer.total_ordered_TTC || 0;
+}
+
+// Read the entry-threshold value of a tier for the chosen basis.
+export function thresholdForBasis(tier, tierBasis) {
+  if (tierBasis === 'orders') return tier?.orderThreshold ?? 0;
+  if (tierBasis === 'points') return tier?.pointsThreshold ?? 0;
+  return tier?.spendThreshold ?? 0;
+}
+
+// Tier shape key holding the threshold for a given basis.
+export function thresholdKeyForBasis(tierBasis) {
+  if (tierBasis === 'orders') return 'orderThreshold';
+  if (tierBasis === 'points') return 'pointsThreshold';
+  return 'spendThreshold';
+}
+
+// Sort customers DESC by the chosen metric. Used for percentile lookups.
+export function getSortedByMetric(customers, tierBasis, pointsPerEuro = 10) {
+  return [...customers].sort((a, b) =>
+    metricForBasis(b, tierBasis, pointsPerEuro) - metricForBasis(a, tierBasis, pointsPerEuro)
+  );
+}
+
+/**
+ * Given a desired % of customers in a specific tier, return the threshold value
+ * (€, #orders, or pts) that would produce that distribution — assuming higher
+ * tiers' thresholds stay fixed. Lower tiers absorb the remainder.
+ *
+ * Usage: when the user edits tier i's "% of customers" field, call this to
+ * compute the new threshold for tier i and write it back.
+ *
+ * tierIndex 0 (the lowest tier) is always entry-free: returns 0.
+ */
+export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierIndex, desiredPct, basis, pointsPerEuro = 10 }) {
+  if (tierIndex === 0) return 0;
+  const sorted = sortedCustomers || getSortedByMetric(customers || [], basis, pointsPerEuro);
+  const N = sorted.length;
+  if (N === 0) return 0;
+
+  const metric = c => metricForBasis(c, basis, pointsPerEuro);
+
+  // Customers already taken by tiers strictly above tierIndex.
+  let countAbove = 0;
+  if (tierIndex < tiers.length - 1) {
+    const upperT = thresholdForBasis(tiers[tierIndex + 1], basis);
+    // Count customers whose metric >= upperT (qualified for the tier above).
+    let i = 0;
+    while (i < N && metric(sorted[i]) >= upperT) i++;
+    countAbove = i;
+  }
+
+  const desiredCount = Math.max(1, Math.round((Math.max(0, desiredPct) / 100) * N));
+  const cutIdx = Math.max(0, Math.min(N - 1, countAbove + desiredCount - 1));
+  const v = metric(sorted[cutIdx]);
+  // Round integer metrics (orders) to integer thresholds.
+  if (basis === 'orders') return Math.max(1, Math.round(v));
+  if (basis === 'points') return Math.max(0, Math.round(v));
+  return Math.max(0, Math.round(v));
+}
+
 // ── Tier assignment ──
+// Unified: dispatches on tierBasis using the metric/threshold helpers above.
 export function assignTiers(sortedCustomers, tiers, tierBasis, programConfig) {
-  if (tierBasis === 'points') {
-    return assignTiersByPoints(sortedCustomers, tiers, programConfig);
-  }
-  return assignTiersByPercentile(sortedCustomers, tiers);
-}
-
-function assignTiersByPercentile(sortedCustomers, tiers) {
-  const total = sortedCustomers.length;
-  if (total === 0) return [];
-
-  // Use absolute spend thresholds if defined
-  const hasSpendThresholds = tiers.some(t => t.spendThreshold != null);
-  if (hasSpendThresholds) {
-    return sortedCustomers.map(customer => {
-      let assignedTier = 0;
-      for (let i = tiers.length - 1; i >= 0; i--) {
-        if (customer.total_ordered_TTC >= (tiers[i].spendThreshold || 0)) {
-          assignedTier = i;
-          break;
-        }
-      }
-      return { ...customer, tier: assignedTier };
-    });
-  }
-
-  // Fallback: percentile-based
-  const thresholds = tiers.map(t => t.threshold);
-  return sortedCustomers.map((customer, index) => {
-    const percentile = ((index + 1) / total) * 100;
-    let assignedTier = 0;
-    for (let i = tiers.length - 1; i >= 0; i--) {
-      if (percentile <= thresholds[i]) {
-        assignedTier = i;
-        break;
-      }
-    }
-    return { ...customer, tier: assignedTier };
-  });
-}
-
-function assignTiersByPoints(customers, tiers, programConfig) {
+  if (!sortedCustomers || sortedCustomers.length === 0) return [];
   const pointsPerEuro = programConfig?.pointsPerEuro || 10;
-  return customers.map(customer => {
-    const estimatedPoints = customer.total_ordered_TTC * pointsPerEuro;
+  const metric = c => metricForBasis(c, tierBasis, pointsPerEuro);
+  return sortedCustomers.map(customer => {
+    const v = metric(customer);
     let assignedTier = 0;
     for (let i = tiers.length - 1; i >= 0; i--) {
-      if (estimatedPoints >= (tiers[i].pointsThreshold || 0)) {
+      if (v >= thresholdForBasis(tiers[i], tierBasis)) {
         assignedTier = i;
         break;
       }
     }
-    return { ...customer, tier: assignedTier, estimatedPoints };
+    const out = { ...customer, tier: assignedTier };
+    if (tierBasis === 'points') out.estimatedPoints = v;
+    return out;
   });
 }
 

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Plus, Minus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
-import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
+import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
@@ -24,15 +24,41 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, onNext }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, clientName, onNext }) {
   const t = lang === 'fr';
+
+  const { pointsPerEuro } = useMemo(
+    () => derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro),
+    [settings.cashbackRate, settings.pointsPerEuro]
+  );
+
+  // Memoised DESC sort by the relevant metric — used both for tier assignment
+  // and for bidirectional % ↔ threshold computation. ~50ms on 380k customers.
+  const sortedByMetric = useMemo(
+    () => getSortedByMetric(customers, config.tierBasis, pointsPerEuro),
+    [customers, config.tierBasis, pointsPerEuro]
+  );
 
   const tierStats = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
     const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
     return computeTierStats(assigned, tiers);
-  }, [customers, settings, tiers, config]);
+  }, [customers, settings, tiers, config, pointsPerEuro]);
+
+  // Edit-by-percent: when user types a % for tier i, recompute that tier's threshold.
+  const updateTierByPct = useCallback((tierIdx, desiredPct) => {
+    if (tierIdx === 0) return; // bottom tier is always entry-free
+    const newThreshold = thresholdForTierPct({
+      sortedCustomers: sortedByMetric,
+      tiers,
+      tierIndex: tierIdx,
+      desiredPct,
+      basis: config.tierBasis,
+      pointsPerEuro,
+    });
+    const key = thresholdKeyForBasis(config.tierBasis);
+    setTiers(prev => prev.map((t, i) => i === tierIdx ? { ...t, [key]: newThreshold } : t));
+  }, [sortedByMetric, tiers, config.tierBasis, pointsPerEuro, setTiers]);
 
   const tierFinancials = useMemo(() => {
     return tiers.map((_, i) => computeTierFinancials(i, tierStats[i], rewards, settings.grossMargin, burnRate));
@@ -51,6 +77,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       threshold: Math.max(5, Math.round(prev[prev.length - 1]?.threshold * 0.5 || 10)),
       spendThreshold: (prev[prev.length - 1]?.spendThreshold || 0) * 2 || 5000,
       pointsThreshold: (idx) * 1500,
+      orderThreshold: Math.max(1, Math.round((prev[prev.length - 1]?.orderThreshold || 1) * 2)),
       pointsMultiplier: 1 + idx * 0.5,
       perks: [],
     }]);
@@ -153,7 +180,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
         </div>
       </div>
 
-      <RecommendationBlock stepKey={5} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
+      <RecommendationBlock stepKey={5} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* Burn rate */}
       <div className="card flex items-center gap-4" style={{ padding: 16 }}>
@@ -258,42 +285,84 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       </div>
                     </div>
 
-                    {/* Tier config inputs */}
-                    <div className="mt-4 pt-4 border-t border-[#D9D5CB] grid grid-cols-2 gap-3">
-                      {config.tierBasis === 'spend' ? (
-                        <div>
-                          <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? "Seuil d'entrée" : 'Entry threshold'}</label>
-                          <div className="flex items-center gap-1">
-                            <input type="number" value={tier.spendThreshold ?? 0} min={0}
-                              onChange={e => updateTier(tierIdx, 'spendThreshold', parseInt(e.target.value) || 0)}
-                              className="w-20 px-2 py-1 text-[13px] text-center" />
-                            <span className="text-[11px] text-[#8A7D6B]">€</span>
+                    {/* Tier config inputs — bidirectional threshold ↔ % */}
+                    {(() => {
+                      const basis = config.tierBasis;
+                      const thrKey = basis === 'orders' ? 'orderThreshold' : basis === 'points' ? 'pointsThreshold' : 'spendThreshold';
+                      const thrValue = tier[thrKey] ?? 0;
+                      const unit = basis === 'orders' ? (t ? 'cmd' : 'orders') : basis === 'points' ? 'pts' : '€';
+                      const thrLabel = t
+                        ? (basis === 'orders' ? "Seuil (commandes)" : basis === 'points' ? 'Seuil (points)' : "Seuil d'entrée (€)")
+                        : (basis === 'orders' ? 'Threshold (orders)' : basis === 'points' ? 'Threshold (points)' : 'Entry threshold (€)');
+                      const isBottom = tierIdx === 0;
+                      const qualifying = (() => {
+                        if (!customers || customers.length === 0) return 0;
+                        let count = 0;
+                        for (const c of customers) {
+                          if (metricForBasis(c, basis, pointsPerEuro) >= thrValue) count++;
+                        }
+                        return count;
+                      })();
+                      const pctValue = stat?.percentage || 0;
+                      return (
+                        <div className="mt-4 pt-4 border-t border-[#D9D5CB] grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">{thrLabel}</label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={thrValue}
+                                min={0}
+                                step={basis === 'orders' ? 1 : basis === 'points' ? 100 : 50}
+                                onChange={e => updateTier(tierIdx, thrKey, basis === 'orders' ? Math.max(0, parseInt(e.target.value) || 0) : parseFloat(e.target.value) || 0)}
+                                disabled={isBottom}
+                                className="w-20 px-2 py-1 text-[13px] text-center disabled:opacity-50"
+                              />
+                              <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
+                            </div>
+                            <div className="text-[10px] text-[#8A7D6B] mt-1">
+                              {t ? `${formatNumber(qualifying)} qualifiés` : `${formatNumber(qualifying)} qualifying`}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-[#8A7D6B] mt-1">
-                            {(() => {
-                              const qualifying = customers.filter(c => c.total_ordered_TTC >= (tier.spendThreshold || 0)).length;
-                              return t ? `${qualifying} clients qualifiés` : `${qualifying} qualifying`;
-                            })()}
+                          <div>
+                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">
+                              {t ? '% de clients' : '% of customers'}
+                              {isBottom && (
+                                <span className="ml-1 text-[#A89C8D]" title={t ? 'Calculé automatiquement' : 'Auto-computed'}>·</span>
+                              )}
+                            </label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={Math.round(pctValue * 10) / 10}
+                                onChange={e => {
+                                  const v = parseFloat(e.target.value);
+                                  if (!isNaN(v)) updateTierByPct(tierIdx, Math.max(0, Math.min(100, v)));
+                                }}
+                                disabled={isBottom}
+                                className="w-16 px-2 py-1 text-[13px] text-center disabled:opacity-50"
+                              />
+                              <span className="text-[11px] text-[#8A7D6B]">%</span>
+                            </div>
+                            <div className="text-[10px] text-[#8A7D6B] mt-1">
+                              {isBottom ? (t ? 'auto' : 'auto') : (t ? '↔ seuil' : '↔ threshold')}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
+                            <div className="flex items-center gap-1">
+                              <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
+                                onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
+                                className="w-16 px-2 py-1 text-[13px] text-center" />
+                              <span className="text-[11px] text-[#8A7D6B]">&times;</span>
+                            </div>
                           </div>
                         </div>
-                      ) : (
-                        <div>
-                          <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Seuil points' : 'Points threshold'}</label>
-                          <input type="number" value={tier.pointsThreshold} min={0}
-                            onChange={e => updateTier(tierIdx, 'pointsThreshold', parseInt(e.target.value) || 0)}
-                            className="w-20 px-2 py-1 text-[13px] text-center" />
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
-                        <div className="flex items-center gap-1">
-                          <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
-                            onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
-                            className="w-16 px-2 py-1 text-[13px] text-center" />
-                          <span className="text-[11px] text-[#8A7D6B]">&times;</span>
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* Tier stats grid */}
                     <div className="mt-3 pt-3 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">

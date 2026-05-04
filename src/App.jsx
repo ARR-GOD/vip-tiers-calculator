@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { RotateCcw, Globe, ChevronRight, Link2, Check } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import { RotateCcw, Globe, ChevronRight, Link2, Check, LogOut } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -15,6 +16,7 @@ import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
 import StepCSM_Selector from './components/StepCSM_Selector';
+import StepCSM_Briefing from './components/StepCSM_Briefing';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import { Building2 } from 'lucide-react';
 
@@ -37,9 +39,9 @@ const INITIAL_SETTINGS = {
 };
 
 const INITIAL_TIERS = [
-  { name: 'Bronze', color: '#B87333', threshold: 100, spendThreshold: 0, pointsThreshold: 0, pointsMultiplier: 1, perks: [] },
-  { name: 'Argent', color: '#9CA3AF', threshold: 50, spendThreshold: 500, pointsThreshold: 1000, pointsMultiplier: 1.5, perks: [] },
-  { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, pointsMultiplier: 2, perks: [] },
+  { name: 'Bronze', color: '#B87333', threshold: 100, spendThreshold: 0, pointsThreshold: 0, orderThreshold: 0, pointsMultiplier: 1, perks: [] },
+  { name: 'Argent', color: '#9CA3AF', threshold: 50, spendThreshold: 500, pointsThreshold: 1000, orderThreshold: 3, pointsMultiplier: 1.5, perks: [] },
+  { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, orderThreshold: 10, pointsMultiplier: 2, perks: [] },
 ];
 
 const STEPS = [
@@ -53,6 +55,44 @@ const STEPS = [
 ];
 
 function App() {
+  // ─── Auth state ───
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('loyoly_user');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Verify domain on reload
+      if (!parsed.email?.endsWith('@loyoly.io')) {
+        localStorage.removeItem('loyoly_user');
+        return null;
+      }
+      return parsed;
+    } catch { return null; }
+  });
+
+  const ALLOWED_DOMAIN = 'loyoly.io';
+  const [loginError, setLoginError] = useState(null);
+
+  const handleLoginSuccess = (credentialResponse) => {
+    try {
+      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+      // Restrict to @loyoly.io domain
+      if (decoded.hd !== ALLOWED_DOMAIN) {
+        setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
+        return;
+      }
+      setLoginError(null);
+      const userData = { name: decoded.name, email: decoded.email, picture: decoded.picture };
+      setUser(userData);
+      localStorage.setItem('loyoly_user', JSON.stringify(userData));
+    } catch { /* invalid token */ }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('loyoly_user');
+  };
+
   const [lang, setLang] = useState('fr');
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState(INITIAL_CONFIG);
@@ -65,11 +105,12 @@ function App() {
   const [burnRate, setBurnRate] = useState(40);
   const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
+  const [phase, setPhase] = useState('csm'); // 'csm' | 'csm-briefing' | 'brand' | 'wizard'
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
   const [csmMode, setCsmMode] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [clientDetails, setClientDetails] = useState(null);
   const [firefliesInsights, setFirefliesInsights] = useState(null);
   const [firefliesLoading, setFirefliesLoading] = useState(false);
 
@@ -115,27 +156,15 @@ function App() {
 
   const handleCSMClientSelected = (client, details) => {
     setSelectedClient({ ...client, contacts: details.contacts || [] });
+    setClientDetails(details);
     setCsmMode(true);
 
-    // Apply CSM defaults (same shape as applyBrandDefaults / applyOnboardingDefaults)
-    const defaults = applyCsmDefaults(details.company, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
-
-    // Build onboarding answers for the banner
-    setOnboardingAnswers(buildCsmOnboardingAnswers(details.company));
-
-    // Transition to wizard, skip onboarding (go to CSV import)
-    setPhase('wizard');
-    setStep(1);
+    // Go to briefing screen (NOT directly to wizard)
+    setPhase('csm-briefing');
 
     // Fire-and-forget: fetch Fireflies insights
     const contactEmails = (details.contacts || []).map(c => c.email).filter(Boolean);
-    if (details.company.name || contactEmails.length > 0) {
+    if (details.company.name || contactEmails.length > 0 || details.company.domain) {
       setFirefliesLoading(true);
       fetch('/api/fireflies-insights', {
         method: 'POST',
@@ -144,15 +173,43 @@ function App() {
           companyName: details.company.name || client.name || '',
           contactEmails,
           domain: details.company.domain || client.domain || '',
+          recentEmails: details.recentEmails || [],
         }),
       })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data && data.meetingsFound > 0) setFirefliesInsights(data);
+          if (data) setFirefliesInsights(data);
         })
         .catch(() => { /* silent fail — Fireflies is non-blocking */ })
         .finally(() => setFirefliesLoading(false));
     }
+  };
+
+  // Called from briefing screen — applies defaults and enters wizard at step 2 (config)
+  const handleBriefingLaunch = (onboardingAnswersFromBriefing) => {
+    const company = clientDetails?.company || {};
+    const defaults = applyCsmDefaults(company, lang);
+    setConfig(defaults.config);
+    setSettings(defaults.settings);
+    setTiersRaw(defaults.tiers);
+    setRewards(defaults.rewards);
+    setMissions(defaults.missions);
+    setBurnRate(defaults.burnRate);
+
+    // Apply overrides from briefing pre-configuration
+    if (onboardingAnswersFromBriefing) {
+      setOnboardingAnswers(onboardingAnswersFromBriefing);
+      // Override settings from briefing selections
+      const briefingDefaults = applyOnboardingDefaults(onboardingAnswersFromBriefing, lang);
+      setSettings(prev => ({ ...prev, ...briefingDefaults.settings }));
+    } else {
+      setOnboardingAnswers(buildCsmOnboardingAnswers(company));
+    }
+
+    // Jump to wizard at step 1 (Import), bypassing only step 0 (Program type)
+    setPhase('wizard');
+    setStep(1);
+    setVisitedSteps(new Set([0, 1]));
   };
 
   const handleStep0Complete = (answers) => {
@@ -181,6 +238,7 @@ function App() {
     setBrandAnalysis(null);
     setCsmMode(false);
     setSelectedClient(null);
+    setClientDetails(null);
     setFirefliesInsights(null);
     setFirefliesLoading(false);
     setPhase('csm');
@@ -216,6 +274,37 @@ function App() {
   };
 
   const t = lang === 'fr';
+  const clientName = csmMode ? (selectedClient?.name || selectedClient?.company?.name || null) : null;
+
+  // ─── Login gate ───
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
+        <div className="flex flex-col items-center gap-8 p-10 rounded-2xl" style={{ backgroundColor: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', maxWidth: 400, width: '100%' }}>
+          <div className="flex flex-col items-center gap-3">
+            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 40 }} />
+            <h1 className="text-[22px] font-bold" style={{ color: '#2B251F' }}>VIP Tiers Calculator</h1>
+            <p className="text-[13px] text-center" style={{ color: '#8A7D6B' }}>
+              Connectez-vous pour accéder à l'outil
+            </p>
+          </div>
+          <GoogleLogin
+            onSuccess={handleLoginSuccess}
+            onError={() => setLoginError('Erreur de connexion Google')}
+            theme="outline"
+            size="large"
+            width="320"
+            text="signin_with"
+            shape="rectangular"
+            hosted_domain="loyoly.io"
+          />
+          {loginError && (
+            <p className="text-[13px] text-red-600 text-center">{loginError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -240,12 +329,24 @@ function App() {
               className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
               <RotateCcw size={15} />
             </button>
+            {/* User avatar + logout */}
+            <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.15)' }}>
+              {user.picture && (
+                <img src={user.picture} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
+              )}
+              <span className="text-[12px] text-white/70 hidden sm:inline">{user.name?.split(' ')[0]}</span>
+              <button onClick={handleLogout}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                title="Déconnexion">
+                <LogOut size={13} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* ─── CSM Client banner ─── */}
-      {phase === 'wizard' && csmMode && selectedClient && (
+      {(phase === 'wizard' || phase === 'csm-briefing') && csmMode && selectedClient && (
         <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
           <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <Building2 size={14} className="text-primary shrink-0" />
@@ -269,7 +370,7 @@ function App() {
             {firefliesInsights && !firefliesLoading && (
               <span className="text-[11px] text-[#059669]">✓ {firefliesInsights.meetingsFound} meeting{firefliesInsights.meetingsFound > 1 ? 's' : ''}</span>
             )}
-            <button onClick={() => { setCsmMode(false); setSelectedClient(null); setFirefliesInsights(null); setPhase('csm'); }}
+            <button onClick={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
               className="ml-auto text-primary font-medium hover:underline text-[12px]">
               {t ? 'Changer de client' : 'Change client'}
             </button>
@@ -342,6 +443,16 @@ function App() {
             onSkipToManual={handleSkipToManual}
             onHubSpotUnavailable={handleHubSpotUnavailable}
           />
+        ) : phase === 'csm-briefing' ? (
+          <StepCSM_Briefing
+            selectedClient={selectedClient}
+            clientDetails={clientDetails}
+            firefliesInsights={firefliesInsights}
+            firefliesLoading={firefliesLoading}
+            lang={lang}
+            onLaunch={handleBriefingLaunch}
+            onBack={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
+          />
         ) : phase === 'brand' ? (
           <StepBrand_Analyzer
             lang={lang}
@@ -362,20 +473,20 @@ function App() {
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
-                lang={lang} brandAnalysis={brandAnalysis} onNext={goNext} />
+                lang={lang} brandAnalysis={brandAnalysis} clientName={clientName} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
-                burnRate={burnRate} brandAnalysis={brandAnalysis}
+                burnRate={burnRate} brandAnalysis={brandAnalysis} clientName={clientName}
                 referralConfig={referralConfig} setReferralConfig={setReferralConfig}
                 firefliesInsights={firefliesInsights} onNext={goNext} />
             )}
             {step === 4 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
                 settings={settings} config={config} lang={lang}
-                brandAnalysis={brandAnalysis} customers={customers} onNext={goNext} />
+                brandAnalysis={brandAnalysis} clientName={clientName} customers={customers} onNext={goNext} />
             )}
             {step === 5 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
@@ -383,7 +494,7 @@ function App() {
                 burnRate={burnRate} setBurnRate={setBurnRate}
                 customers={customers} settings={settings} config={config}
                 missions={missions} customMissions={customMissions} lang={lang}
-                brandAnalysis={brandAnalysis} onNext={goNext} />
+                brandAnalysis={brandAnalysis} clientName={clientName} onNext={goNext} />
             )}
             {step === 6 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
@@ -391,7 +502,7 @@ function App() {
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
-                brandAnalysis={brandAnalysis}
+                brandAnalysis={brandAnalysis} clientName={clientName}
                 referralConfig={referralConfig}
                 firefliesInsights={firefliesInsights} />
             )}
