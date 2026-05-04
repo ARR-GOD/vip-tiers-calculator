@@ -7,6 +7,94 @@ import { formatCurrency, formatNumber } from '../utils/calculations';
 import RecommendationBlock from './RecommendationBlock';
 import { getRecommendation } from '../utils/recommendations';
 
+// Handles French/European number formats: "214,88", "39 591 758,20", "1.234,56"
+function parseEuroNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return value;
+  let s = String(value).trim().replace(/\s/g, '');
+  if (!s) return 0;
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  if (lastDot !== -1 && lastComma !== -1) {
+    // Both present — last one is the decimal separator
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    s = s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Normalize a header for tolerant matching: lowercase, strip accents, collapse spaces/underscores/hyphens
+function normalizeKey(s) {
+  return String(s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[\s_\-:.]+/g, ' ')
+    .trim();
+}
+
+// Resolve a field by normalized alias or by normalized prefix match on row keys
+function getRowField(row, aliases, prefixes = []) {
+  const keys = Object.keys(row);
+  const normMap = new Map(keys.map(k => [normalizeKey(k), k]));
+  for (const a of aliases) {
+    const k = normMap.get(normalizeKey(a));
+    if (k && row[k] !== undefined && row[k] !== '') return row[k];
+  }
+  if (prefixes.length) {
+    for (const p of prefixes) {
+      const np = normalizeKey(p);
+      for (const [nk, k] of normMap) {
+        if (nk.startsWith(np) && row[k] !== undefined && row[k] !== '') return row[k];
+      }
+    }
+  }
+  return undefined;
+}
+
+const ID_ALIASES = [
+  'customer_id', 'customer id', 'customerid',
+  'id', 'client_id', 'client id', 'user_id', 'user id',
+  'Étiquettes de lignes', 'Row Labels', 'email',
+];
+const REVENUE_ALIASES = [
+  'total_ordered_TTC', 'revenue', 'ltv', 'lifetime value',
+  'amount spent', 'amount', 'total spent', 'total', 'spent',
+  'ca', 'chiffre d affaires', 'montant', 'montant total',
+];
+const REVENUE_PREFIXES = ['Somme de', 'Sum of'];
+const ORDERS_ALIASES = [
+  'number_of_orders', 'number of orders', 'orders', 'order count',
+  'nb commandes', 'nombre commandes', 'nb orders',
+];
+const ORDERS_PREFIXES = ['Nombre de', 'Count of', 'Nb de'];
+
+const PIVOT_NOISE_IDS = new Set(['(vide)', '(blank)', 'Total général', 'Total general', 'Grand Total']);
+
+function isPivotNoise(id) {
+  if (!id) return true;
+  const s = String(id).trim();
+  if (!s) return true;
+  if (PIVOT_NOISE_IDS.has(s)) return true;
+  if (/^total\s/i.test(s)) return true;
+  return false;
+}
+
+function mapRow(row) {
+  const rawId = getRowField(row, ID_ALIASES);
+  const customer_id = rawId !== undefined ? String(rawId).trim() : '';
+  const total_ordered_TTC = parseEuroNumber(getRowField(row, REVENUE_ALIASES, REVENUE_PREFIXES));
+  const ordersRaw = getRowField(row, ORDERS_ALIASES, ORDERS_PREFIXES);
+  const ordersParsed = parseInt(parseEuroNumber(ordersRaw), 10) || 0;
+  const number_of_orders = ordersParsed || Math.max(1, Math.floor(total_ordered_TTC / 60));
+  return { customer_id, total_ordered_TTC, number_of_orders };
+}
+
 export default function StepData_Import({ customers, setCustomers, lang, brandAnalysis, config, settings, onNext }) {
   const t = lang === 'fr';
   const fileInputRef = useRef(null);
@@ -16,26 +104,43 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
 
   const reco = getRecommendation(1, { brandAnalysis, config, settings, customers, lang });
 
-  const processFile = (file) => {
+  const finalizeRows = (rows, fname) => {
+    const parsed = rows.map(mapRow).filter(r => r.customer_id && !isPivotNoise(r.customer_id));
+    if (parsed.length === 0) { setError(t ? 'Aucune donnée trouvée.' : 'No data found.'); return; }
+    setCustomers(parsed);
+    setFileName(fname);
+  };
+
+  const processFile = async (file) => {
     if (!file) return;
     setError(null);
     const ext = file.name.split('.').pop().toLowerCase();
 
     if (ext === 'csv') {
-      Papa.parse(file, {
-        header: true, skipEmptyLines: true,
-        complete: (results) => {
-          const parsed = results.data.map(row => ({
-            customer_id: row.customer_id || row.Customer_ID || row.id,
-            total_ordered_TTC: parseFloat(row.total_ordered_TTC || row.revenue || row.ltv || row['amount spent'] || 0),
-            number_of_orders: parseInt(row.number_of_orders || row.orders || 0) || Math.max(1, Math.floor((parseFloat(row['amount spent'] || 0)) / 60)),
-          })).filter(r => r.customer_id);
-          if (parsed.length === 0) { setError(t ? 'Aucune donnée trouvée.' : 'No data found.'); return; }
-          setCustomers(parsed);
-          setFileName(file.name);
-        },
-        error: () => setError(t ? 'Erreur de parsing.' : 'Parse error.'),
-      });
+      try {
+        let text = await file.text();
+        // Strip a single-cell title row (e.g. "BP-Data") that precedes the real header.
+        // Conservative: only when the first line is a single bare cell (no separator at all)
+        // AND the second line has separators. Avoids false positives on files with quoted
+        // commas in data rows (e.g. "214,88" decimal-comma values in a comma-delimited CSV).
+        const nl = text.indexOf('\n');
+        if (nl !== -1) {
+          const firstLine = text.slice(0, nl).replace(/\r$/, '').replace(/^﻿/, '');
+          const secondLineEnd = text.indexOf('\n', nl + 1);
+          const secondLine = text.slice(nl + 1, secondLineEnd === -1 ? undefined : secondLineEnd).replace(/\r$/, '');
+          const hasSep = s => /[;,\t]/.test(s);
+          if (firstLine.trim() && !hasSep(firstLine) && hasSep(secondLine)) {
+            text = text.slice(nl + 1);
+          }
+        }
+        Papa.parse(text, {
+          header: true, skipEmptyLines: true,
+          complete: (results) => finalizeRows(results.data, file.name),
+          error: () => setError(t ? 'Erreur de parsing.' : 'Parse error.'),
+        });
+      } catch {
+        setError(t ? 'Erreur de lecture du fichier.' : 'File read error.');
+      }
     } else if (['xlsx', 'xls'].includes(ext)) {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -43,14 +148,7 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
           const wb = XLSX.read(evt.target.result, { type: 'array' });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const data = XLSX.utils.sheet_to_json(ws);
-          const parsed = data.map(row => ({
-            customer_id: row.customer_id || row.Customer_ID || row.id || '',
-            total_ordered_TTC: parseFloat(row.total_ordered_TTC || row.revenue || row.ltv || row['amount spent'] || 0),
-            number_of_orders: parseInt(row.number_of_orders || row.orders || 0) || Math.max(1, Math.floor((parseFloat(row['amount spent'] || 0)) / 60)),
-          })).filter(r => r.customer_id);
-          if (parsed.length === 0) { setError(t ? 'Aucune donnée trouvée.' : 'No data found.'); return; }
-          setCustomers(parsed);
-          setFileName(file.name);
+          finalizeRows(data, file.name);
         } catch {
           setError(t ? 'Erreur de lecture du fichier.' : 'File read error.');
         }
