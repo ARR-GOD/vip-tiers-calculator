@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X, ChevronRight } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X, ChevronRight, Wand2 } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { parseSampleData } from '../data/sampleData';
@@ -101,27 +101,147 @@ function isPivotNoise(id) {
   return false;
 }
 
-function mapRow(row) {
-  let rawId = getRowField(row, ID_ALIASES);
-  let revenueRaw = getRowField(row, REVENUE_ALIASES, REVENUE_PREFIXES);
-  let ordersRaw = getRowField(row, ORDERS_ALIASES, ORDERS_PREFIXES);
+// ── Column-role auto-detection ──
+// Score each column on how likely it represents id / revenue / orders.
+// Returns { id, revenue, orders } header names (or null if unscoreable).
+export function detectColumnRoles(headers, rows, sampleSize = 200) {
+  const visibleHeaders = headers.filter(h => h !== undefined && h !== '');
+  if (visibleHeaders.length === 0) return { id: null, revenue: null, orders: null };
+  const sample = rows.slice(0, Math.min(sampleSize, rows.length));
 
-  // Positional fallback: if NONE of the three fields resolved, assume the
-  // file has [id, revenue, orders] in that order (the canonical export shape).
-  // Skips empty trailing columns (Papa Parse adds those for trailing separators).
-  if (rawId === undefined && revenueRaw === undefined && ordersRaw === undefined) {
-    const keys = Object.keys(row).filter(k => k !== undefined && k !== '');
-    if (keys.length >= 3) {
-      rawId = row[keys[0]];
-      revenueRaw = row[keys[1]];
-      ordersRaw = row[keys[2]];
-    } else if (keys.length === 2) {
-      rawId = row[keys[0]];
-      revenueRaw = row[keys[1]];
+  const scores = visibleHeaders.map(h => {
+    const values = sample.map(r => r[h]).filter(v => v !== undefined && v !== '' && v !== null);
+    if (values.length === 0) return { header: h, id: 0, revenue: 0, orders: 0 };
+
+    // Cardinality (% unique values)
+    const uniqueRatio = new Set(values).size / values.length;
+
+    // Numeric parse: how many values cleanly parse as positive numbers
+    const numbers = [];
+    for (const v of values) {
+      const n = parseEuroNumber(v);
+      if (n > 0 && !isNaN(n)) numbers.push(n);
+    }
+    const numericRatio = numbers.length / values.length;
+    const avg = numbers.length ? numbers.reduce((a, b) => a + b, 0) / numbers.length : 0;
+    const max = numbers.length ? Math.max(...numbers) : 0;
+    const decimalCount = numbers.filter(n => n !== Math.floor(n)).length;
+    const decimalRatio = numbers.length ? decimalCount / numbers.length : 0;
+    const intCount = numbers.filter(n => Number.isInteger(n)).length;
+    const smallIntCount = numbers.filter(n => Number.isInteger(n) && n >= 1 && n <= 1000).length;
+
+    // Heuristic ID-shape: long numeric strings, emails, alphanumeric patterns
+    const idShapeCount = values.filter(v => {
+      const s = String(v).trim();
+      if (/@/.test(s)) return true;
+      if (/^\d{6,}$/.test(s)) return true;
+      if (/^[A-Z]{1,4}[_-]?\d{2,}$/i.test(s)) return true;
+      if (/^[a-z0-9_-]{6,}$/i.test(s) && !numbers.length) return true;
+      return false;
+    }).length;
+    const idShapeRatio = idShapeCount / values.length;
+
+    // ID score: high uniqueness + ID-shape bonus, penalty if mostly numeric in revenue range
+    let idScore = uniqueRatio * 0.6 + idShapeRatio * 0.5;
+    if (numericRatio > 0.95 && avg > 50 && avg < 100000 && decimalRatio > 0.2) idScore -= 0.3;
+
+    // Revenue score: mostly numeric, has decimals (or large values), avg > 5
+    let revenueScore = numericRatio * 0.4;
+    if (decimalRatio > 0.1) revenueScore += 0.4;
+    if (avg > 20 && avg < 1e7) revenueScore += 0.3;
+    if (max > 100) revenueScore += 0.1;
+    // Penalty if column is also a great ID candidate (high uniqueness + ID shape)
+    if (idShapeRatio > 0.7 && uniqueRatio > 0.95) revenueScore -= 0.5;
+
+    // Orders score: small positive integers, mostly < 1000
+    let ordersScore = 0;
+    if (numericRatio > 0.8) {
+      const intRatio = numbers.length ? intCount / numbers.length : 0;
+      const smallRatio = numbers.length ? smallIntCount / numbers.length : 0;
+      ordersScore = intRatio * 0.4 + smallRatio * 0.6;
+      if (max > 0 && max < 1000) ordersScore += 0.2;
+      if (decimalRatio < 0.05) ordersScore += 0.2;
+    }
+    // Penalty if column looks like ID
+    if (idShapeRatio > 0.7) ordersScore -= 0.4;
+
+    return { header: h, id: idScore, revenue: revenueScore, orders: ordersScore };
+  });
+
+  // Greedy assignment: highest score per role, exclude used columns
+  const used = new Set();
+  const result = { id: null, revenue: null, orders: null };
+  for (const role of ['id', 'revenue', 'orders']) {
+    let best = null;
+    for (const s of scores) {
+      if (used.has(s.header)) continue;
+      if (!best || s[role] > best[role]) best = s;
+    }
+    if (best && best[role] > 0) {
+      result[role] = best.header;
+      used.add(best.header);
     }
   }
+  return result;
+}
 
-  const customer_id = rawId !== undefined ? String(rawId).trim() : '';
+// Try alias-based resolution first, fall back to auto-detection. Returns
+// { mapping: { id, revenue, orders }, source: 'alias' | 'detection' | 'mixed' }.
+export function autoMapColumns(headers, rows) {
+  const sample = rows.slice(0, 100);
+  const probe = sample[0] || {};
+
+  const aliasResolved = {
+    id: getRowFieldKey(probe, ID_ALIASES),
+    revenue: getRowFieldKey(probe, REVENUE_ALIASES, REVENUE_PREFIXES),
+    orders: getRowFieldKey(probe, ORDERS_ALIASES, ORDERS_PREFIXES),
+  };
+
+  const allFromAlias = aliasResolved.id && aliasResolved.revenue && aliasResolved.orders;
+  if (allFromAlias) return { mapping: aliasResolved, source: 'alias' };
+
+  const detected = detectColumnRoles(headers, rows);
+  const mapping = {
+    id: aliasResolved.id || detected.id,
+    revenue: aliasResolved.revenue || detected.revenue,
+    orders: aliasResolved.orders || detected.orders,
+  };
+  const source = aliasResolved.id || aliasResolved.revenue || aliasResolved.orders ? 'mixed' : 'detection';
+  return { mapping, source };
+}
+
+// Like getRowField but returns the key name (not the value) — used for mapping
+function getRowFieldKey(row, aliases, prefixes = []) {
+  const keys = Object.keys(row);
+  const normMap = new Map(keys.map(k => [normalizeKey(k), k]));
+  for (const a of aliases) {
+    const k = normMap.get(normalizeKey(a));
+    if (k) return k;
+  }
+  if (prefixes.length) {
+    for (const p of prefixes) {
+      const np = normalizeKey(p);
+      for (const [nk, k] of normMap) {
+        if (nk.startsWith(np)) return k;
+      }
+    }
+  }
+  for (const a of aliases) {
+    const na = normalizeKey(a);
+    if (!na.includes(' ')) continue;
+    for (const [nk, k] of normMap) {
+      if (nk.includes(na)) return k;
+    }
+  }
+  return null;
+}
+
+// Map a raw row using an explicit column mapping (from auto-detection or user override).
+function mapRowWithMapping(row, mapping) {
+  const rawId = mapping.id ? row[mapping.id] : undefined;
+  const revenueRaw = mapping.revenue ? row[mapping.revenue] : undefined;
+  const ordersRaw = mapping.orders ? row[mapping.orders] : undefined;
+  const customer_id = rawId !== undefined && rawId !== null ? String(rawId).trim() : '';
   const total_ordered_TTC = parseEuroNumber(revenueRaw);
   const ordersParsed = parseInt(parseEuroNumber(ordersRaw), 10) || 0;
   const number_of_orders = ordersParsed || Math.max(1, Math.floor(total_ordered_TTC / 60));
@@ -134,14 +254,40 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
   const [fileName, setFileName] = useState(null);
   const [error, setError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  // Raw import state — set after parse, before final mapping is applied
+  const [rawImport, setRawImport] = useState(null); // { headers, rows, fileName }
+  const [mapping, setMapping] = useState(null);     // { id, revenue, orders }
+  const [autoSource, setAutoSource] = useState(null); // 'alias' | 'detection' | 'mixed' | null
 
   const reco = getRecommendation(1, { brandAnalysis, config, settings, customers, lang });
 
-  const finalizeRows = (rows, fname) => {
-    const parsed = rows.map(mapRow).filter(r => r.customer_id && !isPivotNoise(r.customer_id));
-    if (parsed.length === 0) { setError(t ? 'Aucune donnée trouvée.' : 'No data found.'); return; }
+  // Keep customers in sync with (rawImport, mapping). Re-runs when user edits mapping.
+  useEffect(() => {
+    if (!rawImport || !mapping) return;
+    if (!mapping.id || !mapping.revenue) return; // need at least id + revenue
+    const parsed = rawImport.rows
+      .map(row => mapRowWithMapping(row, mapping))
+      .filter(r => r.customer_id && !isPivotNoise(r.customer_id));
+    if (parsed.length === 0) {
+      setError(t ? 'Aucune donnée trouvée avec ce mapping.' : 'No data found with this mapping.');
+      return;
+    }
+    setError(null);
     setCustomers(parsed);
-    setFileName(fname);
+    setFileName(rawImport.fileName);
+  }, [rawImport, mapping]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ingestParsedRows = (rows, fname) => {
+    if (!rows || rows.length === 0) {
+      setError(t ? 'Fichier vide.' : 'Empty file.');
+      return;
+    }
+    // Derive the headers from the first row (Papa Parse + sheet_to_json both yield objects).
+    const headers = Object.keys(rows[0] || {}).filter(h => h !== undefined && h !== '');
+    const { mapping: autoMap, source } = autoMapColumns(headers, rows);
+    setRawImport({ headers, rows, fileName: fname });
+    setMapping(autoMap);
+    setAutoSource(source);
   };
 
   const processFile = async (file) => {
@@ -153,9 +299,6 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
       try {
         let text = await file.text();
         // Strip a single-cell title row (e.g. "BP-Data") that precedes the real header.
-        // Conservative: only when the first line is a single bare cell (no separator at all)
-        // AND the second line has separators. Avoids false positives on files with quoted
-        // commas in data rows (e.g. "214,88" decimal-comma values in a comma-delimited CSV).
         const nl = text.indexOf('\n');
         if (nl !== -1) {
           const firstLine = text.slice(0, nl).replace(/\r$/, '').replace(/^﻿/, '');
@@ -168,7 +311,7 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
         }
         Papa.parse(text, {
           header: true, skipEmptyLines: true,
-          complete: (results) => finalizeRows(results.data, file.name),
+          complete: (results) => ingestParsedRows(results.data, file.name),
           error: () => setError(t ? 'Erreur de parsing.' : 'Parse error.'),
         });
       } catch {
@@ -181,7 +324,7 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
           const wb = XLSX.read(evt.target.result, { type: 'array' });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const data = XLSX.utils.sheet_to_json(ws);
-          finalizeRows(data, file.name);
+          ingestParsedRows(data, file.name);
         } catch {
           setError(t ? 'Erreur de lecture du fichier.' : 'File read error.');
         }
@@ -191,6 +334,17 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
       setError(t ? 'Format non supporté. Utilisez CSV ou XLSX.' : 'Unsupported format. Use CSV or XLSX.');
     }
   };
+
+  const updateMappingField = (field, headerName) => {
+    setMapping(prev => ({ ...prev, [field]: headerName || null }));
+  };
+
+  const previewRows = useMemo(() => {
+    if (!rawImport || !mapping) return [];
+    return rawImport.rows
+      .slice(0, 3)
+      .map(r => mapRowWithMapping(r, mapping));
+  }, [rawImport, mapping]);
 
   const handleFile = (e) => processFile(e.target.files[0]);
 
@@ -205,7 +359,14 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
   const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
 
-  const resetToSample = () => { setCustomers(parseSampleData()); setFileName(null); setError(null); };
+  const resetToSample = () => {
+    setCustomers(parseSampleData());
+    setFileName(null);
+    setError(null);
+    setRawImport(null);
+    setMapping(null);
+    setAutoSource(null);
+  };
 
   const totalRevenue = customers.reduce((s, c) => s + c.total_ordered_TTC, 0);
   const activeCustomers = customers.filter(c => c.total_ordered_TTC > 0).length;
@@ -250,6 +411,93 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
 
       {error && (
         <div className="text-[13px] text-red-600 bg-red-50 px-4 py-3 rounded-xl">{error}</div>
+      )}
+
+      {/* Column Mapping — shown after a file is parsed, lets user override auto-detection */}
+      {rawImport && mapping && (
+        <div className="card" style={{ borderLeft: '3px solid #2965FE' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Wand2 size={16} className="text-primary" />
+            <span className="text-[13px] font-semibold text-[#52473C]">
+              {t ? 'Mapping des colonnes' : 'Column mapping'}
+            </span>
+            {autoSource && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: autoSource === 'alias' ? '#D1FAE5' : '#FEF3C7', color: autoSource === 'alias' ? '#065F46' : '#92400E' }}>
+                {autoSource === 'alias'
+                  ? (t ? 'Détecté par nom' : 'Detected by name')
+                  : autoSource === 'mixed'
+                  ? (t ? 'Détection partielle' : 'Partial detection')
+                  : (t ? 'Auto-détecté' : 'Auto-detected')}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-[#8A7D6B] mb-3">
+            {t
+              ? 'Vérifie que les bonnes colonnes de ton fichier sont assignées. Modifie si besoin.'
+              : 'Check that your file’s columns are correctly assigned. Override if needed.'}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { key: 'id', label: t ? 'Customer ID' : 'Customer ID', required: true },
+              { key: 'revenue', label: t ? 'Total dépensé (€)' : 'Total spent (€)', required: true },
+              { key: 'orders', label: t ? 'Nb commandes' : 'Number of orders', required: false },
+            ].map(field => (
+              <div key={field.key}>
+                <label className="text-[11px] text-[#645648] font-medium mb-1 block">
+                  {field.label}
+                  {!field.required && <span className="text-[#A89C8D] ml-1">({t ? 'optionnel' : 'optional'})</span>}
+                </label>
+                <select
+                  value={mapping[field.key] || ''}
+                  onChange={e => updateMappingField(field.key, e.target.value)}
+                  className="w-full px-2 py-1.5 text-[12px] rounded-lg border border-[#D9D5CB] bg-white focus:border-primary focus:outline-none"
+                >
+                  <option value="">{t ? '— aucune —' : '— none —'}</option>
+                  {rawImport.headers.map(h => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          {/* Preview of first 3 mapped rows */}
+          <div className="mt-3 pt-3 border-t border-[#E5E1D8]">
+            <div className="text-[10px] uppercase tracking-wider text-[#8A7D6B] mb-2">
+              {t ? 'APERÇU' : 'PREVIEW'}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-[#EEEDE6] border-b border-[#D9D5CB]">
+                    <th className="text-left px-3 py-1.5 font-medium text-[#645648]">customer_id</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-[#645648]">total_ordered_TTC</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-[#645648]">number_of_orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, i) => (
+                    <tr key={i} className="border-b border-[#F0EEE7] last:border-0">
+                      <td className="px-3 py-1 text-[#645648] truncate max-w-[180px]">{row.customer_id || '—'}</td>
+                      <td className="px-3 py-1 text-right text-[#645648]">
+                        {row.total_ordered_TTC ? formatCurrency(row.total_ordered_TTC) : '—'}
+                      </td>
+                      <td className="px-3 py-1 text-right text-[#645648]">{row.number_of_orders || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {(!mapping.id || !mapping.revenue) && (
+              <div className="mt-2 text-[11px] text-[#D97706]">
+                {t
+                  ? '⚠️ Sélectionne au moins les colonnes Customer ID et Total dépensé.'
+                  : '⚠️ Select at least Customer ID and Total spent columns.'}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* File loaded — Stats */}
