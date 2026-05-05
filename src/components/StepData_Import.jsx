@@ -38,14 +38,17 @@ function normalizeKey(s) {
     .trim();
 }
 
-// Resolve a field by normalized alias or by normalized prefix match on row keys
+// Resolve a field by (1) normalized exact alias, (2) normalized prefix match,
+// (3) substring match for multi-word aliases (handles "Total number of orders" → "number of orders")
 function getRowField(row, aliases, prefixes = []) {
   const keys = Object.keys(row);
   const normMap = new Map(keys.map(k => [normalizeKey(k), k]));
+  // 1. Exact normalized match
   for (const a of aliases) {
     const k = normMap.get(normalizeKey(a));
     if (k && row[k] !== undefined && row[k] !== '') return row[k];
   }
+  // 2. Prefix match (e.g. "Somme de Price: Total" starts with "somme de")
   if (prefixes.length) {
     for (const p of prefixes) {
       const np = normalizeKey(p);
@@ -54,23 +57,36 @@ function getRowField(row, aliases, prefixes = []) {
       }
     }
   }
+  // 3. Substring match for multi-word aliases only — single-word aliases are too generic
+  for (const a of aliases) {
+    const na = normalizeKey(a);
+    if (!na.includes(' ')) continue;
+    for (const [nk, k] of normMap) {
+      if (nk.includes(na) && row[k] !== undefined && row[k] !== '') return row[k];
+    }
+  }
   return undefined;
 }
 
 const ID_ALIASES = [
   'customer_id', 'customer id', 'customerid',
   'id', 'client_id', 'client id', 'user_id', 'user id',
-  'Étiquettes de lignes', 'Row Labels', 'email',
+  'Étiquettes de lignes', 'Row Labels',
+  'email', 'customer email', 'customeremail', 'email address', 'mail',
 ];
 const REVENUE_ALIASES = [
   'total_ordered_TTC', 'revenue', 'ltv', 'lifetime value',
-  'amount spent', 'amount', 'total spent', 'total', 'spent',
+  'amount spent', 'amount', 'amountspent', 'amount_spent',
+  'total spent', 'total', 'spent',
+  'total amount spent', 'totalamountspent', 'total amount',
   'ca', 'chiffre d affaires', 'montant', 'montant total',
 ];
 const REVENUE_PREFIXES = ['Somme de', 'Sum of'];
 const ORDERS_ALIASES = [
-  'number_of_orders', 'number of orders', 'orders', 'order count',
-  'nb commandes', 'nombre commandes', 'nb orders',
+  'number_of_orders', 'number of orders', 'numberoforders',
+  'orders', 'order count', 'orders count',
+  'total number of orders', 'totalnumberoforders', 'total orders', 'totalorders',
+  'nb commandes', 'nombre commandes', 'nb orders', 'nombre de commandes',
 ];
 const ORDERS_PREFIXES = ['Nombre de', 'Count of', 'Nb de'];
 
@@ -86,10 +102,27 @@ function isPivotNoise(id) {
 }
 
 function mapRow(row) {
-  const rawId = getRowField(row, ID_ALIASES);
+  let rawId = getRowField(row, ID_ALIASES);
+  let revenueRaw = getRowField(row, REVENUE_ALIASES, REVENUE_PREFIXES);
+  let ordersRaw = getRowField(row, ORDERS_ALIASES, ORDERS_PREFIXES);
+
+  // Positional fallback: if NONE of the three fields resolved, assume the
+  // file has [id, revenue, orders] in that order (the canonical export shape).
+  // Skips empty trailing columns (Papa Parse adds those for trailing separators).
+  if (rawId === undefined && revenueRaw === undefined && ordersRaw === undefined) {
+    const keys = Object.keys(row).filter(k => k !== undefined && k !== '');
+    if (keys.length >= 3) {
+      rawId = row[keys[0]];
+      revenueRaw = row[keys[1]];
+      ordersRaw = row[keys[2]];
+    } else if (keys.length === 2) {
+      rawId = row[keys[0]];
+      revenueRaw = row[keys[1]];
+    }
+  }
+
   const customer_id = rawId !== undefined ? String(rawId).trim() : '';
-  const total_ordered_TTC = parseEuroNumber(getRowField(row, REVENUE_ALIASES, REVENUE_PREFIXES));
-  const ordersRaw = getRowField(row, ORDERS_ALIASES, ORDERS_PREFIXES);
+  const total_ordered_TTC = parseEuroNumber(revenueRaw);
   const ordersParsed = parseInt(parseEuroNumber(ordersRaw), 10) || 0;
   const number_of_orders = ordersParsed || Math.max(1, Math.floor(total_ordered_TTC / 60));
   return { customer_id, total_ordered_TTC, number_of_orders };
