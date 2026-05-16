@@ -343,6 +343,8 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
                       // Inline threshold field — sub-component would remount on every
                       // keystroke (defined inside parent render) and steal focus.
+                      // Use type="text" + inputMode to avoid React's known cursor-
+                      // jumping bug with type="number" controlled inputs.
                       const renderThresholdField = ({ label, value, onChange, unit, isActive }) => (
                         <div>
                           <label className={`text-[11px] mb-1 block ${isActive ? 'font-semibold text-primary' : 'text-[#8A7D6B]'}`}>
@@ -350,8 +352,12 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                           </label>
                           <div className="flex items-center gap-1">
                             <input
-                              type="number" value={value} min={0} step={1}
-                              onChange={e => onChange(e.target.value)}
+                              type="text" inputMode="numeric" pattern="[0-9]*"
+                              value={value}
+                              onChange={e => {
+                                const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                onChange(cleaned);
+                              }}
                               className={`w-20 px-2 py-1 text-[13px] text-center ${isActive ? 'ring-1 ring-primary' : ''}`}
                             />
                             <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
@@ -380,10 +386,11 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                             <div>
                               <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? '% de clients' : '% of customers'}</label>
                               <div className="flex items-center gap-1">
-                                <input type="number" min={0} max={100} step={1}
+                                <input type="text" inputMode="numeric" pattern="[0-9]*"
                                   value={Math.round(pctValue * 10) / 10}
                                   onChange={e => {
-                                    const v = parseFloat(e.target.value);
+                                    const cleaned = e.target.value.replace(/[^0-9.]/g, '');
+                                    const v = parseFloat(cleaned);
                                     if (!isNaN(v)) updateTierByPct(tierIdx, Math.max(0, Math.min(100, v)));
                                   }}
                                   className="w-16 px-2 py-1 text-[13px] text-center" />
@@ -447,18 +454,18 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       );
                     })()}
 
-                  {/* Rewards assignment */}
-                  <div style={{ padding: '10px 16px', backgroundColor: '#EEEDE6', borderTop: '1px solid #D9D5CB', margin: '12px -16px -16px -16px' }}>
-                    <div className="flex items-center justify-between mb-2">
+                  {/* Rewards assignment — toggle pill list */}
+                  <div style={{ padding: '12px 16px', backgroundColor: '#FBFAF6', borderTop: '1px solid #E5E1D8', margin: '14px -16px -16px -16px' }}>
+                    <div className="flex items-center justify-between mb-2.5">
                       <div className="section-header" style={{ marginBottom: 0, fontSize: 11 }}>
                         {t ? 'RÉCOMPENSES' : 'REWARDS'}
                       </div>
                       {rewards.some(r => r.assignedTiers?.[tierIdx]) && (
                         <div className="flex items-center gap-1">
-                          <label className="text-[10px] text-[#8A7D6B]">{t ? 'Utilisation moyenne' : 'Avg utilization'}</label>
-                          <input type="number" min={0} max={100}
+                          <label className="text-[10px] text-[#8A7D6B]">{t ? 'Util. moyenne' : 'Avg util.'}</label>
+                          <input type="text" inputMode="numeric" pattern="[0-9]*"
                             value={getTierAvgUtilization(tierIdx)}
-                            onChange={e => setTierAvgUtilization(tierIdx, e.target.value)}
+                            onChange={e => setTierAvgUtilization(tierIdx, e.target.value.replace(/[^0-9]/g, ''))}
                             className="w-12 px-1 py-0.5 text-[10px] text-center"
                             title={t ? 'Applique cette valeur à toutes les récompenses du palier' : 'Apply this value to all rewards in this tier'}
                           />
@@ -466,28 +473,49 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         </div>
                       )}
                     </div>
-                    {rewards.map(reward => {
-                      const isAssigned = reward.assignedTiers?.[tierIdx] || false;
-                      return (
-                        <div key={reward.id} className="flex items-center gap-1.5 mb-1.5">
-                          <input type="checkbox" checked={isAssigned}
-                            onChange={() => toggleRewardForTier(reward.id, tierIdx)}
-                            className="w-3 h-3 rounded" />
-                          <span className="text-[11px] flex-1 truncate text-[#645648]" title={t ? reward.nameFr : reward.nameEn}>
-                            {t ? reward.nameFr : reward.nameEn}
-                          </span>
-                          {isAssigned && (
-                            <div className="flex items-center gap-0.5">
-                              <input type="number" min={0} max={100}
-                                value={reward.utilizationByTier?.[tierIdx] ?? 30}
-                                onChange={e => updateUtilization(reward.id, tierIdx, parseInt(e.target.value) || 0)}
-                                className="w-10 px-0.5 py-0 text-[10px] text-center" />
-                              <span className="text-[9px] text-[#8A7D6B]">%</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <div className="space-y-1">
+                      {rewards.map(reward => {
+                        const isAssigned = reward.assignedTiers?.[tierIdx] || false;
+                        return (
+                          <button
+                            key={reward.id}
+                            type="button"
+                            onClick={() => toggleRewardForTier(reward.id, tierIdx)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
+                              isAssigned ? 'bg-white border border-primary/30 shadow-[0_1px_2px_rgba(15,15,15,0.04)]' : 'bg-transparent border border-transparent hover:bg-white'
+                            }`}
+                          >
+                            <span
+                              role="switch"
+                              aria-checked={isAssigned}
+                              className={`relative inline-block w-7 h-4 rounded-full transition-colors shrink-0 ${
+                                isAssigned ? 'bg-primary' : 'bg-[#D9D5CB]'
+                              }`}
+                            >
+                              <span
+                                className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform"
+                                style={{ transform: isAssigned ? 'translateX(14px)' : 'translateX(2px)' }}
+                              />
+                            </span>
+                            <span className={`text-[11px] flex-1 truncate ${isAssigned ? 'text-[#2B251F] font-medium' : 'text-[#645648]'}`}
+                              title={t ? reward.nameFr : reward.nameEn}>
+                              {t ? reward.nameFr : reward.nameEn}
+                            </span>
+                            {isAssigned && (
+                              <span className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                                <input type="text" inputMode="numeric" pattern="[0-9]*"
+                                  value={reward.utilizationByTier?.[tierIdx] ?? 30}
+                                  onChange={e => updateUtilization(reward.id, tierIdx, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                                  className="w-10 px-0.5 py-0 text-[10px] text-center"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                                <span className="text-[9px] text-[#8A7D6B]">%</span>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
 
                     {/* Per-tier financials */}
                     <div className="mt-3 pt-3 border-t border-[#D9D5CB]">
