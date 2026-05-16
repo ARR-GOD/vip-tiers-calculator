@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Share2, Save } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -13,7 +13,7 @@ import { parseSampleData } from './data/sampleData';
 import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { saveDraft, loadDraft, listDrafts, encodeShareUrl, decodeShareFromLocation, clearShareFromLocation } from './utils/persistence';
+import { saveDraft, loadDraft, listDrafts } from './utils/persistence';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
@@ -237,8 +237,7 @@ function App() {
 
   // ── Persistence: auto-save to localStorage on every change during the wizard ──
   const [savedAt, setSavedAt] = useState(null);
-  const [shareToast, setShareToast] = useState(null); // { ok | expiry } | null
-  const [shareExpired, setShareExpired] = useState(null);
+  const [shareToast, setShareToast] = useState(null); // success/error toast for save ops
 
   useEffect(() => {
     if (phase !== 'wizard') return;
@@ -277,38 +276,6 @@ function App() {
     setStep(draft.step ?? 1);
   }, []);
 
-  // ── Load share-encoded state from URL on first mount ──
-  useEffect(() => {
-    const decoded = decodeShareFromLocation();
-    if (!decoded) return;
-    if (decoded.error === 'expired') {
-      setShareExpired({ expiresAt: decoded.expiresAt });
-      clearShareFromLocation();
-      return;
-    }
-    if (decoded.error === 'invalid' || !decoded.state) return;
-    const s = decoded.state;
-    setConfig(s.config);
-    setSettings(s.settings);
-    setTiersRaw(s.tiers);
-    setRewards(s.rewards);
-    setMissions(s.missions);
-    setCustomMissions(s.customMissions || []);
-    setBurnRate(s.burnRate);
-    setReferralConfig(s.referralConfig);
-    setOnboardingAnswers(s.onboardingAnswers);
-    if (s.clientName) {
-      setSelectedClient({ name: s.clientName });
-      setCsmMode(true);
-    }
-    setPhase('wizard');
-    setStep(1); // start at Import so the recipient uploads their own CSV
-    clearShareFromLocation();
-    setShareToast({ ok: true, message: 'Configuration importée depuis le lien partagé.' });
-    setTimeout(() => setShareToast(null), 4000);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Force an immediate save (bypasses the 600ms debounce) and confirm via toast.
   // The auto-save useEffect already does this on every change, but the explicit
   // button gives the user a clear visual confirmation that work won't be lost.
@@ -331,22 +298,6 @@ function App() {
     }
     setTimeout(() => setShareToast(null), 4000);
   }, [config, settings, tiers, rewards, missions, customMissions, burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
-
-  // Generate + copy the shareable URL.
-  const copyShareLink = useCallback(async () => {
-    const res = encodeShareUrl({
-      config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers, selectedClient,
-    });
-    try {
-      await navigator.clipboard.writeText(res.url);
-      const days = Math.round((res.expiresAt - Date.now()) / 86400_000);
-      setShareToast({ ok: true, message: `Lien copié — expire dans ${days}j (${(res.byteSize / 1024).toFixed(1)} KB)` });
-    } catch {
-      setShareToast({ ok: false, message: 'Impossible de copier — sélectionnez l\'URL manuellement.' });
-    }
-    setTimeout(() => setShareToast(null), 4000);
-  }, [config, settings, tiers, rewards, missions, customMissions, burnRate, referralConfig, onboardingAnswers, selectedClient]);
 
   // Smooth scroll the page back to the top so the new step's title is visible.
   const scrollToTop = useCallback(() => {
@@ -501,9 +452,6 @@ function App() {
                 title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
-              <button onClick={copyShareLink} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1">
-                <Share2 size={12} /> {t ? 'Partager' : 'Share'}
-              </button>
               <button onClick={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
                 className="text-primary font-medium hover:underline text-[12px]">
                 {t ? 'Changer de client' : 'Change client'}
@@ -542,9 +490,6 @@ function App() {
                 title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
-              <button onClick={copyShareLink} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1">
-                <Share2 size={12} /> {t ? 'Partager' : 'Share'}
-              </button>
               <button onClick={() => setStep(0)} className="text-primary font-medium hover:underline text-[12px]">
                 {t ? 'Modifier' : 'Edit'}
               </button>
@@ -560,21 +505,6 @@ function App() {
           style={{ backgroundColor: shareToast.ok ? '#10B981' : '#DC2626', color: 'white' }}
         >
           {shareToast.message}
-        </div>
-      )}
-
-      {/* Expired share link modal */}
-      {shareExpired && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md text-center">
-            <h3 className="text-[18px] font-bold text-[#52473C] mb-2">{t ? 'Lien expiré' : 'Link expired'}</h3>
-            <p className="text-[14px] text-[#645648] mb-6">
-              {t
-                ? `Ce lien partagé a expiré le ${new Date(shareExpired.expiresAt).toLocaleDateString()}. Contactez votre CSM pour un nouveau lien.`
-                : `This shared link expired on ${new Date(shareExpired.expiresAt).toLocaleDateString()}. Contact your CSM for a new one.`}
-            </p>
-            <button onClick={() => setShareExpired(null)} className="btn-primary">{t ? 'OK' : 'OK'}</button>
-          </div>
         </div>
       )}
 
