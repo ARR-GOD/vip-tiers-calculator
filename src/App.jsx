@@ -21,7 +21,8 @@ import { Building2 } from 'lucide-react';
 
 const INITIAL_CONFIG = {
   tierBasis: 'spend',
-  hasMissions: true,
+  hasMissions: true,    // "Programme à points" — Oui/Non
+  hasTiers: true,       // "Paliers VIP" — Oui/Non
   rewardType: 'both',
   pointsExpire: true,
   expirationMonths: 12,
@@ -421,7 +422,8 @@ function App() {
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
-                lang={lang} brandAnalysis={brandAnalysis} clientName={clientName} onNext={goNext} />
+                lang={lang} brandAnalysis={brandAnalysis} clientName={clientName}
+                onboardingAnswers={onboardingAnswers} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
