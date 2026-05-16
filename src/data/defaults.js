@@ -18,10 +18,10 @@ export const TIER_COLOR_MAP = {
 // ── Referral config (separate module, not a mission) ──
 export const INITIAL_REFERRAL = {
   enabled: true,
-  referrerType: 'percent',   // 'percent' | 'fixed'
-  referrerValue: 10,          // 10% or 10€
+  referrerType: 'fixed',      // 'percent' | 'fixed'
+  referrerValue: 10,          // 10€
   refereeType: 'fixed',       // 'percent' | 'fixed'
-  refereeValue: 5,            // 5€ or 5%
+  refereeValue: 10,           // 10€
   estimatedReferralsPerMonth: 10,
   conversionRate: 30,         // % of referees who purchase
   avgFirstOrderValue: 80,     // avg first order value of referee
