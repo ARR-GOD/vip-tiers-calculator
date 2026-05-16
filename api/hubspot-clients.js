@@ -28,21 +28,24 @@ export default async function handler(req, res) {
 
     // Paginate to fetch all clients for this CSM (max 200 per page, up to 5 pages)
     while (hasMore) {
+      // A "client" in this tool = a company whose HubSpot lifecycle stage is
+      // "customer" (the internal value for the French label "Client"). We always
+      // apply this filter so prospects/leads/MQLs/SQLs are excluded.
+      const filters = [
+        { propertyName: 'lifecyclestage', operator: 'EQ', value: 'customer' },
+      ];
+      // Optional additional filter: restrict to a specific CSM owner.
+      if (ownerId) {
+        filters.push({ propertyName: 'proprietaire_de_l_entreprise__csm_', operator: 'EQ', value: ownerId });
+      }
+
       const body = {
+        filterGroups: [{ filters }],
         properties,
         limit: 200,
         after,
         sorts: [{ propertyName: 'name', direction: 'ASCENDING' }],
       };
-
-      // Filter by CSM owner only when ownerId is provided
-      if (ownerId) {
-        body.filterGroups = [{
-          filters: [
-            { propertyName: 'proprietaire_de_l_entreprise__csm_', operator: 'EQ', value: ownerId },
-          ],
-        }];
-      }
 
       // If a search term is provided, add it as a HubSpot query
       if (search) {
