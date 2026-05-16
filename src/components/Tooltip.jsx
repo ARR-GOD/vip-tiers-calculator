@@ -10,11 +10,21 @@ export default function Tooltip({ text, children }) {
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
-      {children || <HelpCircle size={13} className="text-[#8A7D6B] cursor-help ml-0.5" />}
+      {children || <HelpCircle size={13} className="text-[#8A7D6B] hover:text-[#52473C] cursor-help ml-0.5 transition-colors" />}
       {show && (
-        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#111827] text-white text-[12px] leading-relaxed rounded-lg whitespace-normal w-max max-w-[260px] pointer-events-none" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+        <span
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-white text-[12px] leading-[1.5] rounded-[10px] whitespace-normal w-max max-w-[300px] pointer-events-none"
+          style={{
+            backgroundColor: '#2B251F',
+            boxShadow: '0 12px 24px -6px rgba(15,15,15,0.22)',
+            animation: 'fadeIn 120ms ease-out',
+          }}
+        >
           {text}
-          <span className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-[#111827]" />
+          <span
+            className="absolute top-full left-1/2 -ml-1 border-4 border-transparent"
+            style={{ borderTopColor: '#2B251F' }}
+          />
         </span>
       )}
     </span>
