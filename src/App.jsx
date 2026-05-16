@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -498,13 +498,21 @@ function App() {
         </div>
       )}
 
-      {/* Floating toast for share-link operations */}
+      {/* Floating toast (save confirmations, errors) */}
       {shareToast && (
-        <div
-          className="fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-[13px]"
-          style={{ backgroundColor: shareToast.ok ? '#10B981' : '#DC2626', color: 'white' }}
-        >
-          {shareToast.message}
+        <div className="fixed top-4 right-4 z-50 toast-enter">
+          <div
+            className="flex items-center gap-3 pl-3 pr-4 py-2.5 rounded-[10px] bg-white border border-[#E5E1D8] text-[13px] font-medium text-[#2B251F] max-w-[420px]"
+            style={{
+              borderLeft: `3px solid ${shareToast.ok ? '#059669' : '#DC2626'}`,
+              boxShadow: '0 12px 24px -6px rgba(15,15,15,0.18)',
+            }}
+          >
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${shareToast.ok ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FEF2F2] text-[#DC2626]'}`}>
+              {shareToast.ok ? <Check size={13} strokeWidth={2.5} /> : <AlertCircle size={13} />}
+            </span>
+            <span>{shareToast.message}</span>
+          </div>
         </div>
       )}
 
