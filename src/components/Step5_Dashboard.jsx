@@ -93,7 +93,7 @@ const DIFFERENTIATION_TIPS = {
   },
 };
 
-export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis, referralConfig, firefliesInsights }) {
+export default function Step5_Dashboard({ tiers, customers, settings, config, missions, customMissions, rewards, burnRate, lang, programType, brandAnalysis, clientName, referralConfig, firefliesInsights }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
   const [scenario, setScenario] = useState('base');
@@ -176,8 +176,7 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
         </div>
       </div>
 
-      <RecommendationBlock stepKey={6} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
-      <FirefliesInsightBanner insights={firefliesInsights} stepKey="dashboard" lang={lang} />
+      <RecommendationBlock stepKey={6} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* Scenario */}
       <div className="card flex items-center gap-3" style={{ padding: 16 }}>

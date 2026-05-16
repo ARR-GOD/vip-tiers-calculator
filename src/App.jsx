@@ -162,27 +162,7 @@ function App() {
     // Go to briefing screen (NOT directly to wizard)
     setPhase('csm-briefing');
 
-    // Fire-and-forget: fetch Fireflies insights
-    const contactEmails = (details.contacts || []).map(c => c.email).filter(Boolean);
-    if (details.company.name || contactEmails.length > 0 || details.company.domain) {
-      setFirefliesLoading(true);
-      fetch('/api/fireflies-insights', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: details.company.name || client.name || '',
-          contactEmails,
-          domain: details.company.domain || client.domain || '',
-          recentEmails: details.recentEmails || [],
-        }),
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data) setFirefliesInsights(data);
-        })
-        .catch(() => { /* silent fail — Fireflies is non-blocking */ })
-        .finally(() => setFirefliesLoading(false));
-    }
+    // Fireflies integration disabled — no API call, state stays null.
   };
 
   // Called from briefing screen — applies defaults and enters wizard at step 2 (config)
@@ -363,12 +343,6 @@ function App() {
                 <span className="text-[#8A7D6B]">|</span>
                 <span className="pill pill-purple text-[10px]">{selectedClient.plan}</span>
               </>
-            )}
-            {firefliesLoading && (
-              <span className="text-[11px] text-[#8A7D6B] italic animate-pulse">Fireflies sync...</span>
-            )}
-            {firefliesInsights && !firefliesLoading && (
-              <span className="text-[11px] text-[#059669]">✓ {firefliesInsights.meetingsFound} meeting{firefliesInsights.meetingsFound > 1 ? 's' : ''}</span>
             )}
             <button onClick={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
               className="ml-auto text-primary font-medium hover:underline text-[12px]">
