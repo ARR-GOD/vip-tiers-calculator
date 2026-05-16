@@ -191,10 +191,10 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-36">
                   <div className="flex items-center gap-1 justify-center">
                     {t ? 'Complétion' : 'Completion'}
-                    <Tooltip text={t ? `Pourcentage de clients qui complètent la mission. Le scénario actuel applique un multiplicateur de ×${scenarioData.multiplier} sur cette valeur (capé à 100%). La modélisation par palier vient plus tard.` : `Share of customers who complete this mission. The current scenario applies a ×${scenarioData.multiplier} multiplier (capped at 100%). Per-tier modeling comes later.`} />
+                    <Tooltip text={t ? `% effectif de clients qui complètent la mission sous le scénario actuel. La valeur affichée = base × ${scenarioData.multiplier} (capée à 100%). Éditer ce champ ajuste la base en conséquence.` : `Effective % of customers who complete the mission under the current scenario. Shown value = base × ${scenarioData.multiplier} (capped at 100%). Editing this field adjusts the base accordingly.`} />
                   </div>
                   {scenarioData.multiplier !== 1 && (
-                    <div className="text-[9px] text-[#8A7D6B] font-normal mt-0.5">×{scenarioData.multiplier} ({t ? 'effectif' : 'effective'})</div>
+                    <div className="text-[9px] text-[#8A7D6B] font-normal mt-0.5">{t ? 'effectif' : 'effective'} (×{scenarioData.multiplier})</div>
                   )}
                 </th>
                 <th className="text-center px-3 py-2.5 font-medium text-primary w-28">{t ? 'Total pts / an' : 'Total pts / yr'}</th>
@@ -256,21 +256,30 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                       {isPurchase ? (
                         <span className="text-[11px] text-[#8A7D6B]">100%</span>
                       ) : (() => {
-                        const effective = Math.min(100, Math.round(completion * scenarioData.multiplier));
-                        const shifted = scenarioData.multiplier !== 1;
+                        const mult = scenarioData.multiplier;
+                        const effective = Math.min(100, Math.round(completion * mult));
+                        const shifted = mult !== 1;
                         return (
                           <div>
                             <div className="flex items-center justify-center gap-1">
                               <input
                                 type="number" min={0} max={100}
-                                value={completion}
-                                onChange={e => updateCompletion(m.id, parseInt(e.target.value) || 0)}
+                                value={effective}
+                                onChange={e => {
+                                  const typed = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                                  if (typed === effective) return; // avoid silent base-rescaling when clamped value is re-entered
+                                  const newBase = mult > 0 ? typed / mult : typed;
+                                  updateCompletion(m.id, Math.round(Math.max(0, Math.min(100, newBase))));
+                                }}
                                 className="w-16 px-1.5 py-0.5 text-[12px] text-center"
+                                title={shifted ? (t ? `Base : ${completion}% × ${mult} = ${effective}% (capé à 100%)` : `Base: ${completion}% × ${mult} = ${effective}% (capped at 100%)`) : undefined}
                               />
                               <span className="text-[10px] text-[#8A7D6B]">%</span>
                             </div>
                             {shifted && (
-                              <div className="text-[10px] text-[#8A7D6B] mt-0.5">→ {effective}% {t ? 'effectif' : 'effective'}</div>
+                              <div className="text-[10px] text-[#8A7D6B] mt-0.5">
+                                {t ? 'base' : 'base'}: {completion}%
+                              </div>
                             )}
                           </div>
                         );
