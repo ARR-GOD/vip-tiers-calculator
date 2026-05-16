@@ -341,14 +341,16 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         setAllThresholds({ spend: s, orders: o, points: p });
                       };
 
-                      const ThresholdField = ({ label, value, onChange, unit, isActive, step }) => (
+                      // Inline threshold field — sub-component would remount on every
+                      // keystroke (defined inside parent render) and steal focus.
+                      const renderThresholdField = ({ label, value, onChange, unit, isActive }) => (
                         <div>
                           <label className={`text-[11px] mb-1 block ${isActive ? 'font-semibold text-primary' : 'text-[#8A7D6B]'}`}>
                             {label}{isActive && <span className="ml-1 text-[9px] uppercase">{t ? 'actif' : 'active'}</span>}
                           </label>
                           <div className="flex items-center gap-1">
                             <input
-                              type="number" value={value} min={0} step={step}
+                              type="number" value={value} min={0} step={1}
                               onChange={e => onChange(e.target.value)}
                               className={`w-20 px-2 py-1 text-[13px] text-center ${isActive ? 'ring-1 ring-primary' : ''}`}
                             />
@@ -360,23 +362,21 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       return (
                         <div className="mt-4 pt-4 border-t border-[#D9D5CB] space-y-3">
                           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                            <ThresholdField
-                              label={t ? 'Seuil (€)' : 'Spend (€)'}
-                              value={spendVal} onChange={handleSpendChange} unit="€" step={50}
-                              isActive={basis === 'spend'}
-                            />
-                            <ThresholdField
-                              label={t ? 'Seuil (cmd)' : 'Orders (#)'}
-                              value={ordersVal} onChange={handleOrdersChange} unit={t ? 'cmd' : 'orders'} step={1}
-                              isActive={basis === 'orders'}
-                            />
-                            {basis === 'points' && (
-                              <ThresholdField
-                                label={t ? 'Seuil (pts)' : 'Points'}
-                                value={pointsVal} onChange={handlePointsChange} unit="pts" step={100}
-                                isActive={true}
-                              />
-                            )}
+                            {renderThresholdField({
+                              label: t ? 'Seuil (€)' : 'Spend (€)',
+                              value: spendVal, onChange: handleSpendChange, unit: '€',
+                              isActive: basis === 'spend',
+                            })}
+                            {renderThresholdField({
+                              label: t ? 'Seuil (cmd)' : 'Orders (#)',
+                              value: ordersVal, onChange: handleOrdersChange, unit: t ? 'cmd' : 'orders',
+                              isActive: basis === 'orders',
+                            })}
+                            {basis === 'points' && renderThresholdField({
+                              label: t ? 'Seuil (pts)' : 'Points',
+                              value: pointsVal, onChange: handlePointsChange, unit: 'pts',
+                              isActive: true,
+                            })}
                             <div>
                               <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? '% de clients' : '% of customers'}</label>
                               <div className="flex items-center gap-1">
