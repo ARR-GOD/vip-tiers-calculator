@@ -113,10 +113,9 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
   const totalFinancials = tierFinancials.reduce((acc, tf) => ({
     rewardsCost: acc.rewardsCost + tf.rewardsCost,
-    incrementalRevenue: acc.incrementalRevenue + tf.incrementalRevenue,
     grossProfit: acc.grossProfit + tf.grossProfit,
     netProfit: acc.netProfit + tf.netProfit,
-  }), { rewardsCost: 0, incrementalRevenue: 0, grossProfit: 0, netProfit: 0 });
+  }), { rewardsCost: 0, grossProfit: 0, netProfit: 0 });
 
   const maxRevenue = Math.max(...tierStats.map(s => s?.revenue || 0), 1);
 
@@ -433,10 +432,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                           <span className="font-medium text-[#DC2626]">-{formatCurrency(fin.rewardsCost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[#8A7D6B]">{t ? 'Rev. incrémental' : 'Incr. revenue'}</span>
-                          <span className="font-medium text-[#645648]">{formatCurrency(fin.incrementalRevenue)}</span>
-                        </div>
-                        <div className="flex justify-between">
                           <span className="text-[#8A7D6B]">{t ? 'Marge brute' : 'Gross profit'}</span>
                           <span className="font-medium text-[#645648]">{formatCurrency(fin.grossProfit)}</span>
                         </div>
@@ -478,28 +473,23 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       <div>
         <div className="section-header">{t ? 'TOTAL PROGRAMME / AN' : 'PROGRAM TOTAL / YR'}</div>
         <div className="card">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="section-subheader">{t ? 'COÛT TOTAL' : 'TOTAL COST'}</div>
               <div className="text-[28px] font-bold text-[#DC2626]">-{formatCurrency(totalFinancials.rewardsCost)}</div>
               <div className="text-[12px] text-[#645648]">{t ? 'récompenses' : 'rewards'}</div>
             </div>
             <div className="text-center">
-              <div className="section-subheader">{t ? 'REV. INCRÉMENTAL' : 'INCR. REVENUE'}</div>
-              <div className="text-[28px] font-bold text-[#52473C]">{formatCurrency(totalFinancials.incrementalRevenue)}</div>
-              <div className="text-[12px] text-[#645648]">{t ? 'généré' : 'generated'}</div>
-            </div>
-            <div className="text-center">
               <div className="section-subheader">{t ? 'MARGE BRUTE' : 'GROSS PROFIT'}</div>
               <div className="text-[28px] font-bold text-[#52473C]">{formatCurrency(totalFinancials.grossProfit)}</div>
-              <div className="text-[12px] text-[#645648]">{t ? 'sur rev. incr.' : 'on incr. rev.'}</div>
+              <div className="text-[12px] text-[#645648]">{t ? `CA membres × ${settings.grossMargin}%` : `Member CA × ${settings.grossMargin}%`}</div>
             </div>
             <div className="text-center">
               <div className="section-subheader">{t ? 'PROFIT NET' : 'NET PROFIT'}</div>
               <div className={`text-[28px] font-bold ${totalFinancials.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
                 {totalFinancials.netProfit >= 0 ? '+' : ''}{formatCurrency(totalFinancials.netProfit)}
               </div>
-              <div className="text-[12px] text-[#645648]">{t ? 'par an' : 'per year'}</div>
+              <div className="text-[12px] text-[#645648]">{t ? 'marge − coût' : 'margin − cost'}</div>
             </div>
           </div>
         </div>
