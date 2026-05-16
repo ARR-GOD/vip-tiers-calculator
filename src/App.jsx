@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Share2 } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Share2, Save } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -309,6 +309,29 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Force an immediate save (bypasses the 600ms debounce) and confirm via toast.
+  // The auto-save useEffect already does this on every change, but the explicit
+  // button gives the user a clear visual confirmation that work won't be lost.
+  const forceSave = useCallback(() => {
+    const res = saveDraft({
+      config, settings, tiers, rewards, missions, customMissions,
+      burnRate, referralConfig, onboardingAnswers,
+      selectedClient, customers, step,
+    });
+    if (res.ok) {
+      setSavedAt(res.savedAt);
+      const tierCount = tiers.length;
+      const custCount = customers?.length || 0;
+      const msg = res.withCustomers
+        ? `Brouillon enregistré · ${tierCount} paliers · ${custCount.toLocaleString('fr-FR')} clients`
+        : `Brouillon enregistré · ${tierCount} paliers (clients trop volumineux, réimportez le CSV à la reprise)`;
+      setShareToast({ ok: true, message: msg });
+    } else {
+      setShareToast({ ok: false, message: 'Échec de l\'enregistrement — espace navigateur plein ?' });
+    }
+    setTimeout(() => setShareToast(null), 4000);
+  }, [config, settings, tiers, rewards, missions, customMissions, burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
+
   // Generate + copy the shareable URL.
   const copyShareLink = useCallback(async () => {
     const res = encodeShareUrl({
@@ -474,6 +497,10 @@ function App() {
                   <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
+              <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
+                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
+              </button>
               <button onClick={copyShareLink} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1">
                 <Share2 size={12} /> {t ? 'Partager' : 'Share'}
               </button>
@@ -511,6 +538,10 @@ function App() {
                   <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
+              <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
+                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
+              </button>
               <button onClick={copyShareLink} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1">
                 <Share2 size={12} /> {t ? 'Partager' : 'Share'}
               </button>
