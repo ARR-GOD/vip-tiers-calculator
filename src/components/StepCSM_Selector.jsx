@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight } from 'lucide-react';
+import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, FileText, Trash2 } from 'lucide-react';
+import { listDrafts, deleteDraft } from '../utils/persistence';
 
 const FR = {
   title: 'Sélection client',
@@ -61,9 +62,11 @@ function normalizeSearchTerm(s) {
   return q.trim();
 }
 
-export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onHubSpotUnavailable }) {
+export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onHubSpotUnavailable, onResumeDraft }) {
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
+  const [drafts, setDrafts] = useState(() => listDrafts());
+  const refreshDrafts = () => setDrafts(listDrafts());
 
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -183,6 +186,62 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
         </div>
         <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
       </div>
+
+      {/* Saved drafts (resume your work) */}
+      {drafts.length > 0 && onResumeDraft && (
+        <div className="card mb-4" style={{ borderLeft: '3px solid #2965FE' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="section-subheader" style={{ marginBottom: 0 }}>
+              <FileText size={11} className="inline mr-1" />
+              {lang === 'fr' ? `MES BROUILLONS (${drafts.length})` : `MY DRAFTS (${drafts.length})`}
+            </div>
+            <span className="text-[10px] text-[#8A7D6B]">
+              {lang === 'fr' ? 'Auto-sauvegardés dans ce navigateur' : 'Auto-saved in this browser'}
+            </span>
+          </div>
+          <div className="max-h-[200px] overflow-y-auto -mx-1 tier-scroll">
+            {drafts.map(d => {
+              const label = d.selectedClient?.name || (lang === 'fr' ? 'Configuration manuelle' : 'Manual configuration');
+              const customersCount = (d.customers || []).length;
+              const tierCount = (d.tiers || []).length;
+              return (
+                <div key={d.key} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#E5E1D8] transition-all">
+                  <button
+                    onClick={() => onResumeDraft(d)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="text-[13px] font-semibold text-[#52473C] truncate">{label}</div>
+                    <div className="text-[11px] text-[#8A7D6B] truncate">
+                      {customersCount > 0
+                        ? (lang === 'fr' ? `${customersCount.toLocaleString('fr-FR')} clients` : `${customersCount.toLocaleString()} customers`)
+                        : (lang === 'fr' ? 'Données client à importer' : 'Customer data to import')}
+                      {' · '}
+                      {lang === 'fr' ? `${tierCount} paliers` : `${tierCount} tiers`}
+                      {' · '}
+                      {new Date(d.savedAt).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(lang === 'fr' ? 'Supprimer ce brouillon ?' : 'Delete this draft?')) {
+                        const clientId = d.key.replace(/^vip_draft_/, '');
+                        deleteDraft(clientId === 'manual' ? null : clientId);
+                        refreshDrafts();
+                      }
+                    }}
+                    className="text-[#8A7D6B] hover:text-red-500 transition-colors p-1"
+                    title={lang === 'fr' ? 'Supprimer' : 'Delete'}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                  <ArrowRight size={12} className="text-[#D9D5CB] shrink-0" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Client list area */}
       <div className="card">
