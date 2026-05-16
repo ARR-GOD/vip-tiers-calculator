@@ -186,13 +186,16 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                   <div className="flex items-center gap-1 justify-center">Pts <Tooltip text={t ? 'Points par complétion.' : 'Points per completion.'} /></div>
                 </th>
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-20">
-                  <div className="flex items-center gap-1 justify-center">{t ? 'Fréq/an' : 'Freq/yr'} <Tooltip text={t ? 'Complétions max par client par an.' : 'Max completions per customer per year.'} /></div>
+                  <div className="flex items-center gap-1 justify-center">{t ? 'Fréq/an' : 'Freq/yr'} <Tooltip text={t ? 'Complétions max par client par an. Cette valeur n\'est pas affectée par le scénario — seul le taux de complétion (% de clients qui font la mission) est ajusté.' : 'Max completions per customer per year. This is not affected by the scenario — only the completion rate (% of customers who do the mission) is scaled.'} /></div>
                 </th>
-                <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-32">
+                <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-36">
                   <div className="flex items-center gap-1 justify-center">
                     {t ? 'Complétion' : 'Completion'}
-                    <Tooltip text={t ? 'Pourcentage de clients qui complètent la mission, toutes catégories confondues. La modélisation par palier vient plus tard.' : 'Share of customers who complete this mission, all segments combined. Per-tier modeling comes later.'} />
+                    <Tooltip text={t ? `Pourcentage de clients qui complètent la mission. Le scénario actuel applique un multiplicateur de ×${scenarioData.multiplier} sur cette valeur (capé à 100%). La modélisation par palier vient plus tard.` : `Share of customers who complete this mission. The current scenario applies a ×${scenarioData.multiplier} multiplier (capped at 100%). Per-tier modeling comes later.`} />
                   </div>
+                  {scenarioData.multiplier !== 1 && (
+                    <div className="text-[9px] text-[#8A7D6B] font-normal mt-0.5">×{scenarioData.multiplier} ({t ? 'effectif' : 'effective'})</div>
+                  )}
                 </th>
                 <th className="text-center px-3 py-2.5 font-medium text-primary w-28">{t ? 'Total pts / an' : 'Total pts / yr'}</th>
                 <th className="w-8"></th>
@@ -252,17 +255,26 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                     <td className="px-3 py-2 text-center">
                       {isPurchase ? (
                         <span className="text-[11px] text-[#8A7D6B]">100%</span>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1">
-                          <input
-                            type="number" min={0} max={100}
-                            value={completion}
-                            onChange={e => updateCompletion(m.id, parseInt(e.target.value) || 0)}
-                            className="w-16 px-1.5 py-0.5 text-[12px] text-center"
-                          />
-                          <span className="text-[10px] text-[#8A7D6B]">%</span>
-                        </div>
-                      )}
+                      ) : (() => {
+                        const effective = Math.min(100, Math.round(completion * scenarioData.multiplier));
+                        const shifted = scenarioData.multiplier !== 1;
+                        return (
+                          <div>
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number" min={0} max={100}
+                                value={completion}
+                                onChange={e => updateCompletion(m.id, parseInt(e.target.value) || 0)}
+                                className="w-16 px-1.5 py-0.5 text-[12px] text-center"
+                              />
+                              <span className="text-[10px] text-[#8A7D6B]">%</span>
+                            </div>
+                            {shifted && (
+                              <div className="text-[10px] text-[#8A7D6B] mt-0.5">→ {effective}% {t ? 'effectif' : 'effective'}</div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-2 text-center font-medium text-[#645648]">{formatCompact(totalMissionPts)}</td>
                     <td className="px-2 py-2">
