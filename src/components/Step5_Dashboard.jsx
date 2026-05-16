@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Download, Image, RotateCcw, ChevronLeft } from 'lucide-react';
+import { Download, Image, RotateCcw, ChevronLeft, TrendingUp } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
@@ -163,17 +163,27 @@ export default function Step5_Dashboard({
       </div>
 
       {/* Scenario selector — drives every dashboard number below */}
-      <div className="card flex flex-wrap items-center gap-3" style={{ padding: 14 }}>
-        <span className="text-[13px] font-medium text-[#645648]">{t ? 'Scénario actif' : 'Active scenario'}:</span>
+      <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
+        <span className="text-[13px] font-medium text-[#52473C]">{t ? 'Scénario actif :' : 'Active scenario:'}</span>
         <div className="flex gap-1.5">
-          {SCENARIOS.map(s => (
-            <button key={s.key} onClick={() => setActiveKey(s.key)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${activeKey === s.key ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648] hover:bg-[#D9D5CB]'}`}>
-              {t ? s.labelFr : s.labelEn} <span className="opacity-70">×{s.mult}</span>
-            </button>
-          ))}
+          {SCENARIOS.map(s => {
+            const isActive = activeKey === s.key;
+            return (
+              <button key={s.key} onClick={() => setActiveKey(s.key)}
+                className={`px-3.5 py-1.5 rounded-[10px] text-[12px] font-semibold border transition-all ${
+                  isActive
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-[#FBFAF6] text-[#52473C] border-[#E5E1D8] hover:border-[#D9D5CB]'
+                }`}
+                style={isActive ? { boxShadow: '0 1px 2px rgba(15,15,15,0.06), inset 0 1px 0 rgba(255,255,255,0.16)' } : undefined}
+              >
+                {t ? s.labelFr : s.labelEn}
+                <span className={`ml-1.5 font-normal ${isActive ? 'opacity-70' : 'text-[#8A7D6B]'}`}>×{s.mult}</span>
+              </button>
+            );
+          })}
         </div>
-        <span className="ml-auto text-[11px] text-[#8A7D6B]">
+        <span className="ml-auto text-[11px] text-[#8A7D6B] max-w-[420px]">
           {t
             ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Incrémentalité ${activeIncrementality}%.`
             : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Incrementality ${activeIncrementality}%.`}
@@ -193,8 +203,8 @@ export default function Step5_Dashboard({
           <div className="card overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
-                <tr className="bg-[#EEEDE6] border-b border-[#D9D5CB]">
-                  <th className="text-left px-4 py-3 font-medium text-[#645648] w-72">
+                <tr className="bg-[#FBFAF6] border-b border-[#E5E1D8]">
+                  <th className="text-left px-4 py-3 font-medium text-[#52473C] w-72">
                     <div className="flex items-center gap-1">
                       {t ? 'Indicateur' : 'Metric'}
                       <Tooltip text={t ? "Taux d'incrémentalité : part du CA des membres réellement attribuable au programme (uplift, pas baseline). Éditable par scénario." : 'Incrementality rate: share of member revenue genuinely attributable to the program (uplift, not baseline). Editable per scenario.'} />
@@ -204,21 +214,32 @@ export default function Step5_Dashboard({
                     const isActive = s.key === activeKey;
                     return (
                       <th key={s.key} onClick={() => setActiveKey(s.key)}
-                        className={`px-4 py-3 font-medium cursor-pointer transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-[#645648] hover:bg-[#E5E1D8]'}`}>
-                        <div className="text-[12px] text-right flex items-center justify-end gap-1">
+                        className={`px-4 py-3 font-medium cursor-pointer transition-colors ${
+                          isActive ? 'text-primary' : 'text-[#52473C] hover:bg-[#EEEDE6]'
+                        }`}
+                        style={isActive ? {
+                          background: '#E8EFFE',
+                          borderLeft: '1px solid #A3B8FD',
+                          borderRight: '1px solid #A3B8FD',
+                        } : undefined}>
+                        <div className="text-[12px] text-right flex items-center justify-end gap-1.5">
                           {isActive && <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>}
                           {t ? s.labelFr : s.labelEn}
                         </div>
-                        <div className="flex items-center justify-end gap-1 mt-1">
+                        <div className="flex items-center justify-end gap-1 mt-1.5">
                           <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Incrémentalité' : 'Incrementality'}:</span>
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-white border ${
+                            isActive ? 'border-primary/30' : 'border-[#E5E1D8]'
+                          }`}>
                           <input
-                            type="number" min={0} max={100} step={5}
+                            type="text" inputMode="numeric" pattern="[0-9]*"
                             value={s.incrementality}
                             onClick={e => e.stopPropagation()}
-                            onChange={e => updateIncrementality(s.key, e.target.value)}
-                            className="w-14 px-1.5 py-0.5 text-[12px] text-right font-medium"
+                            onChange={e => updateIncrementality(s.key, e.target.value.replace(/[^0-9]/g, ''))}
+                            className="w-10 text-[12px] text-right font-medium bg-transparent border-0 focus:outline-none focus:ring-0 h-auto p-0"
                           />
-                          <span className="text-[10px] text-[#8A7D6B]">%</span>
+                            <span className="text-[10px] text-[#8A7D6B]">%</span>
+                          </span>
                         </div>
                       </th>
                     );
@@ -416,11 +437,16 @@ export default function Step5_Dashboard({
             </div>
 
             {/* CFO impact block */}
-            <div className="card mt-3" style={{ borderLeft: '3px solid #F59E0B', backgroundColor: '#FFFBEB' }}>
-              <div className="section-subheader" style={{ color: '#92400E' }}>
-                {t ? 'IMPACT POUR LE CFO' : 'CFO IMPACT'}
+            <div className="card mt-4" style={{ borderLeft: '3px solid #D97706', backgroundColor: '#FFFBEB', borderColor: 'rgba(217,119,6,0.25)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] flex items-center justify-center">
+                  <TrendingUp size={14} className="text-[#D97706]" strokeWidth={1.6} />
+                </div>
+                <div className="section-subheader" style={{ color: '#D97706', marginBottom: 0, fontSize: 11 }}>
+                  {t ? 'IMPACT POUR LE CFO' : 'CFO IMPACT'}
+                </div>
               </div>
-              <ul className="space-y-1.5 text-[13px] text-[#52473C] mt-2">
+              <ul className="space-y-1.5 text-[13px] text-[#2B251F] mt-1 leading-relaxed">
                 <li>
                   <strong>{t ? 'Taux d\'utilisation actuel' : 'Current utilization rate'} :</strong>{' '}
                   {formatPercent(pointsEconomy.utilizationRate)}
@@ -475,9 +501,9 @@ export default function Step5_Dashboard({
 
 // ─── Row helpers ───
 function PnlRow({ label, values, bold, negative, profit, hint, activeIdx }) {
-  const baseTextClass = bold ? 'font-bold text-[#52473C]' : 'text-[#645648]';
+  const baseTextClass = bold ? 'font-bold text-[#2B251F]' : 'text-[#52473C]';
   return (
-    <tr className={`border-b border-[#E5E1D8] ${bold ? 'bg-[#FAFAF7]' : ''}`}>
+    <tr className={`border-b border-[#EEEDE6] ${bold ? 'bg-[#FAFAF7]' : ''}`}>
       <td className={`px-4 py-2.5 ${baseTextClass}`}>
         {label}
         {hint && <div className="text-[10px] text-[#8A7D6B] font-normal mt-0.5">{hint}</div>}
@@ -489,7 +515,13 @@ function PnlRow({ label, values, bold, negative, profit, hint, activeIdx }) {
         const prefix = profit && v >= 0 ? '+' : '';
         const isActive = i === activeIdx;
         return (
-          <td key={i} className={`text-right px-4 py-2.5 ${cls} ${isActive ? 'bg-primary/5' : ''}`}>
+          <td key={i} className={`text-right px-4 py-2.5 ${cls}`}
+            style={isActive ? {
+              background: 'rgba(41,101,254,0.04)',
+              borderLeft: '1px solid #A3B8FD',
+              borderRight: '1px solid #A3B8FD',
+            } : undefined}
+          >
             {prefix}{formatCurrency(Math.round(v))}
           </td>
         );
