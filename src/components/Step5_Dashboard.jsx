@@ -1,7 +1,8 @@
-import { useMemo, useRef } from 'react';
-import { Download, Image } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Download, Image, RotateCcw } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
+import Tooltip from './Tooltip';
 import {
   computeCustomerScores, assignTiers, computeTierStats,
   computeProgramFunnel, computeReferralEconomics, computePointsEconomy,
@@ -10,9 +11,9 @@ import {
 } from '../utils/calculations';
 
 const SCENARIOS = [
-  { key: 'conservative', mult: 0.6, labelFr: 'Conservateur', labelEn: 'Conservative' },
-  { key: 'base',          mult: 1.0, labelFr: 'Base',          labelEn: 'Base' },
-  { key: 'optimistic',    mult: 1.4, labelFr: 'Optimiste',     labelEn: 'Optimistic' },
+  { key: 'conservative', mult: 0.6, defaultIncrementality: 40, labelFr: 'Conservateur', labelEn: 'Conservative' },
+  { key: 'base',          mult: 1.0, defaultIncrementality: 55, labelFr: 'Base',          labelEn: 'Base' },
+  { key: 'optimistic',    mult: 1.4, defaultIncrementality: 70, labelFr: 'Optimiste',     labelEn: 'Optimistic' },
 ];
 
 export default function Step5_Dashboard({
@@ -23,6 +24,13 @@ export default function Step5_Dashboard({
   const t = lang === 'fr';
   const dashRef = useRef(null);
 
+  // ── Editable incrementality rates per scenario ──
+  const [incrementality, setIncrementality] = useState(() =>
+    Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality]))
+  );
+  const resetIncrementality = () =>
+    setIncrementality(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality])));
+
   const tierStats = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
     const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
@@ -30,47 +38,71 @@ export default function Step5_Dashboard({
     return computeTierStats(assigned, tiers);
   }, [customers, settings, tiers, config]);
 
+  const totalCustomerRevenue = useMemo(
+    () => tierStats.reduce((s, st) => s + st.revenue, 0),
+    [tierStats]
+  );
+
   const referralEcon = useMemo(
     () => computeReferralEconomics(referralConfig, settings.aov),
     [referralConfig, settings.aov]
   );
 
-  // One funnel per scenario → drives the P&L columns.
+  // One funnel per scenario → drives rewards cost (mission engagement scales with multiplier).
+  // CA loyalty no longer comes from funnel.incrementalRevenue; it's an explicit assumption:
+  //   CA loyalty = totalCustomerRevenue × incrementality%
   const scenarioRows = useMemo(() => {
     return SCENARIOS.map(s => {
       const f = computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, s.mult);
-      const caLoyalty   = f.incrementalRevenue;
+      const incr = (incrementality[s.key] ?? s.defaultIncrementality) / 100;
+      const caLoyalty   = totalCustomerRevenue * incr;
       const caReferral  = referralEcon.revenuePerYear;
       const caTotal     = caLoyalty + caReferral;
       const margin      = caTotal * (settings.grossMargin / 100);
       const rewardsCost = f.rewardsCost + referralEcon.totalCostPerYear;
       const netProfit   = margin - rewardsCost;
-      return { ...s, caLoyalty, caReferral, caTotal, margin, rewardsCost, netProfit };
+      return { ...s, incrementality: incrementality[s.key] ?? s.defaultIncrementality,
+        caLoyalty, caReferral, caTotal, margin, rewardsCost, netProfit,
+        burnCost: f.burnCost, perkCost: f.perkCost };
     });
-  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon]);
+  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, incrementality]);
 
   const pointsEconomy = useMemo(
     () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate),
     [tierStats, tiers, missions, customMissions, rewards, settings, burnRate]
   );
 
-  // Convert a point quantity to € using current settings.pointsPerEuro (= pts per 1€ reward).
-  const ptsToEur = (pts) => {
-    const p = settings.pointsPerEuro || 100;
-    return pts / p;
-  };
+  // ── Real cost per burned point, derived from modeled reward utilization ──
+  // computeProgramFunnel at base scenario gives the modeled burn cost.
+  const baseFunnel = useMemo(
+    () => computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, 1),
+    [tierStats, missions, customMissions, rewards, settings, tiers]
+  );
+  const realCostPerBurnedPoint = pointsEconomy.totalBurned > 0
+    ? baseFunnel.burnCost / pointsEconomy.totalBurned
+    : 0;
+
+  // Two ways to value the dormant points (the outstanding liability):
+  //   - faceValue: 1 pt = 1 / pointsPerEuro € (what the customer can redeem in face value)
+  //   - realCost:  burnCost / totalBurned (what the company actually pays per point burned)
+  const pointFaceValue = 1 / (settings.pointsPerEuro || 100);
+  const provisionFace = pointsEconomy.totalDormant * pointFaceValue;
+  const provisionReal = pointsEconomy.totalDormant * realCostPerBurnedPoint;
 
   // Tier breakdown totals
   const totals = useMemo(() => {
     const customersCount = tierStats.reduce((s, st) => s + st.count, 0);
-    const totalRev = tierStats.reduce((s, st) => s + st.revenue, 0);
-    return { customersCount, totalRev };
-  }, [tierStats]);
+    return { customersCount, totalRev: totalCustomerRevenue };
+  }, [tierStats, totalCustomerRevenue]);
+
+  const updateIncrementality = (key, val) => {
+    const v = Math.max(0, Math.min(100, parseFloat(val) || 0));
+    setIncrementality(prev => ({ ...prev, [key]: v }));
+  };
 
   const exportCSV = () => {
     const lines = [];
-    // Scenario P&L
-    lines.push([t ? 'Indicateur' : 'Metric', ...SCENARIOS.map(s => t ? s.labelFr : s.labelEn)].join(','));
+    lines.push([t ? 'Indicateur' : 'Metric', ...SCENARIOS.map(s => `${t ? s.labelFr : s.labelEn} (${incrementality[s.key]}%)`)].join(','));
     const labelMap = [
       [t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)', 'caLoyalty'],
       [t ? 'CA referral'              : 'Referral revenue',              'caReferral'],
@@ -83,7 +115,6 @@ export default function Step5_Dashboard({
       lines.push([lbl, ...scenarioRows.map(r => Math.round(r[key]))].join(','));
     }
     lines.push('');
-    // Tier breakdown
     lines.push([t ? 'Palier' : 'Tier', t ? 'Clients' : 'Customers', '% clients', t ? 'CA' : 'Revenue', '% CA', 'LTV'].join(','));
     tierStats.forEach(st => {
       lines.push([
@@ -123,31 +154,53 @@ export default function Step5_Dashboard({
 
         {/* ─── 1. SCENARIO P&L ─── */}
         <div>
-          <div className="section-header">{t ? 'P&L PAR SCÉNARIO (PAR AN)' : 'P&L BY SCENARIO (PER YEAR)'}</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="section-header" style={{ marginBottom: 0 }}>{t ? 'P&L PAR SCÉNARIO (PAR AN)' : 'P&L BY SCENARIO (PER YEAR)'}</div>
+            <button onClick={resetIncrementality} className="btn-secondary text-[11px] px-2 py-1 inline-flex items-center gap-1">
+              <RotateCcw size={11} /> {t ? 'Réinitialiser taux' : 'Reset rates'}
+            </button>
+          </div>
           <div className="card overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-[#EEEDE6] border-b border-[#D9D5CB]">
-                  <th className="text-left px-4 py-3 font-medium text-[#645648]">{t ? 'Indicateur' : 'Metric'}</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#645648] w-72">
+                    <div className="flex items-center gap-1">
+                      {t ? 'Indicateur' : 'Metric'}
+                      <Tooltip text={t ? "Taux d'incrémentalité : part du CA des membres réellement attribuable au programme (uplift, pas baseline). Éditable par scénario." : 'Incrementality rate: share of member revenue genuinely attributable to the program (uplift, not baseline). Editable per scenario.'} />
+                    </div>
+                  </th>
                   {scenarioRows.map(s => (
-                    <th key={s.key} className="text-right px-4 py-3 font-medium text-[#645648]">
-                      <div className="text-[12px]">{t ? s.labelFr : s.labelEn}</div>
-                      <div className="text-[10px] text-[#8A7D6B] font-normal">×{s.mult}</div>
+                    <th key={s.key} className="px-4 py-3 font-medium text-[#645648]">
+                      <div className="text-[12px] text-right">{t ? s.labelFr : s.labelEn}</div>
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Incrémentalité' : 'Incrementality'}:</span>
+                        <input
+                          type="number" min={0} max={100} step={5}
+                          value={s.incrementality}
+                          onChange={e => updateIncrementality(s.key, e.target.value)}
+                          className="w-14 px-1.5 py-0.5 text-[12px] text-right font-medium"
+                        />
+                        <span className="text-[10px] text-[#8A7D6B]">%</span>
+                      </div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 <PnlRow label={t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)'}
-                  values={scenarioRows.map(r => r.caLoyalty)} />
+                  values={scenarioRows.map(r => r.caLoyalty)}
+                  hint={t ? `${formatCurrency(totalCustomerRevenue)} × taux` : `${formatCurrency(totalCustomerRevenue)} × rate`} />
                 <PnlRow label={t ? 'CA referral' : 'Referral revenue'}
-                  values={scenarioRows.map(r => r.caReferral)} />
+                  values={scenarioRows.map(r => r.caReferral)}
+                  hint={t ? 'Fixe — voir étape Parrainage' : 'Fixed — see Referral step'} />
                 <PnlRow label={t ? 'CA total' : 'Total revenue'}
                   values={scenarioRows.map(r => r.caTotal)} bold />
                 <PnlRow label={`${t ? 'Marge brute' : 'Gross margin'} (×${settings.grossMargin}%)`}
                   values={scenarioRows.map(r => r.margin)} />
                 <PnlRow label={t ? 'Coût des rewards' : 'Rewards cost'}
-                  values={scenarioRows.map(r => -r.rewardsCost)} negative />
+                  values={scenarioRows.map(r => -r.rewardsCost)} negative
+                  hint={t ? 'Modélisé via utilisation rewards × paliers' : 'Modeled via reward utilization × tiers'} />
                 <PnlRow label={t ? 'Profit net' : 'Net profit'}
                   values={scenarioRows.map(r => r.netProfit)} bold profit />
               </tbody>
@@ -155,8 +208,8 @@ export default function Step5_Dashboard({
           </div>
           <p className="text-[11px] text-[#8A7D6B] mt-2">
             {t
-              ? "« CA loyalty » = CA incrémental attribuable au programme (uplift). Le scénario multiplie l'engagement missions (×0.6 / ×1 / ×1.4). Le CA referral utilise les hypothèses définies à l'étape Parrainage."
-              : '"Loyalty revenue" = incremental revenue attributable to the program (uplift). The scenario scales mission engagement (×0.6 / ×1 / ×1.4). Referral revenue uses the inputs from the Referral step.'}
+              ? "« CA loyalty (incrémental) » = CA total des membres × taux d'incrémentalité. Le taux varie typiquement de 40% (conservateur) à 70% (optimiste) selon la maturité du programme. Le coût des rewards est calculé à partir de l'utilisation modélisée (perks × paliers × taux d'utilisation), avec une légère sensibilité au scénario via l'engagement missions."
+              : '"Loyalty revenue (incremental)" = total member revenue × incrementality rate. The rate typically ranges from 40% (conservative) to 70% (optimistic) depending on program maturity. Rewards cost is computed from modeled utilization (perks × tiers × utilization rates), with light sensitivity to the scenario via mission engagement.'}
           </p>
         </div>
 
@@ -224,7 +277,18 @@ export default function Step5_Dashboard({
                   <tr className="bg-[#EEEDE6] border-b border-[#D9D5CB]">
                     <th className="text-left px-4 py-3 font-medium text-[#645648]">{t ? 'Flux' : 'Flow'}</th>
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">{t ? 'Volume (pts)' : 'Volume (pts)'}</th>
-                    <th className="text-right px-4 py-3 font-medium text-[#645648]">{t ? 'Équivalent €' : 'EUR equivalent'}</th>
+                    <th className="text-right px-4 py-3 font-medium text-[#645648]">
+                      <div className="flex items-center gap-1 justify-end">
+                        {t ? 'Valeur faciale €' : 'Face value €'}
+                        <Tooltip text={t ? `1 pt = ${formatCurrency(pointFaceValue)} (1/${settings.pointsPerEuro})` : `1 pt = ${formatCurrency(pointFaceValue)} (1/${settings.pointsPerEuro})`} />
+                      </div>
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-[#645648]">
+                      <div className="flex items-center gap-1 justify-end">
+                        {t ? 'Coût réel €' : 'Real cost €'}
+                        <Tooltip text={t ? `Coût réel par point brûlé = coût burn modélisé / pts brûlés = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflète l'utilisation modélisée (utilization × paliers × rewards).` : `Real cost per burned point = modeled burn cost / pts burned = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflects modeled utilization (utilization × tiers × rewards).`} />
+                      </div>
+                    </th>
                     <th className="text-left px-4 py-3 font-medium text-[#645648]">{t ? 'Commentaire' : 'Comment'}</th>
                   </tr>
                 </thead>
@@ -232,30 +296,36 @@ export default function Step5_Dashboard({
                   <PointsRow
                     label={t ? 'Points émis / an' : 'Points emitted / yr'}
                     volume={pointsEconomy.totalEmitted}
-                    eur={ptsToEur(pointsEconomy.totalEmitted)}
+                    face={pointsEconomy.totalEmitted * pointFaceValue}
+                    real={pointsEconomy.totalEmitted * realCostPerBurnedPoint}
                     comment={t ? 'Émission brute (achats + missions)' : 'Gross emission (purchases + missions)'}
                   />
                   <PointsRow
                     label={t ? 'Points brûlés / an' : 'Points burned / yr'}
                     volume={pointsEconomy.totalBurned}
-                    eur={ptsToEur(pointsEconomy.totalBurned)}
-                    comment={`${t ? 'Cible burn' : 'Burn target'} ${burnRate}%`}
+                    face={pointsEconomy.totalBurned * pointFaceValue}
+                    real={pointsEconomy.totalBurned * realCostPerBurnedPoint}
+                    comment={`${t ? 'Cible burn' : 'Burn target'} ${burnRate}% × ${t ? 'utilisation modélisée' : 'modeled utilization'}`}
                     color="green"
                   />
                   <PointsRow
                     label={t ? 'Points dormants (en circulation)' : 'Dormant points (in circulation)'}
                     volume={pointsEconomy.totalDormant}
-                    eur={ptsToEur(pointsEconomy.totalDormant)}
+                    face={provisionFace}
+                    real={provisionReal}
                     comment={t ? 'Non encore utilisés — passif latent' : 'Not yet redeemed — outstanding liability'}
                     color="orange"
                   />
                 </tbody>
                 <tfoot>
                   <tr className="bg-[#EEEDE6] border-t border-[#D9D5CB] font-semibold">
-                    <td className="px-4 py-3 text-[#645648]">{t ? 'Provision IFRS (passif latent)' : 'IFRS provision (outstanding liability)'}</td>
+                    <td className="px-4 py-3 text-[#645648]">{t ? 'Provision recommandée' : 'Recommended provision'}</td>
                     <td className="text-right px-4 py-3 text-[#52473C] tabular-nums">—</td>
-                    <td className="text-right px-4 py-3 text-[#DC2626] font-bold tabular-nums">{formatCurrency(pointsEconomy.provisionEur || ptsToEur(pointsEconomy.totalDormant))}</td>
-                    <td className="px-4 py-3 text-[11px] text-[#8A7D6B]">{t ? 'À provisionner au bilan' : 'To provision on balance sheet'}</td>
+                    <td className="text-right px-4 py-3 text-[#DC2626] font-bold tabular-nums">{formatCurrency(provisionFace)}</td>
+                    <td className="text-right px-4 py-3 text-[#059669] font-bold tabular-nums">{formatCurrency(provisionReal)}</td>
+                    <td className="px-4 py-3 text-[11px] text-[#8A7D6B]">
+                      {t ? 'Le coût réel est plus représentatif (utilisation modélisée)' : 'Real cost is more representative (modeled utilization)'}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
@@ -276,12 +346,18 @@ export default function Step5_Dashboard({
                 </li>
                 <li>
                   <strong>{t ? 'Cash flow effectif' : 'Effective cash impact'} :</strong>{' '}
-                  {formatCurrency(ptsToEur(pointsEconomy.totalBurned))} {t ? 'de remises / cadeaux décaissés par an' : 'in discounts / gifts disbursed per year'}.
+                  {formatCurrency(baseFunnel.burnCost)} {t ? 'de coût burn modélisé par an' : 'in modeled burn cost per year'}{' '}
+                  ({formatCompact(pointsEconomy.totalBurned)} pts × {formatCurrency(realCostPerBurnedPoint)}/pt).
+                </li>
+                <li>
+                  <strong>{t ? 'Provision recommandée' : 'Recommended provision'} :</strong>{' '}
+                  <span className="text-[#059669] font-semibold">{formatCurrency(provisionReal)}</span> {t ? '(coût réel)' : '(real cost)'}
+                  {' '}vs <span className="text-[#DC2626] font-semibold">{formatCurrency(provisionFace)}</span> {t ? '(valeur faciale, vue prudente)' : '(face value, prudent view)'}.
                 </li>
                 <li>
                   <strong>{t ? 'Risque marge' : 'Margin risk'} :</strong>{' '}
-                  {t ? 'si 100% des points dormants sont brûlés simultanément' : 'if 100% of dormant points were burned at once'} →{' '}
-                  <span className="text-[#DC2626] font-semibold">−{formatCurrency(ptsToEur(pointsEconomy.totalDormant))}</span>{' '}
+                  {t ? 'si 100% des points dormants sont brûlés simultanément (coût réel)' : 'if 100% of dormant points were burned at once (real cost)'} →{' '}
+                  <span className="text-[#DC2626] font-semibold">−{formatCurrency(provisionReal)}</span>{' '}
                   {t ? 'de coût additionnel ponctuel' : 'one-off additional cost'}.
                 </li>
                 <li>
@@ -304,11 +380,14 @@ export default function Step5_Dashboard({
 }
 
 // ─── Row helpers ───
-function PnlRow({ label, values, bold, negative, profit }) {
+function PnlRow({ label, values, bold, negative, profit, hint }) {
   const baseTextClass = bold ? 'font-bold text-[#52473C]' : 'text-[#645648]';
   return (
     <tr className={`border-b border-[#E5E1D8] ${bold ? 'bg-[#FAFAF7]' : ''}`}>
-      <td className={`px-4 py-2.5 ${baseTextClass}`}>{label}</td>
+      <td className={`px-4 py-2.5 ${baseTextClass}`}>
+        {label}
+        {hint && <div className="text-[10px] text-[#8A7D6B] font-normal mt-0.5">{hint}</div>}
+      </td>
       {values.map((v, i) => {
         let cls = `tabular-nums ${baseTextClass}`;
         if (negative) cls = `tabular-nums font-medium text-[#DC2626]`;
@@ -324,13 +403,14 @@ function PnlRow({ label, values, bold, negative, profit }) {
   );
 }
 
-function PointsRow({ label, volume, eur, comment, color }) {
+function PointsRow({ label, volume, face, real, comment, color }) {
   const volColor = color === 'green' ? 'text-[#059669]' : color === 'orange' ? 'text-[#D97706]' : 'text-[#52473C]';
   return (
     <tr className="border-b border-[#E5E1D8] hover:bg-[#EEEDE6]">
       <td className="px-4 py-2.5 text-[#645648]">{label}</td>
       <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{formatCompact(volume)}</td>
-      <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{formatCurrency(eur)}</td>
+      <td className="text-right px-4 py-2.5 tabular-nums text-[#645648]">{formatCurrency(face)}</td>
+      <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{formatCurrency(real)}</td>
       <td className="px-4 py-2.5 text-[12px] text-[#8A7D6B]">{comment}</td>
     </tr>
   );
