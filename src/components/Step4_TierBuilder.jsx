@@ -258,9 +258,12 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                   key={tierIdx}
                   className="card overflow-hidden flex-shrink-0"
                   style={{
+                    width: 260,
                     minWidth: 260,
+                    maxWidth: 260,
                     borderLeft: `3px solid ${tierColor}`,
                     scrollSnapAlign: 'start',
+                    padding: 16,
                   }}
                 >
                   {/* Card header with badge */}
@@ -278,8 +281,8 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                           className="text-[20px] font-bold text-[#52473C] bg-transparent border-b border-transparent hover:border-[#D9D5CB] focus:border-primary focus:outline-none w-full max-w-[180px] block" style={{ padding: 0 }} />
                       </div>
                       <div className="text-right">
-                        <div className="text-[28px] font-bold text-[#52473C]">{stat?.count || 0}</div>
-                        <div className="text-[12px] text-[#645648]">{t ? 'clients' : 'customers'}</div>
+                        <div className="text-[22px] font-bold text-[#52473C] leading-tight" title={`${stat?.count || 0}`}>{formatCompact(stat?.count || 0)}</div>
+                        <div className="text-[11px] text-[#645648]">{t ? 'clients' : 'customers'}</div>
                       </div>
                     </div>
 
@@ -405,19 +408,19 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       );
                     })()}
 
-                    {/* Tier stats grid */}
+                    {/* Tier stats grid — compact format so card width stays narrow */}
                     <div className="mt-3 pt-3 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">
-                      <div>
-                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.revenue || 0)}</div>
-                        <div className="text-[11px] text-[#8A7D6B]">{t ? 'CA' : 'Revenue'}</div>
+                      <div title={formatCurrency(stat?.revenue || 0)}>
+                        <div className="text-[13px] font-bold text-[#52473C]">{formatCompact(stat?.revenue || 0)}€</div>
+                        <div className="text-[10px] text-[#8A7D6B]">{t ? 'CA' : 'Revenue'}</div>
                       </div>
-                      <div>
-                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.avgLTV || 0)}</div>
-                        <div className="text-[11px] text-[#8A7D6B]">LTV</div>
+                      <div title={formatCurrency(stat?.avgLTV || 0)}>
+                        <div className="text-[13px] font-bold text-[#52473C]">{formatCompact(stat?.avgLTV || 0)}€</div>
+                        <div className="text-[10px] text-[#8A7D6B]">LTV</div>
                       </div>
-                      <div>
-                        <div className="text-[15px] font-bold text-[#52473C]">{formatCurrency(stat?.avgAOV || 0)}</div>
-                        <div className="text-[11px] text-[#8A7D6B]">AOV</div>
+                      <div title={formatCurrency(stat?.avgAOV || 0)}>
+                        <div className="text-[13px] font-bold text-[#52473C]">{formatCompact(stat?.avgAOV || 0)}€</div>
+                        <div className="text-[10px] text-[#8A7D6B]">AOV</div>
                       </div>
                     </div>
                   </div>
@@ -445,7 +448,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                     })()}
 
                   {/* Rewards assignment */}
-                  <div style={{ padding: '12px 24px', backgroundColor: '#EEEDE6', borderTop: '1px solid #D9D5CB', margin: '16px -24px -20px -24px' }}>
+                  <div style={{ padding: '10px 16px', backgroundColor: '#EEEDE6', borderTop: '1px solid #D9D5CB', margin: '12px -16px -16px -16px' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="section-header" style={{ marginBottom: 0, fontSize: 11 }}>
                         {t ? 'RÉCOMPENSES' : 'REWARDS'}
@@ -493,17 +496,18 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       </div>
                       <div className="space-y-1 text-[12px]">
                         <div className="flex justify-between">
-                          <span className="text-[#8A7D6B]">{t ? 'Coût récompenses' : 'Rewards cost'}</span>
-                          <span className="font-medium text-[#DC2626]">-{formatCurrency(fin.rewardsCost)}</span>
+                          <span className="text-[#8A7D6B]">{t ? 'Coût rewards' : 'Rewards cost'}</span>
+                          <span className="font-medium text-[#DC2626] tabular-nums" title={formatCurrency(fin.rewardsCost)}>-{formatCompact(fin.rewardsCost)}€</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-[#8A7D6B]">{t ? 'Marge brute' : 'Gross profit'}</span>
-                          <span className="font-medium text-[#645648]">{formatCurrency(fin.grossProfit)}</span>
+                          <span className="font-medium text-[#645648] tabular-nums" title={formatCurrency(fin.grossProfit)}>{formatCompact(fin.grossProfit)}€</span>
                         </div>
                         <div className="flex justify-between pt-1.5 border-t border-[#D9D5CB]">
                           <span className="font-medium text-[#645648]">{t ? 'Profit net' : 'Net profit'}</span>
-                          <span className={`font-bold ${fin.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
-                            {fin.netProfit >= 0 ? '+' : ''}{formatCurrency(fin.netProfit)}
+                          <span className={`font-bold tabular-nums ${fin.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}
+                            title={formatCurrency(fin.netProfit)}>
+                            {fin.netProfit >= 0 ? '+' : ''}{formatCompact(fin.netProfit)}€
                           </span>
                         </div>
                       </div>
