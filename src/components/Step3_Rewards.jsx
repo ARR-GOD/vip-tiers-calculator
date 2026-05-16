@@ -1,13 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defaults';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 
+// Parse the discount percentage out of a promo name, e.g. "-20% sur la commande" → 20.
+function parseDiscountPct(name) {
+  if (!name) return null;
+  const m = String(name).match(/-?\s*(\d+(?:[.,]\d+)?)\s*%/);
+  if (!m) return null;
+  return parseFloat(m[1].replace(',', '.'));
+}
+
+// COGS cost of a percentage discount coupon:
+//   realCost = (discount% × minPurchase) × (1 − grossMargin%)
+// Returns null for non-promo rewards or when the discount can't be parsed.
+function derivePromoRealCost(reward, grossMargin) {
+  if (!reward || reward.type !== 'promo_percent') return null;
+  const pct = parseDiscountPct(reward.nameFr) ?? parseDiscountPct(reward.nameEn);
+  if (!pct || pct <= 0) return null;
+  const minP = reward.minPurchase || 0;
+  if (minP <= 0) return null;
+  const cogsRatio = Math.max(0, 1 - (grossMargin || 0) / 100);
+  return Math.round(pct / 100 * minP * cogsRatio * 100) / 100;
+}
+
 export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, clientName, customers, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const [showCatalog, setShowCatalog] = useState(false);
+
+  // Keep promo_percent rewards' realCost in sync with the gross margin globally.
+  // When user changes settings.grossMargin elsewhere, all percentage coupons
+  // recompute their COGS cost.
+  useEffect(() => {
+    setRewards(prev => prev.map(r => {
+      const derived = derivePromoRealCost(r, settings.grossMargin);
+      if (derived === null || derived === r.realCost) return r;
+      return { ...r, realCost: derived };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.grossMargin]);
 
   const addReward = () => {
     setRewards(prev => [...prev, {
@@ -26,7 +59,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
   };
 
   const addFromCatalog = (item) => {
-    setRewards(prev => [...prev, {
+    const seed = {
       id: `r_${Date.now()}`,
       type: item.type,
       nameFr: item.nameFr,
@@ -37,14 +70,29 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
       minPurchase: item.minPurchase,
       assignedTiers: [true, true, true],
       utilizationByTier: item.rewardUsage === 'perk' ? [0, 30, 50] : [20, 30, 40],
-    }]);
+    };
+    // For percentage promos, override the catalog's static realCost with the
+    // formula-derived value so it stays consistent with the brand's margin.
+    const derived = derivePromoRealCost(seed, settings.grossMargin);
+    if (derived !== null) seed.realCost = derived;
+    setRewards(prev => [...prev, seed]);
     setShowCatalog(false);
   };
 
   const removeReward = (id) => setRewards(prev => prev.filter(r => r.id !== id));
 
   const updateReward = (id, field, value) => {
-    setRewards(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    setRewards(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const next = { ...r, [field]: value };
+      // Re-derive realCost on a promo when its discount percentage (name) or
+      // minPurchase changes. Skip if the user is directly editing realCost.
+      if (r.type === 'promo_percent' && field !== 'realCost' && ['nameFr', 'nameEn', 'minPurchase'].includes(field)) {
+        const derived = derivePromoRealCost(next, settings.grossMargin);
+        if (derived !== null) next.realCost = derived;
+      }
+      return next;
+    }));
   };
 
   const totalRealCost = rewards.reduce((s, r) => s + r.realCost, 0);
@@ -184,8 +232,15 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                       <div className="flex items-center justify-center gap-0.5">
                         <input type="number" value={reward.realCost} min={0} step={0.5}
                           onChange={e => updateReward(reward.id, 'realCost', parseFloat(e.target.value) || 0)}
-                          className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
+                          className="w-16 px-1.5 py-0.5 text-[12px] text-center"
+                          title={reward.type === 'promo_percent'
+                            ? (t ? `Auto-calculé : ${parseDiscountPct(reward.nameFr) || 0}% × ${reward.minPurchase || 0}€ × (1 − ${settings.grossMargin}%). Modifiable manuellement.` : `Auto-computed: ${parseDiscountPct(reward.nameEn) || 0}% × ${reward.minPurchase || 0}€ × (1 − ${settings.grossMargin}%). Editable manually.`)
+                            : undefined}
+                        />
                         <span className="text-[10px] text-[#8A7D6B]">€</span>
+                        {reward.type === 'promo_percent' && (
+                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Recalculé depuis le % du code promo, min. achat et marge brute' : 'Recomputed from discount %, min purchase, gross margin'}>auto</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
