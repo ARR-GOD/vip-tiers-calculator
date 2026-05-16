@@ -176,7 +176,11 @@ export function computeMissionPointsByTier(missions, customMissions, tiers, tier
     }
 
     const missionBreakdown = allMissions.map(m => {
-      const engagementRate = (m.engagementByTier?.[tierIndex] ?? 20) / 100;
+      // Prefer the new global completionRate; fall back to legacy per-tier engagement.
+      const rawRate = typeof m.completionRate === 'number'
+        ? m.completionRate
+        : (m.engagementByTier?.[tierIndex] ?? 20);
+      const engagementRate = rawRate / 100;
       const adjustedRate = Math.min(engagementRate * scenarioMultiplier, 1);
       const completionsPerYear = stat.count * adjustedRate * (m.frequency || 1);
       const pointsGenerated = completionsPerYear * m.points;
@@ -407,7 +411,8 @@ export function computePointsEconomy(tierStats, tiers, missions, customMissions,
     // Mission points
     const allMissions = [...missions, ...customMissions].filter(m => m.enabled);
     const missionPoints = allMissions.reduce((sum, m) => {
-      const rate = (m.engagementByTier?.[i] ?? 20) / 100;
+      const rawRate = typeof m.completionRate === 'number' ? m.completionRate : (m.engagementByTier?.[i] ?? 20);
+      const rate = rawRate / 100;
       return sum + Math.round(stat.count * rate * (m.frequency || 1) * m.points);
     }, 0);
 

@@ -230,32 +230,6 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
         </div>
       </div>
 
-      {/* Summary KPI cards */}
-      <div>
-        <div className="section-header">{t ? 'RÉSUMÉ' : 'SUMMARY'}</div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="card">
-            <div className="section-subheader">{t ? 'RÉCOMPENSES' : 'REWARDS'}</div>
-            <div className="text-[28px] font-bold text-[#52473C] text-right">{rewards.length}</div>
-            <div className="text-[12px] text-[#645648] text-right">{t ? 'dans le catalogue' : 'in catalog'}</div>
-          </div>
-          <div className="card">
-            <div className="section-subheader">BURN / PERK</div>
-            <div className="text-[28px] font-bold text-[#52473C] text-right">
-              {rewards.filter(r => r.rewardUsage === 'burn' || r.rewardUsage === 'both').length} / {rewards.filter(r => r.rewardUsage === 'perk' || r.rewardUsage === 'both').length}
-            </div>
-            <div className="text-[12px] text-[#645648] text-right">{t ? 'répartition' : 'split'}</div>
-          </div>
-          <div className="card">
-            <div className="section-subheader">ROI</div>
-            <div className={`text-[28px] font-bold text-right ${parseFloat(avgROI) >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
-              {avgROI > 0 ? `+${avgROI}%` : `${avgROI}%`}
-            </div>
-            <div className="text-[12px] text-[#645648] text-right">{t ? 'ROI moyen' : 'avg ROI'}</div>
-          </div>
-        </div>
-      </div>
-
       {/* Inline next */}
       {onNext && (
         <div className="flex justify-end pt-6">

@@ -5,7 +5,7 @@ import BenchmarkBadge from './BenchmarkBadge';
 import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
 
-const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
+const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED', '#0EA5E9', '#10B981', '#F43F5E', '#F59E0B'];
 
 // Per-tier badge styling: bg + text color for the header badge
 const TIER_BADGE_STYLES = [
@@ -13,6 +13,10 @@ const TIER_BADGE_STYLES = [
   { bg: '#E5E1D8', text: '#8A7D6B' }, // Silver
   { bg: '#FFFBEB', text: '#D97706' }, // Gold
   { bg: '#E8EFFE', text: '#7C3AED' }, // Platinum
+  { bg: '#E0F2FE', text: '#0369A1' }, // Sky
+  { bg: '#D1FAE5', text: '#047857' }, // Emerald
+  { bg: '#FEE2E2', text: '#B91C1C' }, // Rose
+  { bg: '#FEF3C7', text: '#B45309' }, // Amber
 ];
 
 function getPillColor(value, max) {
@@ -71,7 +75,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     const names = t ? DEFAULT_TIER_NAMES_FR : DEFAULT_TIER_NAMES_EN;
     setTiers(prev => [...prev, {
       name: names[idx] || `Tier ${idx + 1}`,
-      color: FIXED_COLORS[idx] || '#5A8AFF',
+      color: FIXED_COLORS[idx % FIXED_COLORS.length] || '#5A8AFF',
       threshold: Math.max(5, Math.round(prev[prev.length - 1]?.threshold * 0.5 || 10)),
       spendThreshold: (prev[prev.length - 1]?.spendThreshold || 0) * 2 || 5000,
       pointsThreshold: (idx) * 1500,
@@ -169,7 +173,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
             <Minus size={14} />
           </button>
           <span className="text-[13px] font-medium text-[#645648]">{tiers.length} {t ? 'paliers' : 'tiers'}</span>
-          <button onClick={addTier} disabled={tiers.length >= 4} className="btn-secondary px-2 py-1.5 disabled:opacity-30">
+          <button onClick={addTier} className="btn-secondary px-2 py-1.5">
             <Plus size={14} />
           </button>
           <BenchmarkBadge benchmarkKey="tierCount" value={tiers.length} lang={lang} />
@@ -233,7 +237,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
               const fin = tierFinancials[tierIdx];
               const revPct = stat ? (stat.revenue / maxRevenue) * 100 : 0;
               const pillColors = getPillColor(stat?.revenue || 0, maxRevenue * 0.5);
-              const badgeStyle = TIER_BADGE_STYLES[tierIdx] || TIER_BADGE_STYLES[0];
+              const badgeStyle = TIER_BADGE_STYLES[tierIdx % TIER_BADGE_STYLES.length] || TIER_BADGE_STYLES[0];
               const tierColor = tier.color || FIXED_COLORS[tierIdx] || '#2965FE';
 
               return (

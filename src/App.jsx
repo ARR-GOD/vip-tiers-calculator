@@ -8,6 +8,7 @@ import Step2_Missions from './components/Step2_Missions';
 import Step3_Rewards from './components/Step3_Rewards';
 import Step4_TierBuilder from './components/Step4_TierBuilder';
 import Step5_Dashboard from './components/Step5_Dashboard';
+import StepReferral from './components/StepReferral';
 import { parseSampleData } from './data/sampleData';
 import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
@@ -49,9 +50,10 @@ const STEPS = [
   { id: 1, labelFr: 'Import', labelEn: 'Import' },
   { id: 2, labelFr: 'Configuration', labelEn: 'Config' },
   { id: 3, labelFr: 'Missions', labelEn: 'Missions' },
-  { id: 4, labelFr: 'Récompenses', labelEn: 'Rewards' },
-  { id: 5, labelFr: 'Paliers', labelEn: 'Tiers' },
-  { id: 6, labelFr: 'Dashboard', labelEn: 'Dashboard' },
+  { id: 4, labelFr: 'Parrainage', labelEn: 'Referral' },
+  { id: 5, labelFr: 'Récompenses', labelEn: 'Rewards' },
+  { id: 6, labelFr: 'Paliers', labelEn: 'Tiers' },
+  { id: 7, labelFr: 'Dashboard', labelEn: 'Dashboard' },
 ];
 
 function App() {
@@ -210,7 +212,7 @@ function App() {
     setStep(0);
     setVisitedSteps(new Set([0]));
     // Clear recommendation dismiss flags
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 7; i++) {
       try { localStorage.removeItem(`vip_reco_dismissed_step${i}`); } catch { /* noop */ }
     }
   };
@@ -275,7 +277,7 @@ function App() {
     <div className="min-h-screen bg-surface flex flex-col">
       {/* ─── Navbar ─── */}
       <header className="sticky top-0 z-40" style={{ height: 56, backgroundColor: '#2B251F' }}>
-        <div className="max-w-[1100px] mx-auto px-6 h-full flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
             <span className="text-[15px] font-bold text-white">VIP Tiers Calculator</span>
@@ -313,7 +315,7 @@ function App() {
       {/* ─── CSM Client banner ─── */}
       {phase === 'wizard' && csmMode && selectedClient && (
         <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+          <div className="max-w-[1400px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <Building2 size={14} className="text-primary shrink-0" />
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>CLIENT</span>
             <span className="text-[#52473C] font-semibold">{selectedClient.name}</span>
@@ -349,7 +351,7 @@ function App() {
       )}
       {phase === 'wizard' && step > 1 && !csmMode && !brandAnalysis && onboardingAnswers && (
         <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+          <div className="max-w-[1400px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
             <span className="text-[#645648]">{onboardingAnswers.industry}</span>
             <span className="text-[#8A7D6B]">|</span>
@@ -366,7 +368,7 @@ function App() {
       {/* ─── Step Tabs ─── */}
       {phase === 'wizard' && (
         <nav className="sticky top-[57px] z-30" style={{ backgroundColor: '#EEEDE6', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1100px] mx-auto px-6 flex items-center gap-1 overflow-x-auto py-2 tier-scroll" style={{ scrollbarWidth: 'none' }}>
+          <div className="max-w-[1400px] mx-auto px-6 flex items-center gap-1 overflow-x-auto py-2 tier-scroll" style={{ scrollbarWidth: 'none' }}>
             {STEPS.map((s) => {
               const isActive = step === s.id;
               const isVisited = visitedSteps.has(s.id) && !isActive;
@@ -394,7 +396,7 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 max-w-[1100px] mx-auto w-full px-6 pt-6 pb-12">
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-12">
         {phase === 'csm' ? (
           <StepCSM_Selector
             lang={lang}
@@ -429,16 +431,34 @@ function App() {
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
-                burnRate={burnRate} brandAnalysis={brandAnalysis} clientName={clientName}
-                referralConfig={referralConfig} setReferralConfig={setReferralConfig}
-                firefliesInsights={firefliesInsights} onNext={goNext} />
+                onNext={goNext} />
             )}
             {step === 4 && (
+              <div className="space-y-3">
+                <div>
+                  <div className="section-subheader">{lang === 'fr' ? 'ÉTAPE 5' : 'STEP 5'}</div>
+                  <h2 className="text-[28px] font-bold text-[#52473C]">{lang === 'fr' ? 'Parrainage' : 'Referral'}</h2>
+                  <p className="text-[15px] text-[#645648] mt-0.5">
+                    {lang === 'fr'
+                      ? 'Configurez les incentives parrain/filleul et estimez le ROI.'
+                      : 'Configure referrer/referee incentives and estimate ROI.'}
+                  </p>
+                </div>
+                <StepReferral referralConfig={referralConfig} setReferralConfig={setReferralConfig}
+                  lang={lang} aov={settings.aov} />
+                <div className="flex justify-end pt-6">
+                  <button onClick={goNext} className="btn-primary">
+                    {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+            {step === 5 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
                 settings={settings} config={config} lang={lang}
                 brandAnalysis={brandAnalysis} clientName={clientName} customers={customers} onNext={goNext} />
             )}
-            {step === 5 && (
+            {step === 6 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
                 rewards={rewards} setRewards={setRewards}
                 burnRate={burnRate} setBurnRate={setBurnRate}
@@ -446,15 +466,14 @@ function App() {
                 missions={missions} customMissions={customMissions} lang={lang}
                 brandAnalysis={brandAnalysis} clientName={clientName} onNext={goNext} />
             )}
-            {step === 6 && (
+            {step === 7 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
                 settings={settings} config={config}
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
                 brandAnalysis={brandAnalysis} clientName={clientName}
-                referralConfig={referralConfig}
-                firefliesInsights={firefliesInsights} />
+                referralConfig={referralConfig} />
             )}
           </div>
         )}
