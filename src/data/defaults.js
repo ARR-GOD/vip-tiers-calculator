@@ -27,6 +27,49 @@ export const INITIAL_REFERRAL = {
   avgFirstOrderValue: 80,     // avg first order value of referee
 };
 
+// Industry-typical referral metrics. Used to derive a data-driven baseline
+// from the imported customer count + brand industry, instead of static defaults.
+// Sources: blended observations from loyalty / referral programs in the sector.
+//   - participation:    % of active customers who refer at least once / year
+//   - refsPerReferrer:  avg number of referrals made by an active referrer / year
+//   - conversion:       % of referees who actually purchase
+//   - firstOrderRatio:  avg first-order value as a fraction of returning AOV
+const REFERRAL_INDUSTRY_DEFAULTS = {
+  mode:            { participation: 0.10, refsPerReferrer: 2.0, conversion: 25, firstOrderRatio: 0.85 },
+  beauté:          { participation: 0.10, refsPerReferrer: 2.5, conversion: 28, firstOrderRatio: 0.85 },
+  beauty:          { participation: 0.10, refsPerReferrer: 2.5, conversion: 28, firstOrderRatio: 0.85 },
+  alimentation:    { participation: 0.06, refsPerReferrer: 1.5, conversion: 15, firstOrderRatio: 0.75 },
+  food:            { participation: 0.06, refsPerReferrer: 1.5, conversion: 15, firstOrderRatio: 0.75 },
+  luxe:            { participation: 0.04, refsPerReferrer: 1.2, conversion: 30, firstOrderRatio: 0.95 },
+  luxury:          { participation: 0.04, refsPerReferrer: 1.2, conversion: 30, firstOrderRatio: 0.95 },
+  sport:           { participation: 0.08, refsPerReferrer: 2.0, conversion: 22, firstOrderRatio: 0.80 },
+  maison:          { participation: 0.05, refsPerReferrer: 1.5, conversion: 18, firstOrderRatio: 0.85 },
+  électronique:    { participation: 0.04, refsPerReferrer: 1.5, conversion: 15, firstOrderRatio: 0.85 },
+  electronics:     { participation: 0.04, refsPerReferrer: 1.5, conversion: 15, firstOrderRatio: 0.85 },
+  'santé':         { participation: 0.07, refsPerReferrer: 1.8, conversion: 20, firstOrderRatio: 0.80 },
+  'santé / compléments': { participation: 0.07, refsPerReferrer: 1.8, conversion: 20, firstOrderRatio: 0.80 },
+  health:          { participation: 0.07, refsPerReferrer: 1.8, conversion: 20, firstOrderRatio: 0.80 },
+  default:         { participation: 0.07, refsPerReferrer: 2.0, conversion: 20, firstOrderRatio: 0.85 },
+};
+
+// Compute a data-driven baseline for the referral projections.
+// Returns the suggested estimatedReferralsPerMonth, conversionRate and
+// avgFirstOrderValue, plus the metadata used to derive them (for the UI hint).
+export function getReferralBaseline({ customerCount, aov, industry }) {
+  const key = (industry || '').toLowerCase().trim();
+  const def = REFERRAL_INDUSTRY_DEFAULTS[key] || REFERRAL_INDUSTRY_DEFAULTS.default;
+  const baseline = {
+    estimatedReferralsPerMonth: Math.max(1, Math.round((customerCount * def.participation * def.refsPerReferrer) / 12)),
+    conversionRate: def.conversion,
+    avgFirstOrderValue: Math.max(20, Math.round((aov || 60) * def.firstOrderRatio)),
+    industryUsed: def === REFERRAL_INDUSTRY_DEFAULTS.default ? null : industry,
+    participation: def.participation,
+    refsPerReferrer: def.refsPerReferrer,
+    firstOrderRatio: def.firstOrderRatio,
+  };
+  return baseline;
+}
+
 // ── Mission catalog (CSM) ──
 export const MISSION_CATALOG = {
   social: [

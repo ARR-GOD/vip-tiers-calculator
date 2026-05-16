@@ -450,7 +450,9 @@ function App() {
                   </p>
                 </div>
                 <StepReferral referralConfig={referralConfig} setReferralConfig={setReferralConfig}
-                  lang={lang} aov={settings.aov} />
+                  lang={lang} aov={settings.aov}
+                  customers={customers}
+                  industry={onboardingAnswers?.industry || brandAnalysis?.industry} />
                 <div className="flex justify-end pt-6">
                   <button onClick={goNext} className="btn-primary">
                     {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight size={16} />

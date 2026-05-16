@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Users, UserPlus } from 'lucide-react';
-import { computeReferralEconomics, formatCurrency, formatPercent } from '../utils/calculations';
+import { Users, UserPlus, Lightbulb } from 'lucide-react';
+import { formatNumber } from '../utils/calculations';
+import { getReferralBaseline } from '../data/defaults';
 
-export default function StepReferral({ referralConfig, setReferralConfig, lang, aov }) {
+export default function StepReferral({ referralConfig, setReferralConfig, lang, aov, customers, industry }) {
   const t = lang === 'fr';
   const c = referralConfig;
 
@@ -10,9 +11,24 @@ export default function StepReferral({ referralConfig, setReferralConfig, lang, 
     setReferralConfig(prev => ({ ...prev, [field]: value }));
   };
 
-  const economics = useMemo(() => {
-    return computeReferralEconomics(c, aov);
-  }, [c, aov]);
+  // Data-driven baseline projections from the imported customer base + industry.
+  const baseline = useMemo(
+    () => getReferralBaseline({
+      customerCount: customers?.length || 0,
+      aov: aov || 60,
+      industry,
+    }),
+    [customers, aov, industry]
+  );
+
+  const applyAllBaselines = () => {
+    setReferralConfig(prev => ({
+      ...prev,
+      estimatedReferralsPerMonth: baseline.estimatedReferralsPerMonth,
+      conversionRate: baseline.conversionRate,
+      avgFirstOrderValue: baseline.avgFirstOrderValue,
+    }));
+  };
 
   return (
     <div className="space-y-3">
@@ -102,60 +118,87 @@ export default function StepReferral({ referralConfig, setReferralConfig, lang, 
             </div>
           </div>
 
-          {/* Projections */}
+          {/* Data-driven projections */}
           <div className="card">
-            <div className="section-subheader">{t ? 'PROJECTIONS' : 'PROJECTIONS'}</div>
-            <div className="grid grid-cols-3 gap-3 mt-2">
+            <div className="flex items-start justify-between mb-2">
               <div>
-                <label className="text-[11px] text-[#645648] block mb-1">{t ? 'Parrainages / mois' : 'Referrals / month'}</label>
-                <input type="number" min={0} value={c.estimatedReferralsPerMonth}
-                  onChange={e => update('estimatedReferralsPerMonth', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
-              </div>
-              <div>
-                <label className="text-[11px] text-[#645648] block mb-1">{t ? 'Taux de conversion (%)' : 'Conversion rate (%)'}</label>
-                <input type="number" min={0} max={100} value={c.conversionRate}
-                  onChange={e => update('conversionRate', parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
-              </div>
-              <div>
-                <label className="text-[11px] text-[#645648] block mb-1">{t ? 'Panier moyen 1er achat' : 'Avg first order value'}</label>
-                <div className="flex items-center gap-1">
-                  <input type="number" min={0} value={c.avgFirstOrderValue}
-                    onChange={e => update('avgFirstOrderValue', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
-                  <span className="text-[13px] text-[#8A7D6B]">€</span>
+                <div className="section-subheader">{t ? 'PROJECTIONS' : 'PROJECTIONS'}</div>
+                <div className="text-[11px] text-[#8A7D6B] mt-0.5 flex items-center gap-1">
+                  <Lightbulb size={11} className="text-[#D97706]" />
+                  {t
+                    ? `Suggéré depuis ${formatNumber(customers?.length || 0)} clients${baseline.industryUsed ? ` × secteur ${baseline.industryUsed}` : ''}.`
+                    : `Suggested from ${formatNumber(customers?.length || 0)} customers${baseline.industryUsed ? ` × ${baseline.industryUsed} industry` : ''}.`}
                 </div>
               </div>
+              <button onClick={applyAllBaselines} className="btn-secondary text-[11px] px-2 py-1">
+                {t ? 'Tout appliquer' : 'Apply all'}
+              </button>
             </div>
-          </div>
-
-          {/* Economics summary */}
-          <div className="card" style={{ backgroundColor: '#EEEDE6' }}>
-            <div className="section-subheader">{t ? 'BILAN ANNUEL PARRAINAGE' : 'ANNUAL REFERRAL SUMMARY'}</div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-              <div>
-                <div className="text-[11px] text-[#645648]">{t ? 'Coût parrains / an' : 'Referrer cost / yr'}</div>
-                <div className="text-[18px] font-bold text-[#DC2626]">{formatCurrency(economics.costReferrerPerYear)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] text-[#645648]">{t ? 'Coût filleuls / an' : 'Referee cost / yr'}</div>
-                <div className="text-[18px] font-bold text-[#DC2626]">{formatCurrency(economics.costRefereePerYear)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] text-[#645648]">{t ? 'Revenue filleuls / an' : 'Referee revenue / yr'}</div>
-                <div className="text-[18px] font-bold text-[#059669]">{formatCurrency(economics.revenuePerYear)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] text-[#645648]">{t ? 'ROI parrainage' : 'Referral ROI'}</div>
-                <div className={`text-[18px] font-bold ${economics.roi >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
-                  {economics.roi >= 0 ? '+' : ''}{formatPercent(economics.roi)}
-                </div>
-              </div>
+            <div className="grid grid-cols-3 gap-3 mt-2">
+              <ProjectionInput
+                label={t ? 'Parrainages / mois' : 'Referrals / month'}
+                value={c.estimatedReferralsPerMonth}
+                suggested={baseline.estimatedReferralsPerMonth}
+                onChange={v => update('estimatedReferralsPerMonth', parseInt(v) || 0)}
+                onApply={() => update('estimatedReferralsPerMonth', baseline.estimatedReferralsPerMonth)}
+                hint={t
+                  ? `${Math.round(baseline.participation * 100)}% des clients × ${baseline.refsPerReferrer} refs/an ÷ 12`
+                  : `${Math.round(baseline.participation * 100)}% of customers × ${baseline.refsPerReferrer} refs/yr ÷ 12`}
+                lang={lang}
+              />
+              <ProjectionInput
+                label={t ? 'Taux de conversion' : 'Conversion rate'}
+                value={c.conversionRate}
+                suggested={baseline.conversionRate}
+                onChange={v => update('conversionRate', parseFloat(v) || 0)}
+                onApply={() => update('conversionRate', baseline.conversionRate)}
+                hint={t ? 'Filleuls qui achètent' : 'Referees who purchase'}
+                suffix="%"
+                lang={lang}
+              />
+              <ProjectionInput
+                label={t ? 'Panier moyen 1er achat' : 'Avg first order value'}
+                value={c.avgFirstOrderValue}
+                suggested={baseline.avgFirstOrderValue}
+                onChange={v => update('avgFirstOrderValue', parseFloat(v) || 0)}
+                onApply={() => update('avgFirstOrderValue', baseline.avgFirstOrderValue)}
+                hint={t
+                  ? `AOV ${aov || 60}€ × ${Math.round(baseline.firstOrderRatio * 100)}%`
+                  : `AOV ${aov || 60}€ × ${Math.round(baseline.firstOrderRatio * 100)}%`}
+                suffix="€"
+                lang={lang}
+              />
             </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ProjectionInput({ label, value, suggested, onChange, onApply, hint, suffix, lang }) {
+  const t = lang === 'fr';
+  const isDifferent = Math.abs((Number(value) || 0) - (Number(suggested) || 0)) > 0.5;
+  return (
+    <div>
+      <label className="text-[11px] text-[#645648] block mb-1">{label}</label>
+      <div className="flex items-center gap-1">
+        <input type="number" min={0} value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
+        {suffix && <span className="text-[13px] text-[#8A7D6B] shrink-0">{suffix}</span>}
+      </div>
+      <div className="flex items-center gap-1 mt-1 text-[10px] text-[#8A7D6B]">
+        <span>
+          {t ? 'Suggéré' : 'Suggested'}: <strong>{suggested}{suffix || ''}</strong>
+        </span>
+        {isDifferent && (
+          <button onClick={onApply} className="text-primary hover:underline font-medium">
+            {t ? 'Utiliser' : 'Apply'}
+          </button>
+        )}
+      </div>
+      {hint && <div className="text-[10px] text-[#8A7D6B] mt-0.5 italic">{hint}</div>}
     </div>
   );
 }
