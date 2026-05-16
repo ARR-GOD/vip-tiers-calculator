@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X, ChevronRight, Wand2 } from 'lucide-react';
+import { Upload, Lock, CheckCircle, Database, FileSpreadsheet, X, ChevronLeft, ChevronRight, Wand2 } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { parseSampleData } from '../data/sampleData';
@@ -246,7 +246,7 @@ function mapRowWithMapping(row, mapping) {
   return { customer_id, total_ordered_TTC, number_of_orders };
 }
 
-export default function StepData_Import({ customers, setCustomers, lang, brandAnalysis, config, settings, onNext }) {
+export default function StepData_Import({ customers, setCustomers, lang, brandAnalysis, config, settings, onPrev, onNext }) {
   const t = lang === 'fr';
   const fileInputRef = useRef(null);
   const [fileName, setFileName] = useState(null);
@@ -563,14 +563,19 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
         </button>
       </div>
 
-      {/* Inline next */}
-      {onNext && (
-        <div className="flex justify-end pt-6">
+      {/* Inline nav */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        {onNext && (
           <button onClick={onNext} className="btn-primary">
             {t ? 'Suivant' : 'Next'} <ChevronRight size={16} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, clientName, onNext }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, clientName, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const { pointsPerEuro } = useMemo(
@@ -495,14 +495,19 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
         </div>
       </div>
 
-      {/* Inline next */}
-      {onNext && (
-        <div className="flex justify-end pt-6">
+      {/* Inline nav */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        {onNext && (
           <button onClick={onNext} className="btn-primary">
             {t ? 'Voir le Dashboard' : 'View Dashboard'} <ArrowRight size={16} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

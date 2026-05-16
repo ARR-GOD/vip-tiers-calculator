@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronRight, Lightbulb } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lightbulb } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 
@@ -12,7 +12,7 @@ function suggestedCashback(margin) {
   return 20;
 }
 
-export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onboardingAnswers, onNext }) {
+export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
   const update = (key, val) => setConfig(prev => ({ ...prev, [key]: val }));
 
@@ -349,14 +349,19 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         </div>
       </div>
 
-      {/* Inline next */}
-      {onNext && (
-        <div className="flex justify-end pt-6">
+      {/* Inline nav */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {lang === 'fr' ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        {onNext && (
           <button onClick={onNext} className="btn-primary">
             {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight size={16} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

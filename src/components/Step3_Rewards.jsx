@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Plus, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defaults';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 
-export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, clientName, customers, onNext }) {
+export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, clientName, customers, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const [showCatalog, setShowCatalog] = useState(false);
@@ -230,14 +230,19 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
         </div>
       </div>
 
-      {/* Inline next */}
-      {onNext && (
-        <div className="flex justify-end pt-6">
+      {/* Inline nav */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        {onNext && (
           <button onClick={onNext} className="btn-primary">
             {t ? 'Suivant' : 'Next'} <ChevronRight size={16} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

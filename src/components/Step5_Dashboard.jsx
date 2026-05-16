@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Download, Image, RotateCcw } from 'lucide-react';
+import { Download, Image, RotateCcw, ChevronLeft } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
@@ -19,7 +19,7 @@ const SCENARIOS = [
 export default function Step5_Dashboard({
   tiers, customers, settings, config,
   missions, customMissions, rewards, burnRate,
-  lang, referralConfig,
+  lang, referralConfig, onPrev,
 }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
@@ -418,6 +418,16 @@ export default function Step5_Dashboard({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Inline nav (last step — Prev only) */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        <span />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Crown, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Crown, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatCompact, derivePointsFromCashback } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS, MISSION_CATALOG } from '../data/defaults';
@@ -15,7 +15,7 @@ function getCompletion(m) {
   return 20;
 }
 
-export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, onNext }) {
+export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, onPrev, onNext }) {
   const t = lang === 'fr';
   const [scenario, setScenario] = useState('medium');
   const [showCatalog, setShowCatalog] = useState(false);
@@ -307,14 +307,19 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
         </div>
       </div>
 
-      {/* Inline next */}
-      {onNext && (
-        <div className="flex justify-end pt-6">
+      {/* Inline nav */}
+      <div className="flex justify-between pt-6">
+        {onPrev ? (
+          <button onClick={onPrev} className="btn-secondary">
+            <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
+          </button>
+        ) : <span />}
+        {onNext && (
           <button onClick={onNext} className="btn-primary">
             {t ? 'Suivant' : 'Next'} <ChevronRight size={16} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

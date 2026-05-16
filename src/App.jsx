@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronRight, Link2, Check, LogOut } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -234,9 +234,50 @@ function App() {
     }
   }, [step, phase]);
 
+  // Smooth scroll the page back to the top so the new step's title is visible.
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const goNext = useCallback(() => {
     setStep(s => Math.min(STEPS.length - 1, s + 1));
-  }, []);
+    requestAnimationFrame(scrollToTop);
+  }, [scrollToTop]);
+
+  const goPrev = useCallback(() => {
+    setStep(s => Math.max(0, s - 1));
+    requestAnimationFrame(scrollToTop);
+  }, [scrollToTop]);
+
+  // Wheel-driven step navigation: when the user keeps scrolling past the bottom
+  // (or above the top) of the current step's content, advance / go back.
+  // Throttled to one step per ~800ms so trackpad inertia doesn't skip rows.
+  useEffect(() => {
+    if (phase !== 'wizard') return;
+    let throttled = false;
+    let pendingTimer = null;
+    const onWheel = (e) => {
+      if (throttled) return;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const y = window.scrollY;
+      const atBottom = max - y < 4;
+      const atTop = y < 4;
+      if (e.deltaY > 30 && atBottom) {
+        throttled = true;
+        goNext();
+        pendingTimer = setTimeout(() => { throttled = false; }, 900);
+      } else if (e.deltaY < -30 && atTop) {
+        throttled = true;
+        goPrev();
+        pendingTimer = setTimeout(() => { throttled = false; }, 900);
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      if (pendingTimer) clearTimeout(pendingTimer);
+    };
+  }, [phase, goNext, goPrev]);
 
   const copyShareableLink = () => {
     const state = { config, settings, tiers, onboardingAnswers };
@@ -424,19 +465,21 @@ function App() {
             )}
             {step === 1 && (
               <StepData_Import customers={customers} setCustomers={setCustomers} lang={lang}
-                brandAnalysis={brandAnalysis} config={config} settings={settings} onNext={goNext} />
+                brandAnalysis={brandAnalysis} config={config} settings={settings}
+                onPrev={goPrev} onNext={goNext} />
             )}
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
                 lang={lang} brandAnalysis={brandAnalysis} clientName={clientName}
-                onboardingAnswers={onboardingAnswers} onNext={goNext} />
+                onboardingAnswers={onboardingAnswers}
+                onPrev={goPrev} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
                 tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
-                onNext={goNext} />
+                onPrev={goPrev} onNext={goNext} />
             )}
             {step === 4 && (
               <div className="space-y-3">
@@ -453,7 +496,10 @@ function App() {
                   lang={lang} aov={settings.aov}
                   customers={customers}
                   industry={onboardingAnswers?.industry || brandAnalysis?.industry} />
-                <div className="flex justify-end pt-6">
+                <div className="flex justify-between pt-6">
+                  <button onClick={goPrev} className="btn-secondary">
+                    <ChevronLeft size={16} /> {lang === 'fr' ? 'Précédent' : 'Previous'}
+                  </button>
                   <button onClick={goNext} className="btn-primary">
                     {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight size={16} />
                   </button>
@@ -463,7 +509,8 @@ function App() {
             {step === 5 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
                 settings={settings} config={config} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName} customers={customers} onNext={goNext} />
+                brandAnalysis={brandAnalysis} clientName={clientName} customers={customers}
+                onPrev={goPrev} onNext={goNext} />
             )}
             {step === 6 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
@@ -471,7 +518,8 @@ function App() {
                 burnRate={burnRate} setBurnRate={setBurnRate}
                 customers={customers} settings={settings} config={config}
                 missions={missions} customMissions={customMissions} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName} onNext={goNext} />
+                brandAnalysis={brandAnalysis} clientName={clientName}
+                onPrev={goPrev} onNext={goNext} />
             )}
             {step === 7 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
@@ -480,7 +528,8 @@ function App() {
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
                 brandAnalysis={brandAnalysis} clientName={clientName}
-                referralConfig={referralConfig} />
+                referralConfig={referralConfig}
+                onPrev={goPrev} />
             )}
           </div>
         )}
