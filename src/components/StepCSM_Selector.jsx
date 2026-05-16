@@ -48,6 +48,19 @@ function formatMrr(value) {
   return `${Math.round(value)}€/m`;
 }
 
+// Strip URL noise so users can paste full URLs like "https://www.lecoqsportif.com/"
+// and still match on the bare domain stored in HubSpot ("lecoqsportif.com").
+function normalizeSearchTerm(s) {
+  if (!s) return '';
+  let q = s.toLowerCase().trim();
+  q = q.replace(/^https?:\/\//, '');   // strip protocol
+  q = q.replace(/^www\./, '');         // strip www.
+  q = q.split('/')[0];                 // drop path
+  q = q.split('?')[0];                 // drop query string
+  q = q.split('#')[0];                 // drop fragment
+  return q.trim();
+}
+
 export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onHubSpotUnavailable }) {
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
@@ -99,13 +112,17 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
       list = list.filter(c => (c.plan || '').toLowerCase().includes(filterKey));
     }
 
-    // Search filter (client-side)
+    // Search filter (client-side). Accepts raw text, bare domain, or full URL.
     if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.domain || '').toLowerCase().includes(q)
-      );
+      const q = normalizeSearchTerm(search);
+      const rawQ = search.toLowerCase().trim();
+      if (q) {
+        list = list.filter(c => {
+          const name = (c.name || '').toLowerCase();
+          const domain = normalizeSearchTerm(c.domain || '');
+          return name.includes(rawQ) || name.includes(q) || domain.includes(q) || (c.domain || '').toLowerCase().includes(q);
+        });
+      }
     }
 
     // Sort

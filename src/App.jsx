@@ -16,7 +16,6 @@ import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
 import StepCSM_Selector from './components/StepCSM_Selector';
-import StepCSM_Briefing from './components/StepCSM_Briefing';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import { Building2 } from 'lucide-react';
 
@@ -105,7 +104,7 @@ function App() {
   const [burnRate, setBurnRate] = useState(40);
   const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('csm'); // 'csm' | 'csm-briefing' | 'brand' | 'wizard'
+  const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
   const [csmMode, setCsmMode] = useState(false);
@@ -159,15 +158,10 @@ function App() {
     setClientDetails(details);
     setCsmMode(true);
 
-    // Go to briefing screen (NOT directly to wizard)
-    setPhase('csm-briefing');
-
-    // Fireflies integration disabled — no API call, state stays null.
-  };
-
-  // Called from briefing screen — applies defaults and enters wizard at step 2 (config)
-  const handleBriefingLaunch = (onboardingAnswersFromBriefing) => {
-    const company = clientDetails?.company || {};
+    // Apply CSM-inferred defaults and skip straight to Step 0 (Program Setup),
+    // pre-filled with values inferred from HubSpot company data so the user
+    // can adjust before continuing into the wizard.
+    const company = details?.company || {};
     const defaults = applyCsmDefaults(company, lang);
     setConfig(defaults.config);
     setSettings(defaults.settings);
@@ -175,21 +169,11 @@ function App() {
     setRewards(defaults.rewards);
     setMissions(defaults.missions);
     setBurnRate(defaults.burnRate);
+    setOnboardingAnswers(buildCsmOnboardingAnswers(company));
 
-    // Apply overrides from briefing pre-configuration
-    if (onboardingAnswersFromBriefing) {
-      setOnboardingAnswers(onboardingAnswersFromBriefing);
-      // Override settings from briefing selections
-      const briefingDefaults = applyOnboardingDefaults(onboardingAnswersFromBriefing, lang);
-      setSettings(prev => ({ ...prev, ...briefingDefaults.settings }));
-    } else {
-      setOnboardingAnswers(buildCsmOnboardingAnswers(company));
-    }
-
-    // Jump to wizard at step 1 (Import), bypassing only step 0 (Program type)
     setPhase('wizard');
-    setStep(1);
-    setVisitedSteps(new Set([0, 1]));
+    setStep(0);
+    setVisitedSteps(new Set([0]));
   };
 
   const handleStep0Complete = (answers) => {
@@ -326,7 +310,7 @@ function App() {
       </header>
 
       {/* ─── CSM Client banner ─── */}
-      {(phase === 'wizard' || phase === 'csm-briefing') && csmMode && selectedClient && (
+      {phase === 'wizard' && csmMode && selectedClient && (
         <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
           <div className="max-w-[1100px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
             <Building2 size={14} className="text-primary shrink-0" />
@@ -416,16 +400,6 @@ function App() {
             onClientSelected={handleCSMClientSelected}
             onSkipToManual={handleSkipToManual}
             onHubSpotUnavailable={handleHubSpotUnavailable}
-          />
-        ) : phase === 'csm-briefing' ? (
-          <StepCSM_Briefing
-            selectedClient={selectedClient}
-            clientDetails={clientDetails}
-            firefliesInsights={firefliesInsights}
-            firefliesLoading={firefliesLoading}
-            lang={lang}
-            onLaunch={handleBriefingLaunch}
-            onBack={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
           />
         ) : phase === 'brand' ? (
           <StepBrand_Analyzer
