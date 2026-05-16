@@ -151,6 +151,44 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         </div>
       )}
 
+      {/* ─── Tier reassessment / expiration (only if tiers enabled) ─── */}
+      {config.hasTiers && (
+        <div className="card" style={{ padding: 16 }}>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <label className="text-[13px] font-medium text-[#645648]">{t.tierExpireLabel}</label>
+              <Tooltip text={t.tierExpireTip} />
+            </div>
+            <div className="flex gap-1.5">
+              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.tiersExpire === true} onClick={() => update('tiersExpire', true)} />
+              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.tiersExpire === false} onClick={() => update('tiersExpire', false)} />
+            </div>
+            {config.tiersExpire && (
+              <>
+                <span className="text-[12px] text-[#8A7D6B] ml-2">{t.tierEvery}</span>
+                <input type="number" min={1} max={60} value={config.tierExpirationMonths}
+                  onChange={e => update('tierExpirationMonths', parseInt(e.target.value) || 12)}
+                  className="w-20 px-2 py-1.5 text-[13px] text-center" />
+                <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
+                <div className="flex gap-1.5 ml-2">
+                  {['rolling', 'fixed'].map(type => (
+                    <button key={type} onClick={() => update('tierExpirationType', type)}
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
+                        ${config.tierExpirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
+                      {type === 'rolling' ? t.rolling : t.fixed}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[11px] text-[#8A7D6B] ml-2">{t.tierExpireDefault}</span>
+              </>
+            )}
+          </div>
+          <div className="text-[11px] text-[#8A7D6B] mt-2">
+            {t.tierExpireExplanation}
+          </div>
+        </div>
+      )}
+
       {/* ─── Reward type (only if points program) ─── */}
       {config.hasMissions && (
         <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
@@ -392,6 +430,11 @@ const FR = {
   expirationTip: 'Au bout de combien de temps les points expirent.',
   months: 'mois', rolling: 'Glissant', fixed: 'Fixe',
   expirationDefault: '(défaut : 12 mois glissants)',
+  tierExpireLabel: 'Réévaluation des paliers ?',
+  tierExpireTip: "Les paliers sont-ils réévalués périodiquement ? Si oui, un client peut redescendre d'un palier s'il ne maintient pas le seuil sur la période. Indépendant des points.",
+  tierEvery: 'Tous les',
+  tierExpireDefault: '(défaut : 12 mois glissants)',
+  tierExpireExplanation: "Sur la fenêtre choisie, on regarde le cumul de la métrique (dépenses, commandes ou points). Si le client passe sous le seuil de son palier, il redescend au palier inférieur.",
   keyParams: 'Paramètres clés',
   aov: 'Panier moyen (AOV)',
   margin: 'Marge brute',
@@ -420,6 +463,11 @@ const EN = {
   expirationTip: 'How long until points expire.',
   months: 'months', rolling: 'Rolling', fixed: 'Fixed',
   expirationDefault: '(default: 12 months rolling)',
+  tierExpireLabel: 'Tier reassessment?',
+  tierExpireTip: "Are tiers periodically reassessed? If yes, a customer can drop a tier if they don't meet the threshold over the window. Independent of points.",
+  tierEvery: 'Every',
+  tierExpireDefault: '(default: 12 months rolling)',
+  tierExpireExplanation: "Over the chosen window, the metric (spend, orders or points) is summed. If a customer falls below their tier threshold, they drop to the lower tier.",
   keyParams: 'Key parameters',
   aov: 'Avg order value (AOV)',
   margin: 'Gross margin',

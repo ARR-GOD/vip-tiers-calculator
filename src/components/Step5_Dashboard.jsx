@@ -265,6 +265,15 @@ export default function Step5_Dashboard({
               </tfoot>
             </table>
           </div>
+          <p className="text-[11px] text-[#8A7D6B] mt-2">
+            {config.tiersExpire
+              ? (t
+                  ? `Réévaluation des paliers : tous les ${config.tierExpirationMonths} mois ${config.tierExpirationType === 'rolling' ? 'glissants' : 'fixes'} — un client peut redescendre d'un palier s'il ne maintient pas le seuil sur la fenêtre.`
+                  : `Tier reassessment: every ${config.tierExpirationMonths} months ${config.tierExpirationType} — a customer can drop a tier if they don't maintain the threshold over the window.`)
+              : (t
+                  ? "Pas de réévaluation des paliers — un client garde son statut une fois acquis."
+                  : 'No tier reassessment — once a tier is earned, the customer keeps the status.')}
+          </p>
         </div>
 
         {/* ─── 3. POINTS ECONOMY (CFO VIEW) ─── */}
@@ -361,14 +370,14 @@ export default function Step5_Dashboard({
                   {t ? 'de coût additionnel ponctuel' : 'one-off additional cost'}.
                 </li>
                 <li>
-                  <strong>{t ? 'Stratégie d\'expiration' : 'Expiration strategy'} :</strong>{' '}
+                  <strong>{t ? 'Expiration des points' : 'Points expiration'} :</strong>{' '}
                   {config.pointsExpire
                     ? (t
-                        ? `expiration activée (${config.expirationMonths} mois ${config.expirationType === 'rolling' ? 'glissants' : 'fixes'}) — réduit le passif latent.`
-                        : `expiration enabled (${config.expirationMonths} months ${config.expirationType}) — reduces outstanding liability.`)
+                        ? `activée (${config.expirationMonths} mois ${config.expirationType === 'rolling' ? 'glissants' : 'fixes'}) — réduit le passif latent.`
+                        : `enabled (${config.expirationMonths} months ${config.expirationType}) — reduces outstanding liability.`)
                     : (t
-                        ? 'aucune expiration — le passif s\'accumule année après année.'
-                        : 'no expiration — liability accumulates year over year.')}
+                        ? 'aucune — le passif s\'accumule année après année.'
+                        : 'none — liability accumulates year over year.')}
                 </li>
               </ul>
             </div>

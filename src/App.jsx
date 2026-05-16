@@ -25,9 +25,14 @@ const INITIAL_CONFIG = {
   hasMissions: true,    // "Programme à points" — Oui/Non
   hasTiers: true,       // "Paliers VIP" — Oui/Non
   rewardType: 'both',
+  // Points expiration (only meaningful when hasMissions)
   pointsExpire: true,
   expirationMonths: 12,
   expirationType: 'rolling',
+  // Tier expiration / reassessment (independent of points — applies when hasTiers)
+  tiersExpire: true,
+  tierExpirationMonths: 12,
+  tierExpirationType: 'rolling',
 };
 
 const INITIAL_SETTINGS = {
