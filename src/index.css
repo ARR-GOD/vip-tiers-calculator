@@ -4,29 +4,35 @@
   /* ─── Primary (bleu Loyoly) ─── */
   --color-primary: #2965FE;
   --color-primary-light: #5A8AFF;
-  --color-primary-dark: #1E4FD9;
+  --color-primary-dark: #1F52D8;
   --color-primary-50: #E8EFFE;
   --color-primary-100: #CFD8FE;
   --color-primary-200: #A3B8FD;
   --color-primary-700: #1A47B8;
   --color-primary-900: #0F2A6E;
+  --color-primary-soft: #E8EFFE;
+  --color-primary-border: #A3B8FD;
 
-  /* ─── Surfaces ─── */
+  /* ─── Surfaces (warm-pampas direction B) ─── */
   --color-surface: #F5F4F0;
-  --color-card: #EEEDE6;
-  --color-card-border: #D9D5CB;
+  --color-card: #FFFFFF;
+  --color-card-elev: #FBFAF6;
+  --color-card-border: #E5E1D8;
+  --color-card-border-strong: #D9D5CB;
+  --color-divider: #EEEDE6;
   --color-header: #2B251F;
-  --color-hover: #E5E1D8;
+  --color-hover: #EEEDE6;
 
   /* ─── Accent (or Loyoly) ─── */
   --color-accent: #FED44B;
-  --color-accent-bg: #FFF8E1;
+  --color-accent-bg: #FFFBEB;
   --color-accent-text: #92400E;
 
   /* ─── Texte ─── */
-  --color-title: #52473C;
-  --color-body: #645648;
+  --color-title: #2B251F;
+  --color-body: #52473C;
   --color-muted: #8A7D6B;
+  --color-faint: #B0A595;
 
   /* ─── Statuts (inchangés) ─── */
   --color-success: #059669;
@@ -39,8 +45,9 @@
   --color-gold: #D97706;
   --color-platinum: #7C3AED;
 
-  /* ─── Font ─── */
+  /* ─── Fonts ─── */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Lexend', ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
@@ -49,10 +56,17 @@ body {
   color: var(--color-body);
   margin: 0;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
+}
+
+/* Lexend on display copy (H1/H2) */
+.font-display, h1, h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 ::-webkit-scrollbar { width: 6px; }
@@ -73,7 +87,7 @@ body {
 * { transition-timing-function: ease; transition-duration: 0.15s; }
 
 .step-transition {
-  animation: fadeSlideIn 0.15s ease;
+  animation: fadeSlideIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes fadeSlideIn {
@@ -88,20 +102,33 @@ body {
   100% { opacity: 0; }
 }
 
-/* ─── Card — 10px radius, flat Loyoly ─── */
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.toast-enter { animation: toast-slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, 4px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ─── Card — 14px radius, subtle elevation (Linear/Notion-ish) ─── */
 .card {
   background: var(--color-card);
   border: 1px solid var(--color-card-border);
-  border-radius: 10px;
-  box-shadow: none;
-  padding: 20px 24px;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15,15,15,0.04);
+  padding: 22px 26px;
 }
 
 .card-hover {
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .card-hover:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 6px 16px -4px rgba(15,15,15,0.08);
+  border-color: var(--color-card-border-strong);
 }
 
 /* ─── Range slider ─── */
@@ -144,30 +171,31 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 1px 3px rgba(41, 101, 254, 0.25);
 }
 
-/* ─── Inputs — 6px radius ─── */
+/* ─── Inputs — 10px radius, more visible focus ─── */
 input[type="text"], input[type="number"], select, textarea {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--color-title);
+  background: var(--color-card-elev);
   border: 1px solid var(--color-card-border);
-  border-radius: 6px;
+  border-radius: 10px;
   height: 40px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   font-variant-numeric: tabular-nums;
 }
 input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(41, 101, 254, 0.08);
+  box-shadow: 0 0 0 3px rgba(41, 101, 254, 0.22);
   outline: none;
 }
 
-/* ─── Buttons — 8px radius, flat ─── */
+/* ─── Buttons — 10px radius, soft elevation ─── */
 .btn-primary {
   background: var(--color-primary);
   color: white;
   padding: 0 20px;
   height: 42px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   border: none;
@@ -176,10 +204,13 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15,15,15,0.06), inset 0 1px 0 rgba(255,255,255,0.16);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 .btn-primary:hover { background: var(--color-primary-dark); }
-.btn-primary:active { }
+.btn-primary:active {
+  box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 2px rgba(0,0,0,0.18);
+}
 .btn-primary:disabled { opacity: 0.35; pointer-events: none; }
 
 .btn-ghost {
@@ -187,7 +218,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   color: var(--color-body);
   padding: 0 20px;
   height: 42px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   border: 1px solid var(--color-card-border);
@@ -198,7 +229,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   gap: 8px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.btn-ghost:hover { background: var(--color-hover); border-color: #C5C0B5; }
+.btn-ghost:hover { background: var(--color-hover); border-color: var(--color-card-border-strong); }
 .btn-ghost:disabled { opacity: 0.35; pointer-events: none; }
 
 .btn-secondary {
@@ -206,7 +237,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   color: var(--color-body);
   padding: 0 16px;
   height: 38px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 500;
   border: 1px solid var(--color-card-border);
@@ -217,7 +248,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
   gap: 6px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.btn-secondary:hover { background: var(--color-hover); border-color: #C5C0B5; }
+.btn-secondary:hover { background: var(--color-hover); border-color: var(--color-card-border-strong); }
 
 /* ─── Section headers — subtle, 11px ─── */
 .section-header {
@@ -309,7 +340,7 @@ input[type="checkbox"] {
 .selection-card {
   background: var(--color-card);
   border: 1px solid var(--color-card-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 16px;
   font-size: 14px;
   color: var(--color-title);
