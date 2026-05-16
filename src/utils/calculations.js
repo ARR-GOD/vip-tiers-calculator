@@ -410,7 +410,7 @@ export function computeReferralEconomics(referralConfig, aov) {
 }
 
 // ── Points economy (emitted / burned / dormant) ──
-export function computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate) {
+export function computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, scenarioMultiplier = 1) {
   const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
 
   // Points emitted per year per tier
@@ -421,11 +421,11 @@ export function computePointsEconomy(tierStats, tiers, missions, customMissions,
     // Purchase points
     const purchasePoints = Math.round(stat.revenue * (settings.cashbackRate / 100) * pointsPerEuro * (tier.pointsMultiplier || 1));
 
-    // Mission points
+    // Mission points — completion rate scaled by the active scenario
     const allMissions = [...missions, ...customMissions].filter(m => m.enabled);
     const missionPoints = allMissions.reduce((sum, m) => {
       const rawRate = typeof m.completionRate === 'number' ? m.completionRate : (m.engagementByTier?.[i] ?? 20);
-      const rate = rawRate / 100;
+      const rate = Math.min(1, (rawRate / 100) * scenarioMultiplier);
       return sum + Math.round(stat.count * rate * (m.frequency || 1) * m.points);
     }, 0);
 

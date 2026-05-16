@@ -24,10 +24,14 @@ export default function Step5_Dashboard({
   const t = lang === 'fr';
   const dashRef = useRef(null);
 
-  // ── Editable incrementality rates per scenario ──
+  // ── Active scenario (selector) + editable incrementality per scenario ──
+  const [activeKey, setActiveKey] = useState('base');
   const [incrementality, setIncrementality] = useState(() =>
     Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality]))
   );
+  const activeScenario = SCENARIOS.find(s => s.key === activeKey) || SCENARIOS[1];
+  const activeMult = activeScenario.mult;
+  const activeIncrementality = incrementality[activeKey] ?? activeScenario.defaultIncrementality;
   const resetIncrementality = () =>
     setIncrementality(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality])));
 
@@ -75,18 +79,18 @@ export default function Step5_Dashboard({
   }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, incrementality]);
 
   const pointsEconomy = useMemo(
-    () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate),
-    [tierStats, tiers, missions, customMissions, rewards, settings, burnRate]
+    () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult),
+    [tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult]
   );
 
   // ── Real cost per burned point, derived from modeled reward utilization ──
-  // computeProgramFunnel at base scenario gives the modeled burn cost.
-  const baseFunnel = useMemo(
-    () => computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, 1),
-    [tierStats, missions, customMissions, rewards, settings, tiers]
+  // Reflects the burn cost under the ACTIVE scenario so the provision moves with it.
+  const activeFunnel = useMemo(
+    () => computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, activeMult),
+    [tierStats, missions, customMissions, rewards, settings, tiers, activeMult]
   );
   const realCostPerBurnedPoint = pointsEconomy.totalBurned > 0
-    ? baseFunnel.burnCost / pointsEconomy.totalBurned
+    ? activeFunnel.burnCost / pointsEconomy.totalBurned
     : 0;
 
   // Two ways to value the dormant points (the outstanding liability):
@@ -158,6 +162,24 @@ export default function Step5_Dashboard({
         </div>
       </div>
 
+      {/* Scenario selector — drives every dashboard number below */}
+      <div className="card flex flex-wrap items-center gap-3" style={{ padding: 14 }}>
+        <span className="text-[13px] font-medium text-[#645648]">{t ? 'Scénario actif' : 'Active scenario'}:</span>
+        <div className="flex gap-1.5">
+          {SCENARIOS.map(s => (
+            <button key={s.key} onClick={() => setActiveKey(s.key)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${activeKey === s.key ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648] hover:bg-[#D9D5CB]'}`}>
+              {t ? s.labelFr : s.labelEn} <span className="opacity-70">×{s.mult}</span>
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto text-[11px] text-[#8A7D6B]">
+          {t
+            ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Incrémentalité ${activeIncrementality}%.`
+            : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Incrementality ${activeIncrementality}%.`}
+        </span>
+      </div>
+
       <div ref={dashRef} className="space-y-6">
 
         {/* ─── 1. SCENARIO P&L ─── */}
@@ -178,39 +200,54 @@ export default function Step5_Dashboard({
                       <Tooltip text={t ? "Taux d'incrémentalité : part du CA des membres réellement attribuable au programme (uplift, pas baseline). Éditable par scénario." : 'Incrementality rate: share of member revenue genuinely attributable to the program (uplift, not baseline). Editable per scenario.'} />
                     </div>
                   </th>
-                  {scenarioRows.map(s => (
-                    <th key={s.key} className="px-4 py-3 font-medium text-[#645648]">
-                      <div className="text-[12px] text-right">{t ? s.labelFr : s.labelEn}</div>
-                      <div className="flex items-center justify-end gap-1 mt-1">
-                        <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Incrémentalité' : 'Incrementality'}:</span>
-                        <input
-                          type="number" min={0} max={100} step={5}
-                          value={s.incrementality}
-                          onChange={e => updateIncrementality(s.key, e.target.value)}
-                          className="w-14 px-1.5 py-0.5 text-[12px] text-right font-medium"
-                        />
-                        <span className="text-[10px] text-[#8A7D6B]">%</span>
-                      </div>
-                    </th>
-                  ))}
+                  {scenarioRows.map(s => {
+                    const isActive = s.key === activeKey;
+                    return (
+                      <th key={s.key} onClick={() => setActiveKey(s.key)}
+                        className={`px-4 py-3 font-medium cursor-pointer transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-[#645648] hover:bg-[#E5E1D8]'}`}>
+                        <div className="text-[12px] text-right flex items-center justify-end gap-1">
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>}
+                          {t ? s.labelFr : s.labelEn}
+                        </div>
+                        <div className="flex items-center justify-end gap-1 mt-1">
+                          <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Incrémentalité' : 'Incrementality'}:</span>
+                          <input
+                            type="number" min={0} max={100} step={5}
+                            value={s.incrementality}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => updateIncrementality(s.key, e.target.value)}
+                            className="w-14 px-1.5 py-0.5 text-[12px] text-right font-medium"
+                          />
+                          <span className="text-[10px] text-[#8A7D6B]">%</span>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                <PnlRow label={t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)'}
-                  values={scenarioRows.map(r => r.caLoyalty)}
-                  hint={t ? `${formatCurrency(totalCustomerRevenue)} × taux` : `${formatCurrency(totalCustomerRevenue)} × rate`} />
-                <PnlRow label={t ? 'CA referral' : 'Referral revenue'}
-                  values={scenarioRows.map(r => r.caReferral)}
-                  hint={t ? 'Fixe — voir étape Parrainage' : 'Fixed — see Referral step'} />
-                <PnlRow label={t ? 'CA total' : 'Total revenue'}
-                  values={scenarioRows.map(r => r.caTotal)} bold />
-                <PnlRow label={`${t ? 'Marge brute' : 'Gross margin'} (×${settings.grossMargin}%)`}
-                  values={scenarioRows.map(r => r.margin)} />
-                <PnlRow label={t ? 'Coût des rewards' : 'Rewards cost'}
-                  values={scenarioRows.map(r => -r.rewardsCost)} negative
-                  hint={t ? 'Modélisé via utilisation rewards × paliers' : 'Modeled via reward utilization × tiers'} />
-                <PnlRow label={t ? 'Profit net' : 'Net profit'}
-                  values={scenarioRows.map(r => r.netProfit)} bold profit />
+                {(() => {
+                  const activeIdx = SCENARIOS.findIndex(s => s.key === activeKey);
+                  return (
+                    <>
+                      <PnlRow label={t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)'}
+                        values={scenarioRows.map(r => r.caLoyalty)} activeIdx={activeIdx}
+                        hint={t ? `${formatCurrency(totalCustomerRevenue)} × taux` : `${formatCurrency(totalCustomerRevenue)} × rate`} />
+                      <PnlRow label={t ? 'CA referral' : 'Referral revenue'}
+                        values={scenarioRows.map(r => r.caReferral)} activeIdx={activeIdx}
+                        hint={t ? 'Fixe — voir étape Parrainage' : 'Fixed — see Referral step'} />
+                      <PnlRow label={t ? 'CA total' : 'Total revenue'}
+                        values={scenarioRows.map(r => r.caTotal)} bold activeIdx={activeIdx} />
+                      <PnlRow label={`${t ? 'Marge brute' : 'Gross margin'} (×${settings.grossMargin}%)`}
+                        values={scenarioRows.map(r => r.margin)} activeIdx={activeIdx} />
+                      <PnlRow label={t ? 'Coût des rewards' : 'Rewards cost'}
+                        values={scenarioRows.map(r => -r.rewardsCost)} negative activeIdx={activeIdx}
+                        hint={t ? 'Modélisé via utilisation rewards × paliers' : 'Modeled via reward utilization × tiers'} />
+                      <PnlRow label={t ? 'Profit net' : 'Net profit'}
+                        values={scenarioRows.map(r => r.netProfit)} bold profit activeIdx={activeIdx} />
+                    </>
+                  );
+                })()}
               </tbody>
             </table>
           </div>
@@ -314,7 +351,10 @@ export default function Step5_Dashboard({
         {/* ─── 3. POINTS ECONOMY (CFO VIEW) ─── */}
         {config.hasMissions && (
           <div>
-            <div className="section-header">{t ? 'MASSE MONÉTAIRE DES POINTS (VUE CFO)' : 'POINTS MONETARY MASS (CFO VIEW)'}</div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <div className="section-header" style={{ marginBottom: 0 }}>{t ? 'MASSE MONÉTAIRE DES POINTS (VUE CFO)' : 'POINTS MONETARY MASS (CFO VIEW)'}</div>
+              <span className="text-[10px] text-[#8A7D6B]">— {t ? `scénario ${t ? activeScenario.labelFr : activeScenario.labelEn} (×${activeMult})` : `scenario ${activeScenario.labelEn} (×${activeMult})`}</span>
+            </div>
             <div className="card overflow-hidden">
               <table className="w-full text-[13px]">
                 <thead>
@@ -390,7 +430,7 @@ export default function Step5_Dashboard({
                 </li>
                 <li>
                   <strong>{t ? 'Cash flow effectif' : 'Effective cash impact'} :</strong>{' '}
-                  {formatCurrency(baseFunnel.burnCost)} {t ? 'de coût burn modélisé par an' : 'in modeled burn cost per year'}{' '}
+                  {formatCurrency(activeFunnel.burnCost)} {t ? 'de coût burn modélisé par an' : 'in modeled burn cost per year'}{' '}
                   ({formatCompact(pointsEconomy.totalBurned)} pts × {formatCurrency(realCostPerBurnedPoint)}/pt).
                 </li>
                 <li>
@@ -434,7 +474,7 @@ export default function Step5_Dashboard({
 }
 
 // ─── Row helpers ───
-function PnlRow({ label, values, bold, negative, profit, hint }) {
+function PnlRow({ label, values, bold, negative, profit, hint, activeIdx }) {
   const baseTextClass = bold ? 'font-bold text-[#52473C]' : 'text-[#645648]';
   return (
     <tr className={`border-b border-[#E5E1D8] ${bold ? 'bg-[#FAFAF7]' : ''}`}>
@@ -447,8 +487,9 @@ function PnlRow({ label, values, bold, negative, profit, hint }) {
         if (negative) cls = `tabular-nums font-medium text-[#DC2626]`;
         if (profit) cls = `tabular-nums font-bold ${v >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`;
         const prefix = profit && v >= 0 ? '+' : '';
+        const isActive = i === activeIdx;
         return (
-          <td key={i} className={`text-right px-4 py-2.5 ${cls}`}>
+          <td key={i} className={`text-right px-4 py-2.5 ${cls} ${isActive ? 'bg-primary/5' : ''}`}>
             {prefix}{formatCurrency(Math.round(v))}
           </td>
         );

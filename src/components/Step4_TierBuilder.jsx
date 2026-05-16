@@ -154,14 +154,14 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   const scrollTo = (dir) => {
     const el = scrollRef.current;
     if (!el) return;
-    const cardW = 320 + 12; // min-width + gap
+    const cardW = 260 + 12; // min-width + gap
     el.scrollBy({ left: dir === 'right' ? cardW : -cardW, behavior: 'smooth' });
   };
 
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    const cardW = 320 + 12;
+    const cardW = 260 + 12;
     const idx = Math.round(el.scrollLeft / cardW);
     setActiveIdx(Math.max(0, Math.min(idx, tiers.length - 1)));
   };
@@ -169,7 +169,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   const scrollToIdx = (idx) => {
     const el = scrollRef.current;
     if (!el) return;
-    const cardW = 320 + 12;
+    const cardW = 260 + 12;
     el.scrollTo({ left: idx * cardW, behavior: 'smooth' });
   };
 
@@ -258,7 +258,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                   key={tierIdx}
                   className="card overflow-hidden flex-shrink-0"
                   style={{
-                    minWidth: 320,
+                    minWidth: 260,
                     borderLeft: `3px solid ${tierColor}`,
                     scrollSnapAlign: 'start',
                   }}
@@ -356,7 +356,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
                       return (
                         <div className="mt-4 pt-4 border-t border-[#D9D5CB] space-y-3">
-                          <div className={`grid gap-3 ${basis === 'points' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                             <ThresholdField
                               label={t ? 'Seuil (€)' : 'Spend (€)'}
                               value={spendVal} onChange={handleSpendChange} unit="€" step={50}
