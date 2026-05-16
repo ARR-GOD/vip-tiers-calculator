@@ -75,10 +75,10 @@ export function getSortedByMetric(customers, tierBasis, pointsPerEuro = 10) {
  * Usage: when the user edits tier i's "% of customers" field, call this to
  * compute the new threshold for tier i and write it back.
  *
- * tierIndex 0 (the lowest tier) is always entry-free: returns 0.
+ * Works for any tierIndex, including tier 0. Customers below the tier 0
+ * threshold are considered non-members (tier = -1) in assignTiers.
  */
 export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierIndex, desiredPct, basis, pointsPerEuro = 10 }) {
-  if (tierIndex === 0) return 0;
   const sorted = sortedCustomers || getSortedByMetric(customers || [], basis, pointsPerEuro);
   const N = sorted.length;
   if (N === 0) return 0;
@@ -99,20 +99,21 @@ export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierInd
   const cutIdx = Math.max(0, Math.min(N - 1, countAbove + desiredCount - 1));
   const v = metric(sorted[cutIdx]);
   // Round integer metrics (orders) to integer thresholds.
-  if (basis === 'orders') return Math.max(1, Math.round(v));
+  if (basis === 'orders') return Math.max(0, Math.round(v));
   if (basis === 'points') return Math.max(0, Math.round(v));
   return Math.max(0, Math.round(v));
 }
 
 // ── Tier assignment ──
 // Unified: dispatches on tierBasis using the metric/threshold helpers above.
+// Customers whose metric is below tier 0's threshold are non-members (tier = -1).
 export function assignTiers(sortedCustomers, tiers, tierBasis, programConfig) {
   if (!sortedCustomers || sortedCustomers.length === 0) return [];
   const pointsPerEuro = programConfig?.pointsPerEuro || 10;
   const metric = c => metricForBasis(c, tierBasis, pointsPerEuro);
   return sortedCustomers.map(customer => {
     const v = metric(customer);
-    let assignedTier = 0;
+    let assignedTier = -1; // non-member by default
     for (let i = tiers.length - 1; i >= 0; i--) {
       if (v >= thresholdForBasis(tiers[i], tierBasis)) {
         assignedTier = i;
@@ -163,6 +164,22 @@ export function computeTierStats(assignedCustomers, tiers) {
       maxRevenue,
     };
   });
+}
+
+// Stats for customers below tier 0's threshold (non-members).
+// Tier-aware code paths exclude them automatically; this helper surfaces them
+// for the dashboard view.
+export function computeNonMemberStats(assignedCustomers) {
+  const nonMembers = assignedCustomers.filter(c => c.tier === -1);
+  if (nonMembers.length === 0) return { count: 0, revenue: 0, avgLTV: 0, avgAOV: 0 };
+  const revenue = nonMembers.reduce((s, c) => s + (c.total_ordered_TTC || 0), 0);
+  const orders = nonMembers.reduce((s, c) => s + (c.number_of_orders || 0), 0);
+  return {
+    count: nonMembers.length,
+    revenue,
+    avgLTV: revenue / nonMembers.length,
+    avgAOV: orders > 0 ? revenue / orders : 0,
+  };
 }
 
 // ── Mission points calculations (per tier, with engagement rates) ──

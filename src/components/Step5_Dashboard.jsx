@@ -4,7 +4,7 @@ import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
 import {
-  computeCustomerScores, assignTiers, computeTierStats,
+  computeCustomerScores, assignTiers, computeTierStats, computeNonMemberStats,
   computeProgramFunnel, computeReferralEconomics, computePointsEconomy,
   derivePointsFromCashback,
   formatCurrency, formatNumber, formatPercent, formatCompact,
@@ -31,17 +31,24 @@ export default function Step5_Dashboard({
   const resetIncrementality = () =>
     setIncrementality(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality])));
 
-  const tierStats = useMemo(() => {
+  const { tierStats, nonMembers, assignedAll } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
     const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
     const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
-    return computeTierStats(assigned, tiers);
+    return {
+      tierStats: computeTierStats(assigned, tiers),
+      nonMembers: computeNonMemberStats(assigned),
+      assignedAll: assigned,
+    };
   }, [customers, settings, tiers, config]);
 
+  // Total customer revenue includes non-members so percentages of the imported
+  // base are honest, regardless of where tier 0's threshold sits.
   const totalCustomerRevenue = useMemo(
-    () => tierStats.reduce((s, st) => s + st.revenue, 0),
-    [tierStats]
+    () => customers.reduce((s, c) => s + (c.total_ordered_TTC || 0), 0),
+    [customers]
   );
+  const totalCustomerCount = customers.length;
 
   const referralEcon = useMemo(
     () => computeReferralEconomics(referralConfig, settings.aov),
@@ -89,11 +96,12 @@ export default function Step5_Dashboard({
   const provisionFace = pointsEconomy.totalDormant * pointFaceValue;
   const provisionReal = pointsEconomy.totalDormant * realCostPerBurnedPoint;
 
-  // Tier breakdown totals
-  const totals = useMemo(() => {
-    const customersCount = tierStats.reduce((s, st) => s + st.count, 0);
-    return { customersCount, totalRev: totalCustomerRevenue };
-  }, [tierStats, totalCustomerRevenue]);
+  // Tier breakdown totals — totals include non-members so percentages reflect
+  // the imported base, not just the program members.
+  const totals = useMemo(() => ({
+    customersCount: totalCustomerCount,
+    totalRev: totalCustomerRevenue,
+  }), [totalCustomerCount, totalCustomerRevenue]);
 
   const updateIncrementality = (key, val) => {
     const v = Math.max(0, Math.min(100, parseFloat(val) || 0));
@@ -249,6 +257,26 @@ export default function Step5_Dashboard({
                     </tr>
                   );
                 })}
+                {nonMembers.count > 0 && (
+                  <tr className="border-b border-[#E5E1D8] hover:bg-[#EEEDE6]" style={{ backgroundColor: '#FAFAF7' }}>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#D9D5CB' }} />
+                        <span className="font-medium text-[#8A7D6B] italic">{t ? 'Non-membres' : 'Non-members'}</span>
+                      </div>
+                    </td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">{formatNumber(nonMembers.count)}</td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">
+                      {formatPercent(totalCustomerCount > 0 ? (nonMembers.count / totalCustomerCount) * 100 : 0)}
+                    </td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">{formatCurrency(nonMembers.revenue)}</td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">
+                      {formatPercent(totals.totalRev > 0 ? (nonMembers.revenue / totals.totalRev) * 100 : 0)}
+                    </td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">{formatCurrency(nonMembers.avgLTV)}</td>
+                    <td className="text-right px-4 py-2.5 text-[#8A7D6B] tabular-nums italic">{formatCurrency(nonMembers.avgAOV)}</td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr className="bg-[#EEEDE6] border-t border-[#D9D5CB] font-semibold">
@@ -266,6 +294,13 @@ export default function Step5_Dashboard({
             </table>
           </div>
           <p className="text-[11px] text-[#8A7D6B] mt-2">
+            {nonMembers.count > 0 && (
+              <span className="block mb-1">
+                {t
+                  ? `Seuil d'adhésion au programme : ${formatNumber(nonMembers.count)} client(s) (${formatPercent(totalCustomerCount > 0 ? (nonMembers.count / totalCustomerCount) * 100 : 0)}) sous le seuil du premier palier — exclus du programme.`
+                  : `Program entry threshold: ${formatNumber(nonMembers.count)} customer(s) (${formatPercent(totalCustomerCount > 0 ? (nonMembers.count / totalCustomerCount) * 100 : 0)}) below the first tier's threshold — excluded from the program.`}
+              </span>
+            )}
             {config.tiersExpire
               ? (t
                   ? `Réévaluation des paliers : tous les ${config.tierExpirationMonths} mois ${config.tierExpirationType === 'rolling' ? 'glissants' : 'fixes'} — un client peut redescendre d'un palier s'il ne maintient pas le seuil sur la fenêtre.`

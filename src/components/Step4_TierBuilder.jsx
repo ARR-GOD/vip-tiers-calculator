@@ -49,7 +49,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
   // Edit-by-percent: when user types a % for tier i, recompute that tier's threshold.
   const updateTierByPct = useCallback((tierIdx, desiredPct) => {
-    if (tierIdx === 0) return; // bottom tier is always entry-free
     const newThreshold = thresholdForTierPct({
       sortedCustomers: sortedByMetric,
       tiers,
@@ -292,7 +291,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       const thrLabel = t
                         ? (basis === 'orders' ? "Seuil (commandes)" : basis === 'points' ? 'Seuil (points)' : "Seuil d'entrée (€)")
                         : (basis === 'orders' ? 'Threshold (orders)' : basis === 'points' ? 'Threshold (points)' : 'Entry threshold (€)');
-                      const isBottom = tierIdx === 0;
                       const qualifying = (() => {
                         if (!customers || customers.length === 0) return 0;
                         let count = 0;
@@ -313,8 +311,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                                 min={0}
                                 step={basis === 'orders' ? 1 : basis === 'points' ? 100 : 50}
                                 onChange={e => updateTier(tierIdx, thrKey, basis === 'orders' ? Math.max(0, parseInt(e.target.value) || 0) : parseFloat(e.target.value) || 0)}
-                                disabled={isBottom}
-                                className="w-20 px-2 py-1 text-[13px] text-center disabled:opacity-50"
+                                className="w-20 px-2 py-1 text-[13px] text-center"
                               />
                               <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
                             </div>
@@ -325,9 +322,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                           <div>
                             <label className="text-[11px] text-[#8A7D6B] mb-1 block">
                               {t ? '% de clients' : '% of customers'}
-                              {isBottom && (
-                                <span className="ml-1 text-[#A89C8D]" title={t ? 'Calculé automatiquement' : 'Auto-computed'}>·</span>
-                              )}
                             </label>
                             <div className="flex items-center gap-1">
                               <input
@@ -340,13 +334,12 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                                   const v = parseFloat(e.target.value);
                                   if (!isNaN(v)) updateTierByPct(tierIdx, Math.max(0, Math.min(100, v)));
                                 }}
-                                disabled={isBottom}
-                                className="w-16 px-2 py-1 text-[13px] text-center disabled:opacity-50"
+                                className="w-16 px-2 py-1 text-[13px] text-center"
                               />
                               <span className="text-[11px] text-[#8A7D6B]">%</span>
                             </div>
                             <div className="text-[10px] text-[#8A7D6B] mt-1">
-                              {isBottom ? (t ? 'auto' : 'auto') : (t ? '↔ seuil' : '↔ threshold')}
+                              {t ? '↔ seuil' : '↔ threshold'}
                             </div>
                           </div>
                           <div>
