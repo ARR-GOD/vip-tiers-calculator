@@ -121,10 +121,14 @@ export function applyCsmDefaults(company, lang) {
   const config = {
     tierBasis: 'spend',
     hasMissions,
+    hasTiers: true,
     rewardType,
     pointsExpire: true,
     expirationMonths: 12,
     expirationType: 'rolling',
+    tiersExpire: true,
+    tierExpirationMonths: 12,
+    tierExpirationType: 'rolling',
   };
 
   const settings = {

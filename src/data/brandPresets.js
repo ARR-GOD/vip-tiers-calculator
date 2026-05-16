@@ -98,10 +98,14 @@ export function applyBrandDefaults(brandAnalysis, lang) {
   const config = {
     tierBasis: programCfg.tierBasis,
     hasMissions: programCfg.hasMissions,
+    hasTiers: true,
     rewardType: programCfg.rewardType,
     pointsExpire: true,
     expirationMonths: 12,
     expirationType: 'rolling',
+    tiersExpire: true,
+    tierExpirationMonths: 12,
+    tierExpirationType: 'rolling',
   };
 
   const settings = {
