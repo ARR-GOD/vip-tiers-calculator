@@ -111,11 +111,26 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     }));
   };
 
-  const totalFinancials = tierFinancials.reduce((acc, tf) => ({
-    rewardsCost: acc.rewardsCost + tf.rewardsCost,
-    grossProfit: acc.grossProfit + tf.grossProfit,
-    netProfit: acc.netProfit + tf.netProfit,
-  }), { rewardsCost: 0, grossProfit: 0, netProfit: 0 });
+  // Sets the utilization rate for ALL rewards assigned to this tier to the same
+  // value. Useful for quickly setting a baseline; individual rewards can still
+  // be tweaked afterwards via the per-row input.
+  const setTierAvgUtilization = (tierIdx, value) => {
+    const v = Math.max(0, Math.min(100, parseInt(value) || 0));
+    setRewards(prev => prev.map(r => {
+      if (!r.assignedTiers?.[tierIdx]) return r;
+      const util = [...(r.utilizationByTier || [])];
+      util[tierIdx] = v;
+      return { ...r, utilizationByTier: util };
+    }));
+  };
+
+  // Average utilization across rewards assigned to a tier (display value).
+  const getTierAvgUtilization = (tierIdx) => {
+    const assigned = rewards.filter(r => r.assignedTiers?.[tierIdx]);
+    if (assigned.length === 0) return 0;
+    const sum = assigned.reduce((s, r) => s + (r.utilizationByTier?.[tierIdx] ?? burnRate), 0);
+    return Math.round(sum / assigned.length);
+  };
 
   const maxRevenue = Math.max(...tierStats.map(s => s?.revenue || 0), 1);
 
@@ -281,74 +296,110 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       </div>
                     </div>
 
-                    {/* Tier config inputs — bidirectional threshold ↔ % */}
+                    {/* Tier config inputs — bidirectional threshold ↔ % ; spend ↔ orders via AOV */}
                     {(() => {
                       const basis = config.tierBasis;
-                      const thrKey = basis === 'orders' ? 'orderThreshold' : basis === 'points' ? 'pointsThreshold' : 'spendThreshold';
-                      const thrValue = tier[thrKey] ?? 0;
-                      const unit = basis === 'orders' ? (t ? 'cmd' : 'orders') : basis === 'points' ? 'pts' : '€';
-                      const thrLabel = t
-                        ? (basis === 'orders' ? "Seuil (commandes)" : basis === 'points' ? 'Seuil (points)' : "Seuil d'entrée (€)")
-                        : (basis === 'orders' ? 'Threshold (orders)' : basis === 'points' ? 'Threshold (points)' : 'Entry threshold (€)');
+                      const aov = settings.aov || 60;
+                      const spendVal = tier.spendThreshold ?? 0;
+                      const ordersVal = tier.orderThreshold ?? 0;
+                      const pointsVal = tier.pointsThreshold ?? 0;
+                      const activeKey = basis === 'orders' ? 'orderThreshold' : basis === 'points' ? 'pointsThreshold' : 'spendThreshold';
+                      const activeValue = tier[activeKey] ?? 0;
                       const qualifying = (() => {
                         if (!customers || customers.length === 0) return 0;
                         let count = 0;
                         for (const c of customers) {
-                          if (metricForBasis(c, basis, pointsPerEuro) >= thrValue) count++;
+                          if (metricForBasis(c, basis, pointsPerEuro) >= activeValue) count++;
                         }
                         return count;
                       })();
                       const pctValue = stat?.percentage || 0;
+
+                      // Sync helpers — editing one threshold updates the others
+                      const setAllThresholds = ({ spend, orders, points }) => {
+                        setTiers(prev => prev.map((tt, i) => i === tierIdx ? { ...tt, spendThreshold: spend, orderThreshold: orders, pointsThreshold: points } : tt));
+                      };
+                      const handleSpendChange = (val) => {
+                        const s = Math.max(0, parseFloat(val) || 0);
+                        const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
+                        const p = Math.max(0, Math.round(s * pointsPerEuro));
+                        setAllThresholds({ spend: s, orders: o, points: p });
+                      };
+                      const handleOrdersChange = (val) => {
+                        const o = Math.max(0, parseInt(val) || 0);
+                        const s = aov > 0 ? Math.max(0, Math.round(o * aov)) : spendVal;
+                        const p = Math.max(0, Math.round(s * pointsPerEuro));
+                        setAllThresholds({ spend: s, orders: o, points: p });
+                      };
+                      const handlePointsChange = (val) => {
+                        const p = Math.max(0, parseFloat(val) || 0);
+                        const s = pointsPerEuro > 0 ? Math.max(0, Math.round(p / pointsPerEuro)) : spendVal;
+                        const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
+                        setAllThresholds({ spend: s, orders: o, points: p });
+                      };
+
+                      const ThresholdField = ({ label, value, onChange, unit, isActive, step }) => (
+                        <div>
+                          <label className={`text-[11px] mb-1 block ${isActive ? 'font-semibold text-primary' : 'text-[#8A7D6B]'}`}>
+                            {label}{isActive && <span className="ml-1 text-[9px] uppercase">{t ? 'actif' : 'active'}</span>}
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number" value={value} min={0} step={step}
+                              onChange={e => onChange(e.target.value)}
+                              className={`w-20 px-2 py-1 text-[13px] text-center ${isActive ? 'ring-1 ring-primary' : ''}`}
+                            />
+                            <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
+                          </div>
+                        </div>
+                      );
+
                       return (
-                        <div className="mt-4 pt-4 border-t border-[#D9D5CB] grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">{thrLabel}</label>
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                value={thrValue}
-                                min={0}
-                                step={basis === 'orders' ? 1 : basis === 'points' ? 100 : 50}
-                                onChange={e => updateTier(tierIdx, thrKey, basis === 'orders' ? Math.max(0, parseInt(e.target.value) || 0) : parseFloat(e.target.value) || 0)}
-                                className="w-20 px-2 py-1 text-[13px] text-center"
+                        <div className="mt-4 pt-4 border-t border-[#D9D5CB] space-y-3">
+                          <div className={`grid gap-3 ${basis === 'points' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                            <ThresholdField
+                              label={t ? 'Seuil (€)' : 'Spend (€)'}
+                              value={spendVal} onChange={handleSpendChange} unit="€" step={50}
+                              isActive={basis === 'spend'}
+                            />
+                            <ThresholdField
+                              label={t ? 'Seuil (cmd)' : 'Orders (#)'}
+                              value={ordersVal} onChange={handleOrdersChange} unit={t ? 'cmd' : 'orders'} step={1}
+                              isActive={basis === 'orders'}
+                            />
+                            {basis === 'points' && (
+                              <ThresholdField
+                                label={t ? 'Seuil (pts)' : 'Points'}
+                                value={pointsVal} onChange={handlePointsChange} unit="pts" step={100}
+                                isActive={true}
                               />
-                              <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
+                            )}
+                            <div>
+                              <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? '% de clients' : '% of customers'}</label>
+                              <div className="flex items-center gap-1">
+                                <input type="number" min={0} max={100} step={1}
+                                  value={Math.round(pctValue * 10) / 10}
+                                  onChange={e => {
+                                    const v = parseFloat(e.target.value);
+                                    if (!isNaN(v)) updateTierByPct(tierIdx, Math.max(0, Math.min(100, v)));
+                                  }}
+                                  className="w-16 px-2 py-1 text-[13px] text-center" />
+                                <span className="text-[11px] text-[#8A7D6B]">%</span>
+                              </div>
+                              <div className="text-[10px] text-[#8A7D6B] mt-1">{t ? '↔ seuil actif' : '↔ active threshold'}</div>
                             </div>
-                            <div className="text-[10px] text-[#8A7D6B] mt-1">
-                              {t ? `${formatNumber(qualifying)} qualifiés` : `${formatNumber(qualifying)} qualifying`}
+                            <div>
+                              <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
+                              <div className="flex items-center gap-1">
+                                <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
+                                  onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
+                                  className="w-16 px-2 py-1 text-[13px] text-center" />
+                                <span className="text-[11px] text-[#8A7D6B]">&times;</span>
+                              </div>
                             </div>
                           </div>
-                          <div>
-                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">
-                              {t ? '% de clients' : '% of customers'}
-                            </label>
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={Math.round(pctValue * 10) / 10}
-                                onChange={e => {
-                                  const v = parseFloat(e.target.value);
-                                  if (!isNaN(v)) updateTierByPct(tierIdx, Math.max(0, Math.min(100, v)));
-                                }}
-                                className="w-16 px-2 py-1 text-[13px] text-center"
-                              />
-                              <span className="text-[11px] text-[#8A7D6B]">%</span>
-                            </div>
-                            <div className="text-[10px] text-[#8A7D6B] mt-1">
-                              {t ? '↔ seuil' : '↔ threshold'}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
-                            <div className="flex items-center gap-1">
-                              <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
-                                onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
-                                className="w-16 px-2 py-1 text-[13px] text-center" />
-                              <span className="text-[11px] text-[#8A7D6B]">&times;</span>
-                            </div>
+                          <div className="text-[10px] text-[#8A7D6B]">
+                            {t ? `${formatNumber(qualifying)} clients qualifiés (sur la métrique active "${basis === 'orders' ? 'commandes' : basis === 'points' ? 'points' : 'dépenses'}"). Les seuils sont synchronisés via l'AOV (${aov}€).` : `${formatNumber(qualifying)} qualifying customers (on active metric "${basis}"). Thresholds are synced via AOV (${aov}€).`}
                           </div>
                         </div>
                       );
@@ -395,8 +446,22 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
                   {/* Rewards assignment */}
                   <div style={{ padding: '12px 24px', backgroundColor: '#EEEDE6', borderTop: '1px solid #D9D5CB', margin: '16px -24px -20px -24px' }}>
-                    <div className="section-header" style={{ marginBottom: 8, fontSize: 11 }}>
-                      {t ? 'RÉCOMPENSES' : 'REWARDS'}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="section-header" style={{ marginBottom: 0, fontSize: 11 }}>
+                        {t ? 'RÉCOMPENSES' : 'REWARDS'}
+                      </div>
+                      {rewards.some(r => r.assignedTiers?.[tierIdx]) && (
+                        <div className="flex items-center gap-1">
+                          <label className="text-[10px] text-[#8A7D6B]">{t ? 'Utilisation moyenne' : 'Avg utilization'}</label>
+                          <input type="number" min={0} max={100}
+                            value={getTierAvgUtilization(tierIdx)}
+                            onChange={e => setTierAvgUtilization(tierIdx, e.target.value)}
+                            className="w-12 px-1 py-0.5 text-[10px] text-center"
+                            title={t ? 'Applique cette valeur à toutes les récompenses du palier' : 'Apply this value to all rewards in this tier'}
+                          />
+                          <span className="text-[9px] text-[#8A7D6B]">%</span>
+                        </div>
+                      )}
                     </div>
                     {rewards.map(reward => {
                       const isAssigned = reward.assignedTiers?.[tierIdx] || false;
@@ -466,32 +531,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
               ))}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Total row */}
-      <div>
-        <div className="section-header">{t ? 'TOTAL PROGRAMME / AN' : 'PROGRAM TOTAL / YR'}</div>
-        <div className="card">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center">
-              <div className="section-subheader">{t ? 'COÛT TOTAL' : 'TOTAL COST'}</div>
-              <div className="text-[28px] font-bold text-[#DC2626]">-{formatCurrency(totalFinancials.rewardsCost)}</div>
-              <div className="text-[12px] text-[#645648]">{t ? 'récompenses' : 'rewards'}</div>
-            </div>
-            <div className="text-center">
-              <div className="section-subheader">{t ? 'MARGE BRUTE' : 'GROSS PROFIT'}</div>
-              <div className="text-[28px] font-bold text-[#52473C]">{formatCurrency(totalFinancials.grossProfit)}</div>
-              <div className="text-[12px] text-[#645648]">{t ? `CA membres × ${settings.grossMargin}%` : `Member CA × ${settings.grossMargin}%`}</div>
-            </div>
-            <div className="text-center">
-              <div className="section-subheader">{t ? 'PROFIT NET' : 'NET PROFIT'}</div>
-              <div className={`text-[28px] font-bold ${totalFinancials.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
-                {totalFinancials.netProfit >= 0 ? '+' : ''}{formatCurrency(totalFinancials.netProfit)}
-              </div>
-              <div className="text-[12px] text-[#645648]">{t ? 'marge − coût' : 'margin − cost'}</div>
-            </div>
-          </div>
         </div>
       </div>
 
