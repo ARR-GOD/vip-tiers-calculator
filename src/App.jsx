@@ -387,7 +387,7 @@ function App() {
   return (
     <div className="min-h-screen bg-surface flex flex-col">
       {/* ─── Navbar ─── */}
-      <header className="sticky top-0 z-40" style={{ height: 56, backgroundColor: '#2B251F' }}>
+      <header className="sticky top-0 z-40" style={{ height: 60, backgroundColor: '#2B251F' }}>
         <div className="max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
@@ -395,20 +395,20 @@ function App() {
           </div>
           <div className="flex items-center gap-1">
             <button onClick={copyShareableLink}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
               title={t ? 'Copier le lien' : 'Copy link'}>
               <Link2 size={15} />
             </button>
             <button onClick={() => setLang(l => l === 'fr' ? 'en' : 'fr')}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
               <Globe size={15} />
             </button>
             <button onClick={reset}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
               <RotateCcw size={15} />
             </button>
             {/* User avatar + logout */}
-            <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.15)' }}>
+            <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
               {user.picture && (
                 <img src={user.picture} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
               )}
@@ -425,20 +425,20 @@ function App() {
 
       {/* ─── CSM Client banner ─── */}
       {phase === 'wizard' && csmMode && selectedClient && (
-        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1400px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #E5E1D8' }}>
+          <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center gap-4 text-[12px]">
             <Building2 size={14} className="text-primary shrink-0" />
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>CLIENT</span>
-            <span className="text-[#52473C] font-semibold">{selectedClient.name}</span>
+            <span className="text-[#2B251F] font-semibold whitespace-nowrap">{selectedClient.name}</span>
             {selectedClient.domain && (
               <>
-                <span className="text-[#8A7D6B]">|</span>
-                <span className="text-[#645648]">{selectedClient.domain}</span>
+                <span className="text-[#B0A595]">|</span>
+                <span className="text-[#52473C] whitespace-nowrap">{selectedClient.domain}</span>
               </>
             )}
             {selectedClient.plan && (
               <>
-                <span className="text-[#8A7D6B]">|</span>
+                <span className="text-[#B0A595]">|</span>
                 <span className="pill pill-purple text-[10px]">{selectedClient.plan}</span>
               </>
             )}
@@ -472,14 +472,14 @@ function App() {
         />
       )}
       {phase === 'wizard' && step > 1 && !csmMode && !brandAnalysis && onboardingAnswers && (
-        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1400px] mx-auto px-6 py-2 flex items-center gap-4 text-[12px]">
+        <div style={{ backgroundColor: '#E8EFFE', borderBottom: '1px solid #E5E1D8' }}>
+          <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center gap-4 text-[12px]">
             <span className="section-subheader" style={{ marginBottom: 0, fontSize: 10 }}>{t ? 'PROGRAMME' : 'PROGRAM'}</span>
-            <span className="text-[#645648]">{onboardingAnswers.industry}</span>
-            <span className="text-[#8A7D6B]">|</span>
-            <span className="text-[#645648]">{onboardingAnswers.priceRange}</span>
-            <span className="text-[#8A7D6B]">|</span>
-            <span className="text-[#645648]">{onboardingAnswers.goals?.join(', ')}</span>
+            <span className="text-[#52473C] whitespace-nowrap">{onboardingAnswers.industry}</span>
+            <span className="text-[#B0A595]">|</span>
+            <span className="text-[#52473C] whitespace-nowrap">{onboardingAnswers.priceRange}</span>
+            <span className="text-[#B0A595]">|</span>
+            <span className="text-[#52473C] whitespace-nowrap">{onboardingAnswers.goals?.join(', ')}</span>
             <div className="ml-auto flex items-center gap-3">
               {savedAt && (
                 <span className="text-[11px] text-[#059669] inline-flex items-center gap-1">
@@ -508,10 +508,10 @@ function App() {
         </div>
       )}
 
-      {/* ─── Step Tabs ─── */}
+      {/* ─── Step Tabs (underline indicator + progress bar) ─── */}
       {phase === 'wizard' && (
-        <nav className="sticky top-[57px] z-30" style={{ backgroundColor: '#EEEDE6', borderBottom: '1px solid #D9D5CB' }}>
-          <div className="max-w-[1400px] mx-auto px-6 flex items-center gap-1 overflow-x-auto py-2 tier-scroll" style={{ scrollbarWidth: 'none' }}>
+        <nav className="sticky top-[61px] z-30 relative" style={{ backgroundColor: '#F5F4F0', borderBottom: '1px solid #E5E1D8' }}>
+          <div className="max-w-[1400px] mx-auto px-6 flex items-center gap-1 overflow-x-auto tier-scroll" style={{ scrollbarWidth: 'none' }}>
             {STEPS.map((s) => {
               const isActive = step === s.id;
               const isVisited = visitedSteps.has(s.id) && !isActive;
@@ -519,22 +519,29 @@ function App() {
                 <button
                   key={s.id}
                   onClick={() => setStep(s.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap transition-all shrink-0 ${
+                  className={`relative flex items-center gap-1.5 px-3.5 py-3 text-[13px] whitespace-nowrap transition-colors shrink-0 ${
                     isActive
-                      ? 'bg-primary text-white'
+                      ? 'text-[#2B251F] font-semibold'
                       : isVisited
-                        ? 'text-[#059669] hover:bg-[#E5E1D8]'
-                        : 'text-[#8A7D6B] hover:bg-[#E5E1D8]'
+                        ? 'text-[#059669] font-medium'
+                        : 'text-[#8A7D6B] font-medium hover:text-[#52473C]'
                   }`}
-                  style={!isActive ? { backgroundColor: 'transparent' } : undefined}
                 >
-                  {isVisited && !isActive && <Check size={12} className="text-[#059669]" />}
-                  <span className="text-[11px] font-normal" style={{ color: isActive ? 'rgba(255,255,255,0.7)' : '#8A7D6B' }}>{s.id + 1}.</span>
+                  {isVisited && !isActive && <Check size={12} />}
+                  <span className="text-[11px] font-normal opacity-60">{s.id + 1}.</span>
                   {t ? s.labelFr : s.labelEn}
+                  {isActive && (
+                    <span className="absolute left-3.5 right-3.5 -bottom-px h-[2px] bg-primary rounded-sm" />
+                  )}
                 </button>
               );
             })}
           </div>
+          {/* Subtle progression bar — fills as more steps are visited */}
+          <div
+            className="absolute bottom-0 left-0 h-[2px] bg-primary/40 transition-all duration-300 pointer-events-none"
+            style={{ width: `${Math.min(100, (visitedSteps.size / STEPS.length) * 100)}%` }}
+          />
         </nav>
       )}
 
