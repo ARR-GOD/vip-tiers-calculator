@@ -3,10 +3,8 @@ import { Plus, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defaults';
 import { formatCurrency, formatNumber } from '../utils/calculations';
-import RecommendationBlock from './RecommendationBlock';
-import { getRecommendation } from '../utils/recommendations';
 
-export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, customers, onNext }) {
+export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, clientName, customers, onNext }) {
   const t = lang === 'fr';
 
   const [showCatalog, setShowCatalog] = useState(false);
@@ -100,8 +98,6 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
           )}
         </div>
       </div>
-
-      {(() => { const reco = getRecommendation(4, { brandAnalysis, config, settings, customers, lang }); return <RecommendationBlock stepKey={4} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />; })()}
 
       {/* Rewards table */}
       <div className="card overflow-hidden">

@@ -4,8 +4,6 @@ import Tooltip from './Tooltip';
 import BenchmarkBadge, { BenchmarkBar } from './BenchmarkBadge';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { BENCHMARKS } from '../data/benchmarks';
-import RecommendationBlock from './RecommendationBlock';
-import { getRecommendation } from '../utils/recommendations';
 
 export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onNext }) {
   const t = lang === 'fr' ? FR : EN;
@@ -32,8 +30,6 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
 
   const update = (key, val) => setConfig(prev => ({ ...prev, [key]: val }));
 
-  const reco = getRecommendation(2, { brandAnalysis, config, settings, customers, lang: lang === 'fr' ? 'fr' : 'en' });
-
   const totalRevenue = customers.reduce((s, c) => s + c.total_ordered_TTC, 0);
   const activeCustomers = customers.filter(c => c.total_ordered_TTC > 0).length;
 
@@ -44,8 +40,6 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <h2 className="text-[28px] font-bold text-[#52473C]">{t.title}</h2>
         <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
       </div>
-
-      <RecommendationBlock stepKey={2} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* ─── Points Toggle (Change 2) ─── */}
       <div>

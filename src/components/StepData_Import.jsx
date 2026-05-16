@@ -4,8 +4,6 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { parseSampleData } from '../data/sampleData';
 import { formatCurrency, formatNumber } from '../utils/calculations';
-import RecommendationBlock from './RecommendationBlock';
-import { getRecommendation } from '../utils/recommendations';
 
 // Handles French/European number formats: "214,88", "39 591 758,20", "1.234,56"
 function parseEuroNumber(value) {
@@ -259,8 +257,6 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
   const [mapping, setMapping] = useState(null);     // { id, revenue, orders }
   const [autoSource, setAutoSource] = useState(null); // 'alias' | 'detection' | 'mixed' | null
 
-  const reco = getRecommendation(1, { brandAnalysis, config, settings, customers, lang });
-
   // Keep customers in sync with (rawImport, mapping). Re-runs when user edits mapping.
   useEffect(() => {
     if (!rawImport || !mapping) return;
@@ -383,8 +379,6 @@ export default function StepData_Import({ customers, setCustomers, lang, brandAn
           {t ? 'Chargez votre fichier pour des projections basées sur vos vrais clients.' : 'Upload your file for projections based on your real customers.'}
         </p>
       </div>
-
-      <RecommendationBlock stepKey={1} brandName={brandAnalysis?.brand_name} body={reco?.body} lang={lang} />
 
       {/* Upload Zone */}
       <div

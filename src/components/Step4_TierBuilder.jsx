@@ -4,8 +4,6 @@ import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
 import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
-import RecommendationBlock from './RecommendationBlock';
-import { getRecommendation } from '../utils/recommendations';
 
 const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED'];
 
@@ -158,8 +156,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     el.scrollTo({ left: idx * cardW, behavior: 'smooth' });
   };
 
-  const reco = getRecommendation(5, { brandAnalysis, config, settings, customers, lang });
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -179,8 +175,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
           <BenchmarkBadge benchmarkKey="tierCount" value={tiers.length} lang={lang} />
         </div>
       </div>
-
-      <RecommendationBlock stepKey={5} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* Burn rate */}
       <div className="card flex items-center gap-4" style={{ padding: 16 }}>

@@ -5,9 +5,6 @@ import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import { computeCustomerScores, assignTiers, computeTierStats, computeRewardsCost, computeProgramFunnel, compute12MonthProjection, computeTierFinancials, computeReferralEconomics, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/calculations';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
-import RecommendationBlock from './RecommendationBlock';
-import FirefliesInsightBanner from './FirefliesInsightBanner';
-import { getRecommendation } from '../utils/recommendations';
 
 const SCENARIO_MULTIPLIERS = { conservative: 0.6, base: 1, optimistic: 1.4 };
 
@@ -160,8 +157,6 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
   const effectiveType = programType || (config.hasMissions ? 'mid' : 'luxury');
   const tip = DIFFERENTIATION_TIPS[effectiveType] || DIFFERENTIATION_TIPS.mid;
 
-  const reco = getRecommendation(6, { brandAnalysis, config, settings, customers, lang });
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -175,8 +170,6 @@ export default function Step5_Dashboard({ tiers, customers, settings, config, mi
           <button onClick={exportPNG} className="btn-secondary"><Image size={13} /> PNG</button>
         </div>
       </div>
-
-      <RecommendationBlock stepKey={6} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* Scenario */}
       <div className="card flex items-center gap-3" style={{ padding: 16 }}>

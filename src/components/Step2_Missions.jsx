@@ -4,10 +4,7 @@ import Tooltip from './Tooltip';
 import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatNumber, formatCompact, derivePointsFromCashback } from '../utils/calculations';
 import { BENCHMARKS } from '../data/benchmarks';
 import { ENGAGEMENT_SCENARIOS, MISSION_CATALOG } from '../data/defaults';
-import RecommendationBlock from './RecommendationBlock';
-import { getRecommendation } from '../utils/recommendations';
 import StepReferral from './StepReferral';
-import FirefliesInsightBanner from './FirefliesInsightBanner';
 
 export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, config, lang, burnRate, brandAnalysis, clientName, referralConfig, setReferralConfig, firefliesInsights, onNext }) {
   const t = lang === 'fr';
@@ -103,8 +100,6 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
     });
   }, [tiers, tierStats, missionsByTier, settings.cashbackRate, pointsPerEuro, burnRate]);
 
-  const reco = getRecommendation(3, { brandAnalysis, config, settings, customers, lang });
-
   // ── LUXURY PLACEHOLDER ──
   if (!config.hasMissions) {
     return (
@@ -178,8 +173,6 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
           )}
         </div>
       </div>
-
-      <RecommendationBlock stepKey={3} brandName={brandAnalysis?.brand_name} clientName={clientName} body={reco?.body} lang={lang} />
 
       {/* Scenario */}
       <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
