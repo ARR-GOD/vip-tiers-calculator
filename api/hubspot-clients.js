@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const { ownerId, search } = req.query;
-  if (!ownerId) return res.status(400).json({ error: 'ownerId required' });
+  // ownerId is now optional — when absent, return clients across all CSMs
 
   const HUBSPOT_API_KEY = process.env.HUBSPOT_API_KEY;
   if (!HUBSPOT_API_KEY) {
@@ -29,16 +29,20 @@ export default async function handler(req, res) {
     // Paginate to fetch all clients for this CSM (max 200 per page, up to 5 pages)
     while (hasMore) {
       const body = {
-        filterGroups: [{
-          filters: [
-            { propertyName: 'proprietaire_de_l_entreprise__csm_', operator: 'EQ', value: ownerId },
-          ],
-        }],
         properties,
         limit: 200,
         after,
         sorts: [{ propertyName: 'name', direction: 'ASCENDING' }],
       };
+
+      // Filter by CSM owner only when ownerId is provided
+      if (ownerId) {
+        body.filterGroups = [{
+          filters: [
+            { propertyName: 'proprietaire_de_l_entreprise__csm_', operator: 'EQ', value: ownerId },
+          ],
+        }];
+      }
 
       // If a search term is provided, add it as a HubSpot query
       if (search) {
@@ -78,7 +82,7 @@ export default async function handler(req, res) {
       name: r.properties.name || '',
       domain: r.properties.domain || '',
       annualRevenue: parseFloat(r.properties.annualrevenue) || 0,
-      mrrCsm: parseFloat(r.properties.mrr_csm) || 0,
+      mrrCsm: parseFloat(r.properties.mrr_csm) || Math.round((parseFloat(r.properties.annualrevenue) || 0) / 12),
       plan: r.properties.plan || '',
       industry: r.properties.industry || r.properties.industries || r.properties.vertical || '',
       platform: r.properties.sl_platform || '',

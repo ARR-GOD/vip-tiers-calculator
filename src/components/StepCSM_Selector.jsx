@@ -4,15 +4,12 @@ import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building
 const FR = {
   title: 'Sélection client',
   subtitle: 'Choisissez un client HubSpot pour pré-remplir le configurateur VIP.',
-  csmLabel: 'CSM',
-  csmPlaceholder: 'Sélectionner un CSM...',
   searchPlaceholder: 'Rechercher un client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
   allPlans: 'Tous',
   clientsCount: (shown, total) => `${shown} / ${total} clients`,
   manualLink: 'Configurer manuellement',
-  loading: 'Chargement des CSM...',
   loadingClients: 'Chargement des clients...',
   loadingDetails: 'Chargement des données client...',
   noClients: 'Aucun client trouvé',
@@ -26,15 +23,12 @@ const FR = {
 const EN = {
   title: 'Client selection',
   subtitle: 'Pick a HubSpot client to pre-fill the VIP configurator.',
-  csmLabel: 'CSM',
-  csmPlaceholder: 'Select a CSM...',
   searchPlaceholder: 'Search for a client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
   allPlans: 'All',
   clientsCount: (shown, total) => `${shown} / ${total} clients`,
   manualLink: 'Configure manually',
-  loading: 'Loading CSMs...',
   loadingClients: 'Loading clients...',
   loadingDetails: 'Loading client data...',
   noClients: 'No clients found',
@@ -58,60 +52,26 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
 
-  const [owners, setOwners] = useState([]);
-  const [selectedOwner, setSelectedOwner] = useState(null);
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('alpha'); // 'alpha' | 'mrr'
   const [planFilter, setPlanFilter] = useState('Tous');
-  const [phase, setPhase] = useState('loading'); // 'loading' | 'ready' | 'loading_clients' | 'loading_details' | 'error'
+  const [phase, setPhase] = useState('loading_clients'); // 'loading_clients' | 'ready' | 'loading_details' | 'error'
   const [error, setError] = useState('');
   const [loadingClientId, setLoadingClientId] = useState(null);
 
-  // Load owners on mount
+  // Load all clients on mount (no CSM filter)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/hubspot-owners');
+        const res = await fetch('/api/hubspot-clients');
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.code === 'NO_API_KEY' || res.status === 503) {
             onHubSpotUnavailable();
             return;
           }
-          throw new Error(data.error || `Error ${res.status}`);
-        }
-        const data = await res.json();
-        if (!cancelled) {
-          setOwners(data);
-          setPhase('ready');
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message);
-          setPhase('error');
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [onHubSpotUnavailable]);
-
-  // Load clients when owner changes
-  useEffect(() => {
-    if (!selectedOwner) {
-      setClients([]);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setPhase('loading_clients');
-      setSearch('');
-      setPlanFilter('Tous');
-      try {
-        const res = await fetch(`/api/hubspot-clients?ownerId=${selectedOwner.id}`);
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `Error ${res.status}`);
         }
         const data = await res.json();
@@ -127,7 +87,7 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedOwner]);
+  }, [onHubSpotUnavailable]);
 
   // Filter + sort clients
   const filteredClients = useMemo(() => {
@@ -177,16 +137,6 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     }
   };
 
-  // Loading state
-  if (phase === 'loading') {
-    return (
-      <div className="max-w-2xl mx-auto text-center py-20">
-        <Loader2 size={32} className="animate-spin mx-auto text-primary mb-4" />
-        <p className="text-[14px] text-[#645648]">{t.loading}</p>
-      </div>
-    );
-  }
-
   // Error state
   if (phase === 'error') {
     return (
@@ -217,30 +167,8 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
         <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
       </div>
 
-      {/* CSM Dropdown */}
-      <div className="mb-5">
-        <label className="section-subheader">{t.csmLabel}</label>
-        <div className="relative">
-          <select
-            value={selectedOwner?.id || ''}
-            onChange={(e) => {
-              const owner = owners.find(o => o.id === e.target.value);
-              setSelectedOwner(owner || null);
-            }}
-            className="w-full h-10 px-3 pr-8 rounded-lg border border-[#D9D5CB] bg-[#EEEDE6] text-[14px] text-[#52473C] appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <option value="">{t.csmPlaceholder}</option>
-            {owners.map(o => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7D6B] pointer-events-none" />
-        </div>
-      </div>
-
       {/* Client list area */}
-      {selectedOwner && (
-        <div className="card">
+      <div className="card">
           {phase === 'loading_clients' ? (
             <div className="text-center py-12">
               <Loader2 size={24} className="animate-spin mx-auto text-primary mb-3" />
@@ -359,7 +287,6 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
             </>
           )}
         </div>
-      )}
 
       {/* Manual fallback */}
       <div className="mt-6 text-center">
