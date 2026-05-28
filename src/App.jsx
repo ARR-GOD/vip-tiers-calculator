@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
@@ -239,6 +239,18 @@ function App() {
   const [savedAt, setSavedAt] = useState(null);
   const [shareToast, setShareToast] = useState(null); // success/error toast for save ops
 
+  // Latest-state ref so the beforeunload listener always reads the freshest
+  // values (avoids stale closure capture).
+  const latestStateRef = useRef(null);
+  useEffect(() => {
+    latestStateRef.current = {
+      config, settings, tiers, rewards, missions, customMissions,
+      burnRate, referralConfig, onboardingAnswers,
+      selectedClient, customers, step,
+    };
+  });
+
+  // Debounced auto-save on every change (250 ms).
   useEffect(() => {
     if (phase !== 'wizard') return;
     const handle = setTimeout(() => {
@@ -248,11 +260,30 @@ function App() {
         selectedClient, customers, step,
       });
       if (res.ok) setSavedAt(res.savedAt);
-    }, 600); // debounce
+    }, 250);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, config, settings, tiers, rewards, missions, customMissions,
       burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
+
+  // Synchronous flush on tab close / navigation / refresh — guarantees
+  // last-second edits (reward utilization, tier threshold, etc.) reach
+  // localStorage even if the user moves on within the 250 ms debounce.
+  useEffect(() => {
+    if (phase !== 'wizard') return;
+    const flush = () => {
+      if (latestStateRef.current) saveDraft(latestStateRef.current);
+    };
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [phase]);
 
   // Restore a saved draft (called from the CSM selector).
   const restoreDraft = useCallback((draft) => {
