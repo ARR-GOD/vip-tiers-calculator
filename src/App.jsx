@@ -314,35 +314,9 @@ function App() {
     requestAnimationFrame(scrollToTop);
   }, [scrollToTop]);
 
-  // Wheel-driven step navigation: when the user keeps scrolling past the bottom
-  // (or above the top) of the current step's content, advance / go back.
-  // Throttled to one step per ~800ms so trackpad inertia doesn't skip rows.
-  useEffect(() => {
-    if (phase !== 'wizard') return;
-    let throttled = false;
-    let pendingTimer = null;
-    const onWheel = (e) => {
-      if (throttled) return;
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const y = window.scrollY;
-      const atBottom = max - y < 4;
-      const atTop = y < 4;
-      if (e.deltaY > 30 && atBottom) {
-        throttled = true;
-        goNext();
-        pendingTimer = setTimeout(() => { throttled = false; }, 900);
-      } else if (e.deltaY < -30 && atTop) {
-        throttled = true;
-        goPrev();
-        pendingTimer = setTimeout(() => { throttled = false; }, 900);
-      }
-    };
-    window.addEventListener('wheel', onWheel, { passive: true });
-    return () => {
-      window.removeEventListener('wheel', onWheel);
-      if (pendingTimer) clearTimeout(pendingTimer);
-    };
-  }, [phase, goNext, goPrev]);
+  // Step navigation is click-only (Précédent / Suivant buttons + tabs).
+  // Earlier prototype with wheel-driven advance was removed — it conflicted
+  // with normal page scroll on long steps (Dashboard, TierBuilder).
 
   const copyShareableLink = () => {
     const state = { config, settings, tiers, onboardingAnswers };
