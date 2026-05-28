@@ -522,23 +522,29 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       <div className="section-header" style={{ marginBottom: 8, fontSize: 11 }}>
                         {t ? 'FINANCES / AN' : 'FINANCIALS / YR'}
                       </div>
-                      <div className="space-y-1 text-[12px]">
-                        <div className="flex justify-between">
-                          <span className="text-[#8A7D6B]">{t ? 'Coût rewards' : 'Rewards cost'}</span>
-                          <span className="font-medium text-[#DC2626] tabular-nums" title={formatCurrency(fin.rewardsCost)}>-{formatCompact(fin.rewardsCost)}€</span>
+                      {fin.hasRewards ? (
+                        <div className="space-y-1 text-[12px]">
+                          <div className="flex justify-between">
+                            <span className="text-[#8A7D6B]">{t ? 'Coût rewards' : 'Rewards cost'}</span>
+                            <span className="font-medium text-[#DC2626] tabular-nums" title={formatCurrency(fin.rewardsCost)}>-{formatCompact(fin.rewardsCost)}€</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#8A7D6B]">{t ? 'Marge brute' : 'Gross profit'}</span>
+                            <span className="font-medium text-[#645648] tabular-nums" title={formatCurrency(fin.grossProfit)}>{formatCompact(fin.grossProfit)}€</span>
+                          </div>
+                          <div className="flex justify-between pt-1.5 border-t border-[#D9D5CB]">
+                            <span className="font-medium text-[#645648]">{t ? 'Profit net' : 'Net profit'}</span>
+                            <span className={`font-bold tabular-nums ${fin.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}
+                              title={formatCurrency(fin.netProfit)}>
+                              {fin.netProfit >= 0 ? '+' : ''}{formatCompact(fin.netProfit)}€
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#8A7D6B]">{t ? 'Marge brute' : 'Gross profit'}</span>
-                          <span className="font-medium text-[#645648] tabular-nums" title={formatCurrency(fin.grossProfit)}>{formatCompact(fin.grossProfit)}€</span>
+                      ) : (
+                        <div className="text-[11px] text-[#8A7D6B] italic">
+                          {t ? 'Aucune récompense assignée — assigne-en au moins une pour voir le P&L du palier.' : 'No reward assigned — assign at least one to see the tier P&L.'}
                         </div>
-                        <div className="flex justify-between pt-1.5 border-t border-[#D9D5CB]">
-                          <span className="font-medium text-[#645648]">{t ? 'Profit net' : 'Net profit'}</span>
-                          <span className={`font-bold tabular-nums ${fin.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}
-                            title={formatCurrency(fin.netProfit)}>
-                            {fin.netProfit >= 0 ? '+' : ''}{formatCompact(fin.netProfit)}€
-                          </span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>

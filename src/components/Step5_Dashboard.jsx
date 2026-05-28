@@ -89,14 +89,18 @@ export default function Step5_Dashboard({
     () => computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, activeMult),
     [tierStats, missions, customMissions, rewards, settings, tiers, activeMult]
   );
-  const realCostPerBurnedPoint = pointsEconomy.totalBurned > 0
-    ? activeFunnel.burnCost / pointsEconomy.totalBurned
-    : 0;
 
   // Two ways to value the dormant points (the outstanding liability):
   //   - faceValue: 1 pt = 1 / pointsPerEuro € (what the customer can redeem in face value)
   //   - realCost:  burnCost / totalBurned (what the company actually pays per point burned)
+  // Fallback: if no burn rewards are modeled (or 0 utilization), the modeled
+  // burn cost is 0 — in that case "real cost" is undefined and we fall back to
+  // face value so the column doesn't display a misleading 0€.
   const pointFaceValue = 1 / (settings.pointsPerEuro || 100);
+  const realCostPerBurnedPoint = (pointsEconomy.totalBurned > 0 && activeFunnel.burnCost > 0)
+    ? activeFunnel.burnCost / pointsEconomy.totalBurned
+    : pointFaceValue;
+  const realCostIsFallback = !(pointsEconomy.totalBurned > 0 && activeFunnel.burnCost > 0);
   const provisionFace = pointsEconomy.totalDormant * pointFaceValue;
   const provisionReal = pointsEconomy.totalDormant * realCostPerBurnedPoint;
 
@@ -391,7 +395,14 @@ export default function Step5_Dashboard({
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">
                       <div className="flex items-center gap-1 justify-end">
                         {t ? 'Coût réel €' : 'Real cost €'}
-                        <Tooltip text={t ? `Coût réel par point brûlé = coût burn modélisé / pts brûlés = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflète l'utilisation modélisée (utilization × paliers × rewards).` : `Real cost per burned point = modeled burn cost / pts burned = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflects modeled utilization (utilization × tiers × rewards).`} />
+                        <Tooltip text={t
+                          ? (realCostIsFallback
+                              ? `Aucune récompense burn n'est modélisée (ou utilisation à 0) — coût réel non calculable. Fallback : valeur faciale = ${formatCurrency(pointFaceValue)}/pt.`
+                              : `Coût réel par point brûlé = coût burn modélisé / pts brûlés = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflète l'utilisation modélisée (utilization × paliers × rewards).`)
+                          : (realCostIsFallback
+                              ? `No burn reward modeled (or 0 utilization) — real cost not derivable. Fallback: face value = ${formatCurrency(pointFaceValue)}/pt.`
+                              : `Real cost per burned point = modeled burn cost / pts burned = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflects modeled utilization (utilization × tiers × rewards).`)
+                        } />
                       </div>
                     </th>
                     <th className="text-left px-4 py-3 font-medium text-[#645648]">{t ? 'Commentaire' : 'Comment'}</th>

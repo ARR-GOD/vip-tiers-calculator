@@ -268,25 +268,28 @@ export function computeRewardsCost(rewards, burnRate, tierStats, tiers) {
 // ── Per-tier financial summary ──
 export function computeTierFinancials(tierIndex, tierStat, rewards, grossMargin, burnRate) {
   if (!tierStat || tierStat.count === 0) {
-    return { rewardsCost: 0, grossProfit: 0, netProfit: 0, roi: 0 };
+    return { rewardsCost: 0, grossProfit: 0, netProfit: 0, roi: 0, hasRewards: false };
   }
 
   let rewardsCost = 0;
+  let hasRewards = false;
   const normalized = rewards.map(r => normalizeReward(r, 4));
   normalized.forEach(reward => {
     if (!reward.assignedTiers?.[tierIndex]) return;
+    hasRewards = true;
     const utilization = (reward.utilizationByTier?.[tierIndex] ?? burnRate) / 100;
     rewardsCost += tierStat.count * reward.realCost * utilization;
   });
 
-  // Tier P&L view: gross margin on the tier's actual revenue. Incrementality
-  // attribution lives in the Dashboard (editable per scenario) — here we keep
-  // it simple: how much margin the tier produces vs how much it costs in rewards.
-  const grossProfit = (tierStat.revenue || 0) * (grossMargin / 100);
+  // Tier P&L view: only meaningful when there ARE rewards assigned to the tier.
+  // Without rewards, the program doesn't impact the tier — no marge brute nor
+  // profit net attributable. We zero them out so the UI doesn't suggest a
+  // misleading "marge brute" sitting next to a 0€ rewards cost.
+  const grossProfit = hasRewards ? (tierStat.revenue || 0) * (grossMargin / 100) : 0;
   const netProfit = grossProfit - rewardsCost;
   const roi = rewardsCost > 0 ? ((grossProfit - rewardsCost) / rewardsCost) * 100 : 0;
 
-  return { rewardsCost, grossProfit, netProfit, roi };
+  return { rewardsCost, grossProfit, netProfit, roi, hasRewards };
 }
 
 // ── Normalize reward: legacy minTier → assignedTiers ──

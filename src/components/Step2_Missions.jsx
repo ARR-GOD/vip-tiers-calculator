@@ -237,11 +237,20 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {isPurchase ? (
-                        <span className="text-[12px] text-[#645648]" title={`${settings.cashbackRate}% × ${settings.aov}€ × ${settings.pointsPerEuro || 100}pts/€`}>
-                          {purchasePts}
-                        </span>
-                      ) : (
+                      {isPurchase ? (() => {
+                        const pp = settings.pointsPerEuro || 100;
+                        const perEuro = (settings.cashbackRate * pp) / 100;
+                        return (
+                          <div className="flex flex-col items-center">
+                            <span className="text-[12px] font-medium text-[#52473C]" title={`${settings.cashbackRate}% × ${settings.aov}€ × ${pp} pts/€ ÷ 100 = ${purchasePts} pts par achat`}>
+                              {purchasePts}
+                            </span>
+                            <span className="text-[10px] text-[#8A7D6B]">
+                              {perEuro >= 1 ? `${perEuro.toFixed(perEuro >= 10 ? 0 : 1)} pts/€` : `${perEuro.toFixed(2)} pt/€`}
+                            </span>
+                          </div>
+                        );
+                      })() : (
                         <input type="number" value={m.points} min={0}
                           onChange={e => updateField(m.id, 'points', parseInt(e.target.value) || 0)}
                           className="w-20 px-1.5 py-0.5 text-[12px] text-center" />
