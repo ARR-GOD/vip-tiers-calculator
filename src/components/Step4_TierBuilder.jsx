@@ -378,10 +378,10 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                               value: ordersVal, onChange: handleOrdersChange, unit: t ? 'cmd' : 'orders',
                               isActive: basis === 'orders',
                             })}
-                            {basis === 'points' && renderThresholdField({
+                            {config.hasMissions && renderThresholdField({
                               label: t ? 'Seuil (pts)' : 'Points',
                               value: pointsVal, onChange: handlePointsChange, unit: 'pts',
-                              isActive: true,
+                              isActive: basis === 'points',
                             })}
                             <div>
                               <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? '% de clients' : '% of customers'}</label>
@@ -397,15 +397,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                                 <span className="text-[11px] text-[#8A7D6B]">%</span>
                               </div>
                               <div className="text-[10px] text-[#8A7D6B] mt-1">{t ? '↔ seuil actif' : '↔ active threshold'}</div>
-                            </div>
-                            <div>
-                              <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? 'Multiplicateur' : 'Multiplier'}</label>
-                              <div className="flex items-center gap-1">
-                                <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
-                                  onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
-                                  className="w-16 px-2 py-1 text-[13px] text-center" />
-                                <span className="text-[11px] text-[#8A7D6B]">&times;</span>
-                              </div>
                             </div>
                           </div>
                           <div className="text-[10px] text-[#8A7D6B]">
@@ -473,6 +464,20 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         </div>
                       )}
                     </div>
+                    {/* Points multiplier — a tier-level perk that boosts points earning */}
+                    {config.hasMissions && (
+                      <div className="flex items-center justify-between mb-2 px-2 py-1.5 rounded-lg bg-white border border-primary/30 shadow-[0_1px_2px_rgba(15,15,15,0.04)]">
+                        <span className="text-[11px] font-medium text-[#2B251F]" title={t ? 'Tous les achats des clients de ce palier rapportent X fois plus de points.' : 'All purchases in this tier earn X times more points.'}>
+                          {t ? '✨ Multiplicateur de points' : '✨ Points multiplier'}
+                        </span>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
+                            onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
+                            className="w-12 px-1 py-0 text-[11px] text-center" />
+                          <span className="text-[10px] text-[#8A7D6B]">×</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       {rewards.map(reward => {
                         const isAssigned = reward.assignedTiers?.[tierIdx] || false;

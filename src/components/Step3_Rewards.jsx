@@ -66,6 +66,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
       nameEn: item.nameEn,
       rewardUsage: item.rewardUsage,
       pointsCost: item.pointsCost,
+      pointsBonus: item.pointsBonus || 0,
       realCost: item.realCost,
       minPurchase: item.minPurchase,
       assignedTiers: [true, true, true],
@@ -75,6 +76,10 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
     // formula-derived value so it stays consistent with the brand's margin.
     const derived = derivePromoRealCost(seed, settings.grossMargin);
     if (derived !== null) seed.realCost = derived;
+    // For bonus_points rewards, realCost = pointsBonus / pointsPerEuro (face value).
+    if (item.type === 'bonus_points' && item.pointsBonus > 0) {
+      seed.realCost = Math.round((item.pointsBonus / (settings.pointsPerEuro || 100)) * 100) / 100;
+    }
     setRewards(prev => [...prev, seed]);
     setShowCatalog(false);
   };
@@ -90,6 +95,11 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
       if (r.type === 'promo_percent' && field !== 'realCost' && ['nameFr', 'nameEn', 'minPurchase'].includes(field)) {
         const derived = derivePromoRealCost(next, settings.grossMargin);
         if (derived !== null) next.realCost = derived;
+      }
+      // For bonus_points rewards, realCost = pointsBonus / pointsPerEuro.
+      if (r.type === 'bonus_points' && field === 'pointsBonus') {
+        const pb = parseInt(value) || 0;
+        next.realCost = Math.round((pb / (settings.pointsPerEuro || 100)) * 100) / 100;
       }
       return next;
     }));
@@ -118,7 +128,11 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
               <div className="fixed inset-0 z-40" onClick={() => setShowCatalog(false)} />
               <div className="absolute right-0 top-full mt-1 z-50 bg-[#EEEDE6] rounded-xl shadow-lg border border-[#D9D5CB] w-72 py-2 max-h-[400px] overflow-y-auto">
                 {Object.entries(REWARD_CATALOG).map(([cat, items]) => {
-                  const catLabel = { monetary: t ? 'Monétaire' : 'Monetary', experiential: t ? 'Expérientiel' : 'Experiential' }[cat] || cat;
+                  const catLabel = {
+                    monetary: t ? 'Monétaire' : 'Monetary',
+                    experiential: t ? 'Expérientiel' : 'Experiential',
+                    bonus_points: t ? 'Bonus points' : 'Bonus points',
+                  }[cat] || cat;
                   return (
                     <div key={cat}>
                       <div className="px-3 py-1.5 text-[10px] font-bold text-[#8A7D6B] uppercase tracking-wide">{catLabel}</div>

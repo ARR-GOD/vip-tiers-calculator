@@ -108,6 +108,12 @@ export const REWARD_CATALOG = {
     { type: 'experience', nameFr: 'Invitation événement VIP', nameEn: 'VIP event invitation', rewardUsage: 'perk', pointsCost: 0, realCost: 50, minPurchase: 0 },
     { type: 'experience', nameFr: 'Personal shopper', nameEn: 'Personal shopper', rewardUsage: 'perk', pointsCost: 0, realCost: 30, minPurchase: 0 },
   ],
+  bonus_points: [
+    { type: 'bonus_points', nameFr: '+200 points bonus', nameEn: '+200 bonus points', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 200, realCost: 2, minPurchase: 0 },
+    { type: 'bonus_points', nameFr: '+500 points bonus', nameEn: '+500 bonus points', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 500, realCost: 5, minPurchase: 0 },
+    { type: 'bonus_points', nameFr: '+1000 points bonus', nameEn: '+1000 bonus points', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 1000, realCost: 10, minPurchase: 0 },
+    { type: 'bonus_points', nameFr: 'Double points (anniversaire)', nameEn: 'Double points (birthday)', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 300, realCost: 3, minPurchase: 0 },
+  ],
 };
 
 export const DEFAULT_MISSIONS = [
@@ -185,6 +191,7 @@ export const REWARD_TYPES = [
   { id: 'free_product', icon: '🎁', nameFr: 'Produit offert', nameEn: 'Free product' },
   { id: 'experience', icon: '✨', nameFr: 'Expérience', nameEn: 'Experience' },
   { id: 'early_access', icon: '🔑', nameFr: 'Accès anticipé', nameEn: 'Early access' },
+  { id: 'bonus_points', icon: '⭐', nameFr: 'Bonus points', nameEn: 'Bonus points' },
   { id: 'custom', icon: '⚙️', nameFr: 'Personnalisé', nameEn: 'Custom' },
 ];
 
