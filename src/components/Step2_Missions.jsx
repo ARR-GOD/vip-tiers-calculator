@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Crown, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, formatCompact, derivePointsFromCashback } from '../utils/calculations';
@@ -84,6 +84,30 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   };
 
   const totalPts = missionsByTier.reduce((s, d) => s + d.totalPoints, 0);
+
+  // ── Pre-compute the average purchase frequency from imported customers ──
+  // The 'Réaliser un achat' mission's frequency (orders per customer per year)
+  // is naturally derivable from the CSV: totalOrders ÷ activeCustomers.
+  const avgPurchaseFrequency = useMemo(() => {
+    if (!customers || customers.length === 0) return null;
+    const active = customers.filter(c => (c.number_of_orders || 0) > 0);
+    if (active.length === 0) return null;
+    const totalOrders = active.reduce((s, c) => s + (c.number_of_orders || 0), 0);
+    return Math.round((totalOrders / active.length) * 10) / 10;
+  }, [customers]);
+
+  // Seed the purchase mission's frequency from data the first time it's
+  // available. Respects user edits: only overrides if the value is still the
+  // hardcoded default (4).
+  useEffect(() => {
+    if (avgPurchaseFrequency === null) return;
+    setMissions(prev => prev.map(m => {
+      if (!m.isPurchaseMission) return m;
+      const isDefault = Math.abs((m.frequency || 0) - 4) < 0.01;
+      return isDefault ? { ...m, frequency: avgPurchaseFrequency } : m;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avgPurchaseFrequency]);
 
   // ── LUXURY PLACEHOLDER ──
   if (!config.hasMissions) {
@@ -257,9 +281,25 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                       )}
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <input type="number" value={m.frequency} min={0} step={0.1}
-                        onChange={e => updateField(m.id, 'frequency', parseFloat(e.target.value) || 0)}
-                        className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <input type="number" value={m.frequency} min={0} step={0.1}
+                          onChange={e => updateField(m.id, 'frequency', parseFloat(e.target.value) || 0)}
+                          className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
+                        {isPurchase && avgPurchaseFrequency !== null && (
+                          <div className="flex items-center gap-1 text-[9px] text-[#8A7D6B]">
+                            <span title={t ? 'Calculé : commandes ÷ clients actifs dans le CSV importé' : 'Computed: orders ÷ active customers in the imported CSV'}>
+                              ~{avgPurchaseFrequency} {t ? '(import)' : '(import)'}
+                            </span>
+                            {Math.abs((m.frequency || 0) - avgPurchaseFrequency) > 0.05 && (
+                              <button
+                                onClick={() => updateField(m.id, 'frequency', avgPurchaseFrequency)}
+                                className="text-primary hover:underline">
+                                {t ? 'utiliser' : 'use'}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-center">
                       {isPurchase ? (
