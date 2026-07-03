@@ -11,9 +11,9 @@ import {
 } from '../utils/calculations';
 
 const SCENARIOS = [
-  { key: 'conservative', mult: 0.6, defaultIncrementality: 40, labelFr: 'Conservateur', labelEn: 'Conservative' },
-  { key: 'base',          mult: 1.0, defaultIncrementality: 55, labelFr: 'Base',          labelEn: 'Base' },
-  { key: 'optimistic',    mult: 1.4, defaultIncrementality: 70, labelFr: 'Optimiste',     labelEn: 'Optimistic' },
+  { key: 'conservative', mult: 0.6, defaultParticipation: 20, labelFr: 'Conservateur', labelEn: 'Conservative' },
+  { key: 'base',          mult: 1.0, defaultParticipation: 40, labelFr: 'Base',          labelEn: 'Base' },
+  { key: 'optimistic',    mult: 1.4, defaultParticipation: 60, labelFr: 'Optimiste',     labelEn: 'Optimistic' },
 ];
 
 export default function Step5_Dashboard({
@@ -24,16 +24,16 @@ export default function Step5_Dashboard({
   const t = lang === 'fr';
   const dashRef = useRef(null);
 
-  // ── Active scenario (selector) + editable incrementality per scenario ──
+  // ── Active scenario (selector) + editable participation rate per scenario ──
   const [activeKey, setActiveKey] = useState('base');
-  const [incrementality, setIncrementality] = useState(() =>
-    Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality]))
+  const [participation, setParticipation] = useState(() =>
+    Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultParticipation]))
   );
   const activeScenario = SCENARIOS.find(s => s.key === activeKey) || SCENARIOS[1];
   const activeMult = activeScenario.mult;
-  const activeIncrementality = incrementality[activeKey] ?? activeScenario.defaultIncrementality;
-  const resetIncrementality = () =>
-    setIncrementality(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultIncrementality])));
+  const activeParticipation = participation[activeKey] ?? activeScenario.defaultParticipation;
+  const resetParticipation = () =>
+    setParticipation(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultParticipation])));
 
   const { tierStats, nonMembers, assignedAll } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
@@ -59,24 +59,27 @@ export default function Step5_Dashboard({
     [referralConfig, settings.aov]
   );
 
-  // One funnel per scenario → drives rewards cost (mission engagement scales with multiplier).
-  // CA loyalty no longer comes from funnel.incrementalRevenue; it's an explicit assumption:
-  //   CA loyalty = totalCustomerRevenue × incrementality%
+  // One funnel per scenario. Participation rate scales BOTH the CA and the
+  // rewards cost proportionally: only enrolled customers count toward the
+  // program's revenue AND only they incur reward costs. Non-participants
+  // remain in the imported base but are not touched by the program.
+  //   CA loyalty  = totalCustomerRevenue × participation%
+  //   Coût rewards = f.rewardsCost × participation%  (+ referral cost, fixed)
   const scenarioRows = useMemo(() => {
     return SCENARIOS.map(s => {
       const f = computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, s.mult);
-      const incr = (incrementality[s.key] ?? s.defaultIncrementality) / 100;
-      const caLoyalty   = totalCustomerRevenue * incr;
+      const part = (participation[s.key] ?? s.defaultParticipation) / 100;
+      const caLoyalty   = totalCustomerRevenue * part;
       const caReferral  = referralEcon.revenuePerYear;
       const caTotal     = caLoyalty + caReferral;
       const margin      = caTotal * (settings.grossMargin / 100);
-      const rewardsCost = f.rewardsCost + referralEcon.totalCostPerYear;
+      const rewardsCost = f.rewardsCost * part + referralEcon.totalCostPerYear;
       const netProfit   = margin - rewardsCost;
-      return { ...s, incrementality: incrementality[s.key] ?? s.defaultIncrementality,
+      return { ...s, participation: participation[s.key] ?? s.defaultParticipation,
         caLoyalty, caReferral, caTotal, margin, rewardsCost, netProfit,
-        burnCost: f.burnCost, perkCost: f.perkCost };
+        burnCost: f.burnCost * part, perkCost: f.perkCost * part };
     });
-  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, incrementality]);
+  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, participation]);
 
   const pointsEconomy = useMemo(
     () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult),
@@ -111,21 +114,21 @@ export default function Step5_Dashboard({
     totalRev: totalCustomerRevenue,
   }), [totalCustomerCount, totalCustomerRevenue]);
 
-  const updateIncrementality = (key, val) => {
+  const updateParticipation = (key, val) => {
     const v = Math.max(0, Math.min(100, parseFloat(val) || 0));
-    setIncrementality(prev => ({ ...prev, [key]: v }));
+    setParticipation(prev => ({ ...prev, [key]: v }));
   };
 
   const exportCSV = () => {
     const lines = [];
-    lines.push([t ? 'Indicateur' : 'Metric', ...SCENARIOS.map(s => `${t ? s.labelFr : s.labelEn} (${incrementality[s.key]}%)`)].join(','));
+    lines.push([t ? 'Indicateur' : 'Metric', ...SCENARIOS.map(s => `${t ? s.labelFr : s.labelEn} (${participation[s.key]}%)`)].join(','));
     const labelMap = [
-      [t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)', 'caLoyalty'],
-      [t ? 'CA referral'              : 'Referral revenue',              'caReferral'],
-      [t ? 'CA total'                 : 'Total revenue',                 'caTotal'],
+      [t ? 'CA loyalty (membres actifs)' : 'Loyalty revenue (active members)', 'caLoyalty'],
+      [t ? 'CA referral'                 : 'Referral revenue',                 'caReferral'],
+      [t ? 'CA total'                    : 'Total revenue',                    'caTotal'],
       [`${t ? 'Marge brute' : 'Gross margin'} (${settings.grossMargin}%)`, 'margin'],
-      [t ? 'Coût des rewards'         : 'Rewards cost',                  'rewardsCost'],
-      [t ? 'Profit net'               : 'Net profit',                    'netProfit'],
+      [t ? 'Coût des rewards'            : 'Rewards cost',                     'rewardsCost'],
+      [t ? 'Profit net'                  : 'Net profit',                       'netProfit'],
     ];
     for (const [lbl, key] of labelMap) {
       lines.push([lbl, ...scenarioRows.map(r => Math.round(r[key]))].join(','));
@@ -189,8 +192,8 @@ export default function Step5_Dashboard({
         </div>
         <span className="ml-auto text-[11px] text-[#8A7D6B] max-w-[420px]">
           {t
-            ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Incrémentalité ${activeIncrementality}%.`
-            : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Incrementality ${activeIncrementality}%.`}
+            ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Participation ${activeParticipation}%.`
+            : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Participation ${activeParticipation}%.`}
         </span>
       </div>
 
@@ -200,7 +203,7 @@ export default function Step5_Dashboard({
         <div>
           <div className="flex items-center justify-between mb-2">
             <div className="section-header" style={{ marginBottom: 0 }}>{t ? 'P&L PAR SCÉNARIO (PAR AN)' : 'P&L BY SCENARIO (PER YEAR)'}</div>
-            <button onClick={resetIncrementality} className="btn-secondary text-[11px] px-2 py-1 inline-flex items-center gap-1">
+            <button onClick={resetParticipation} className="btn-secondary text-[11px] px-2 py-1 inline-flex items-center gap-1">
               <RotateCcw size={11} /> {t ? 'Réinitialiser taux' : 'Reset rates'}
             </button>
           </div>
@@ -211,7 +214,7 @@ export default function Step5_Dashboard({
                   <th className="text-left px-4 py-3 font-medium text-[#52473C] w-72">
                     <div className="flex items-center gap-1">
                       {t ? 'Indicateur' : 'Metric'}
-                      <Tooltip text={t ? "Taux d'incrémentalité : part du CA des membres réellement attribuable au programme (uplift, pas baseline). Éditable par scénario." : 'Incrementality rate: share of member revenue genuinely attributable to the program (uplift, not baseline). Editable per scenario.'} />
+                      <Tooltip text={t ? "Taux de participation : part de la base client qui s'inscrit et participe activement au programme. Scale à la fois le CA loyalty et le coût des rewards. Éditable par scénario." : 'Participation rate: share of the customer base actually enrolled + active in the program. Scales both loyalty revenue and rewards cost. Editable per scenario.'} />
                     </div>
                   </th>
                   {scenarioRows.map(s => {
@@ -231,15 +234,15 @@ export default function Step5_Dashboard({
                           {t ? s.labelFr : s.labelEn}
                         </div>
                         <div className="flex items-center justify-end gap-1 mt-1.5">
-                          <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Incrémentalité' : 'Incrementality'}:</span>
+                          <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Participation' : 'Participation'}:</span>
                           <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-white border ${
                             isActive ? 'border-primary/30' : 'border-[#E5E1D8]'
                           }`}>
                           <input
                             type="text" inputMode="numeric" pattern="[0-9]*"
-                            value={s.incrementality}
+                            value={s.participation}
                             onClick={e => e.stopPropagation()}
-                            onChange={e => updateIncrementality(s.key, e.target.value.replace(/[^0-9]/g, ''))}
+                            onChange={e => updateParticipation(s.key, e.target.value.replace(/[^0-9]/g, ''))}
                             className="w-10 text-[12px] text-right font-medium bg-transparent border-0 focus:outline-none focus:ring-0 h-auto p-0"
                           />
                             <span className="text-[10px] text-[#8A7D6B]">%</span>
@@ -255,9 +258,9 @@ export default function Step5_Dashboard({
                   const activeIdx = SCENARIOS.findIndex(s => s.key === activeKey);
                   return (
                     <>
-                      <PnlRow label={t ? 'CA loyalty (incrémental)' : 'Loyalty revenue (incremental)'}
+                      <PnlRow label={t ? 'CA loyalty (membres actifs)' : 'Loyalty revenue (active members)'}
                         values={scenarioRows.map(r => r.caLoyalty)} activeIdx={activeIdx}
-                        hint={t ? `${formatCurrency(totalCustomerRevenue)} × taux` : `${formatCurrency(totalCustomerRevenue)} × rate`} />
+                        hint={t ? `${formatCurrency(totalCustomerRevenue)} × participation` : `${formatCurrency(totalCustomerRevenue)} × participation`} />
                       <PnlRow label={t ? 'CA referral' : 'Referral revenue'}
                         values={scenarioRows.map(r => r.caReferral)} activeIdx={activeIdx}
                         hint={t ? 'Fixe — voir étape Parrainage' : 'Fixed — see Referral step'} />
@@ -267,7 +270,7 @@ export default function Step5_Dashboard({
                         values={scenarioRows.map(r => r.margin)} activeIdx={activeIdx} />
                       <PnlRow label={t ? 'Coût des rewards' : 'Rewards cost'}
                         values={scenarioRows.map(r => -r.rewardsCost)} negative activeIdx={activeIdx}
-                        hint={t ? 'Modélisé via utilisation rewards × paliers' : 'Modeled via reward utilization × tiers'} />
+                        hint={t ? 'Utilisation modélisée × participation' : 'Modeled utilization × participation'} />
                       <PnlRow label={t ? 'Profit net' : 'Net profit'}
                         values={scenarioRows.map(r => r.netProfit)} bold profit activeIdx={activeIdx} />
                     </>
@@ -278,8 +281,8 @@ export default function Step5_Dashboard({
           </div>
           <p className="text-[11px] text-[#8A7D6B] mt-2">
             {t
-              ? "« CA loyalty (incrémental) » = CA total des membres × taux d'incrémentalité. Le taux varie typiquement de 40% (conservateur) à 70% (optimiste) selon la maturité du programme. Le coût des rewards est calculé à partir de l'utilisation modélisée (perks × paliers × taux d'utilisation), avec une légère sensibilité au scénario via l'engagement missions."
-              : '"Loyalty revenue (incremental)" = total member revenue × incrementality rate. The rate typically ranges from 40% (conservative) to 70% (optimistic) depending on program maturity. Rewards cost is computed from modeled utilization (perks × tiers × utilization rates), with light sensitivity to the scenario via mission engagement.'}
+              ? "« CA loyalty (membres actifs) » = CA total × taux de participation. Le taux typique va de 20% (conservateur, lancement) à 60% (optimiste, programme mature). Le coût des rewards suit la même logique : seul le pool des participants génère des redemptions. Ajuste les 3 taux par scénario pour explorer différentes hypothèses d'adoption."
+              : '"Loyalty revenue (active members)" = total revenue × participation rate. Typical rates: 20% (conservative, launch) to 60% (optimistic, mature). Rewards cost follows the same logic: only participants generate redemptions. Adjust the 3 per-scenario rates to explore adoption assumptions.'}
           </p>
         </div>
 
