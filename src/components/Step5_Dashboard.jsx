@@ -24,16 +24,12 @@ export default function Step5_Dashboard({
   const t = lang === 'fr';
   const dashRef = useRef(null);
 
-  // ── Active scenario (selector) + editable participation rate per scenario ──
+  // ── Active scenario (selector) + single global participation rate ──
   const [activeKey, setActiveKey] = useState('base');
-  const [participation, setParticipation] = useState(() =>
-    Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultParticipation]))
-  );
+  const [globalParticipation, setGlobalParticipation] = useState(40);
   const activeScenario = SCENARIOS.find(s => s.key === activeKey) || SCENARIOS[1];
   const activeMult = activeScenario.mult;
-  const activeParticipation = participation[activeKey] ?? activeScenario.defaultParticipation;
-  const resetParticipation = () =>
-    setParticipation(Object.fromEntries(SCENARIOS.map(s => [s.key, s.defaultParticipation])));
+  const resetParticipation = () => setGlobalParticipation(40);
 
   const { tierStats, nonMembers, assignedAll } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
@@ -59,27 +55,27 @@ export default function Step5_Dashboard({
     [referralConfig, settings.aov]
   );
 
-  // One funnel per scenario. Participation rate scales BOTH the CA and the
-  // rewards cost proportionally: only enrolled customers count toward the
-  // program's revenue AND only they incur reward costs. Non-participants
-  // remain in the imported base but are not touched by the program.
-  //   CA loyalty  = totalCustomerRevenue × participation%
-  //   Coût rewards = f.rewardsCost × participation%  (+ referral cost, fixed)
+  // Single global participation rate applied to all scenarios.
+  //   CA loyalty   = totalCustomerRevenue × globalParticipation%
+  //   Coût rewards = f.rewardsCost × globalParticipation%  (+ referral cost × mult)
+  // Referral CA + cost scale with the scenario multiplier since engagement
+  // drives how many referrals actually happen.
   const scenarioRows = useMemo(() => {
+    const part = globalParticipation / 100;
     return SCENARIOS.map(s => {
       const f = computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, s.mult);
-      const part = (participation[s.key] ?? s.defaultParticipation) / 100;
-      const caLoyalty   = totalCustomerRevenue * part;
-      const caReferral  = referralEcon.revenuePerYear;
-      const caTotal     = caLoyalty + caReferral;
-      const margin      = caTotal * (settings.grossMargin / 100);
-      const rewardsCost = f.rewardsCost * part + referralEcon.totalCostPerYear;
-      const netProfit   = margin - rewardsCost;
-      return { ...s, participation: participation[s.key] ?? s.defaultParticipation,
+      const caLoyalty     = totalCustomerRevenue * part;
+      const caReferral    = referralEcon.revenuePerYear * s.mult;
+      const referralCost  = referralEcon.totalCostPerYear * s.mult;
+      const caTotal       = caLoyalty + caReferral;
+      const margin        = caTotal * (settings.grossMargin / 100);
+      const rewardsCost   = f.rewardsCost * part + referralCost;
+      const netProfit     = margin - rewardsCost;
+      return { ...s,
         caLoyalty, caReferral, caTotal, margin, rewardsCost, netProfit,
         burnCost: f.burnCost * part, perkCost: f.perkCost * part };
     });
-  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, participation]);
+  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, globalParticipation]);
 
   const pointsEconomy = useMemo(
     () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult),
@@ -114,14 +110,9 @@ export default function Step5_Dashboard({
     totalRev: totalCustomerRevenue,
   }), [totalCustomerCount, totalCustomerRevenue]);
 
-  const updateParticipation = (key, val) => {
-    const v = Math.max(0, Math.min(100, parseFloat(val) || 0));
-    setParticipation(prev => ({ ...prev, [key]: v }));
-  };
-
   const exportCSV = () => {
     const lines = [];
-    lines.push([t ? 'Indicateur' : 'Metric', ...SCENARIOS.map(s => `${t ? s.labelFr : s.labelEn} (${participation[s.key]}%)`)].join(','));
+    lines.push([t ? `Indicateur (participation ${globalParticipation}%)` : `Metric (participation ${globalParticipation}%)`, ...SCENARIOS.map(s => `${t ? s.labelFr : s.labelEn} (×${s.mult})`)].join(','));
     const labelMap = [
       [t ? 'CA loyalty (membres actifs)' : 'Loyalty revenue (active members)', 'caLoyalty'],
       [t ? 'CA referral'                 : 'Referral revenue',                 'caReferral'],
@@ -192,8 +183,35 @@ export default function Step5_Dashboard({
         </div>
         <span className="ml-auto text-[11px] text-[#8A7D6B] max-w-[420px]">
           {t
-            ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Participation ${activeParticipation}%.`
-            : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Participation ${activeParticipation}%.`}
+            ? `Pilote la P&L, l'économie des points et la provision CFO. Marge brute : ${settings.grossMargin}% • Participation globale : ${globalParticipation}%.`
+            : `Drives the P&L, points economy and CFO provision. Gross margin: ${settings.grossMargin}% • Global participation: ${globalParticipation}%.`}
+        </span>
+      </div>
+
+      {/* Global participation rate — single input applied to every scenario */}
+      <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
+        <span className="text-[13px] font-medium text-[#52473C]">
+          {t ? 'Taux de participation :' : 'Participation rate:'}
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-[#E5E1D8]">
+          <input
+            type="text" inputMode="numeric" pattern="[0-9]*"
+            value={globalParticipation}
+            onChange={e => {
+              const v = Math.max(0, Math.min(100, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
+              setGlobalParticipation(v);
+            }}
+            className="w-12 text-[13px] text-right font-semibold bg-transparent border-0 focus:outline-none focus:ring-0 h-auto p-0"
+          />
+          <span className="text-[11px] text-[#8A7D6B]">%</span>
+        </span>
+        <button onClick={resetParticipation} className="text-[11px] text-primary hover:underline font-medium">
+          {t ? 'Réinitialiser (40%)' : 'Reset (40%)'}
+        </button>
+        <span className="ml-auto text-[11px] text-[#8A7D6B] max-w-[540px]">
+          {t
+            ? `% de la base client réellement inscrit et actif dans le programme. Applique le même taux aux 3 scénarios (CA loyalty + coût rewards scalés proportionnellement). Les scénarios ne diffèrent que par l'engagement missions / rewards / parrainage.`
+            : `% of the customer base enrolled and active in the program. Same rate for all 3 scenarios (loyalty CA + rewards cost scaled proportionally). Scenarios only differ via mission / reward / referral engagement.`}
         </span>
       </div>
 
@@ -201,12 +219,7 @@ export default function Step5_Dashboard({
 
         {/* ─── 1. SCENARIO P&L ─── */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="section-header" style={{ marginBottom: 0 }}>{t ? 'P&L PAR SCÉNARIO (PAR AN)' : 'P&L BY SCENARIO (PER YEAR)'}</div>
-            <button onClick={resetParticipation} className="btn-secondary text-[11px] px-2 py-1 inline-flex items-center gap-1">
-              <RotateCcw size={11} /> {t ? 'Réinitialiser taux' : 'Reset rates'}
-            </button>
-          </div>
+          <div className="section-header">{t ? 'P&L PAR SCÉNARIO (PAR AN)' : 'P&L BY SCENARIO (PER YEAR)'}</div>
           <div className="card overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
@@ -214,7 +227,7 @@ export default function Step5_Dashboard({
                   <th className="text-left px-4 py-3 font-medium text-[#52473C] w-72">
                     <div className="flex items-center gap-1">
                       {t ? 'Indicateur' : 'Metric'}
-                      <Tooltip text={t ? "Taux de participation : part de la base client qui s'inscrit et participe activement au programme. Scale à la fois le CA loyalty et le coût des rewards. Éditable par scénario." : 'Participation rate: share of the customer base actually enrolled + active in the program. Scales both loyalty revenue and rewards cost. Editable per scenario.'} />
+                      <Tooltip text={t ? "Les 3 scénarios diffèrent par leur engagement (×0.6 / ×1 / ×1.4) qui module l'utilisation des rewards et le volume de parrainages. Le taux de participation global est identique aux 3 scénarios." : 'The 3 scenarios differ by engagement multiplier (×0.6 / ×1 / ×1.4) which scales reward utilization and referral volume. The global participation rate is the same across all 3.'} />
                     </div>
                   </th>
                   {scenarioRows.map(s => {
@@ -233,21 +246,7 @@ export default function Step5_Dashboard({
                           {isActive && <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>}
                           {t ? s.labelFr : s.labelEn}
                         </div>
-                        <div className="flex items-center justify-end gap-1 mt-1.5">
-                          <span className="text-[10px] text-[#8A7D6B] font-normal">{t ? 'Participation' : 'Participation'}:</span>
-                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-white border ${
-                            isActive ? 'border-primary/30' : 'border-[#E5E1D8]'
-                          }`}>
-                          <input
-                            type="text" inputMode="numeric" pattern="[0-9]*"
-                            value={s.participation}
-                            onClick={e => e.stopPropagation()}
-                            onChange={e => updateParticipation(s.key, e.target.value.replace(/[^0-9]/g, ''))}
-                            className="w-10 text-[12px] text-right font-medium bg-transparent border-0 focus:outline-none focus:ring-0 h-auto p-0"
-                          />
-                            <span className="text-[10px] text-[#8A7D6B]">%</span>
-                          </span>
-                        </div>
+                        <div className="text-[10px] text-[#8A7D6B] font-normal mt-1 text-right">×{s.mult}</div>
                       </th>
                     );
                   })}
@@ -263,7 +262,7 @@ export default function Step5_Dashboard({
                         hint={t ? `${formatCurrency(totalCustomerRevenue)} × participation` : `${formatCurrency(totalCustomerRevenue)} × participation`} />
                       <PnlRow label={t ? 'CA referral' : 'Referral revenue'}
                         values={scenarioRows.map(r => r.caReferral)} activeIdx={activeIdx}
-                        hint={t ? 'Fixe — voir étape Parrainage' : 'Fixed — see Referral step'} />
+                        hint={t ? 'Base × engagement du scénario' : 'Base × scenario engagement'} />
                       <PnlRow label={t ? 'CA total' : 'Total revenue'}
                         values={scenarioRows.map(r => r.caTotal)} bold activeIdx={activeIdx} />
                       <PnlRow label={`${t ? 'Marge brute' : 'Gross margin'} (×${settings.grossMargin}%)`}
@@ -281,8 +280,8 @@ export default function Step5_Dashboard({
           </div>
           <p className="text-[11px] text-[#8A7D6B] mt-2">
             {t
-              ? "« CA loyalty (membres actifs) » = CA total × taux de participation. Le taux typique va de 20% (conservateur, lancement) à 60% (optimiste, programme mature). Le coût des rewards suit la même logique : seul le pool des participants génère des redemptions. Ajuste les 3 taux par scénario pour explorer différentes hypothèses d'adoption."
-              : '"Loyalty revenue (active members)" = total revenue × participation rate. Typical rates: 20% (conservative, launch) to 60% (optimistic, mature). Rewards cost follows the same logic: only participants generate redemptions. Adjust the 3 per-scenario rates to explore adoption assumptions.'}
+              ? `« CA loyalty (membres actifs) » = CA total × ${globalParticipation}% (participation globale). Identique dans les 3 scénarios. Les scénarios diffèrent uniquement par l'engagement (×0.6/×1/×1.4) qui module le CA referral (via les parrainages effectifs) et le coût rewards (via l'utilisation modélisée). Ajuste la participation en haut de page.`
+              : `"Loyalty revenue (active members)" = total revenue × ${globalParticipation}% (global participation). Same across all 3 scenarios. Scenarios differ only via engagement multiplier (×0.6/×1/×1.4) which scales referral CA (through actual referrals) and rewards cost (through modeled utilization). Adjust participation at the top of the page.`}
           </p>
         </div>
 

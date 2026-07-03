@@ -94,12 +94,26 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   };
 
   const toggleRewardForTier = (rewardId, tierIdx) => {
-    setRewards(prev => prev.map(r => {
-      if (r.id !== rewardId) return r;
-      const assigned = [...(r.assignedTiers || [])];
-      assigned[tierIdx] = !assigned[tierIdx];
-      return { ...r, assignedTiers: assigned };
-    }));
+    setRewards(prev => {
+      // Snapshot the tier's current average utilization so newly-toggled rewards
+      // inherit it instead of the hardcoded 30 default.
+      const assignedInTier = prev.filter(r => r.assignedTiers?.[tierIdx]);
+      const avgUtil = assignedInTier.length > 0
+        ? Math.round(assignedInTier.reduce((s, r) => s + (r.utilizationByTier?.[tierIdx] ?? burnRate), 0) / assignedInTier.length)
+        : burnRate;
+      return prev.map(r => {
+        if (r.id !== rewardId) return r;
+        const assigned = [...(r.assignedTiers || [])];
+        const nowOn = !assigned[tierIdx];
+        assigned[tierIdx] = nowOn;
+        const util = [...(r.utilizationByTier || [])];
+        // Seed utilization to the tier's current average when turning ON
+        if (nowOn && (util[tierIdx] === undefined || util[tierIdx] === 0)) {
+          util[tierIdx] = avgUtil;
+        }
+        return { ...r, assignedTiers: assigned, utilizationByTier: util };
+      });
+    });
   };
 
   const updateUtilization = (rewardId, tierIdx, value) => {
@@ -506,17 +520,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                               title={t ? reward.nameFr : reward.nameEn}>
                               {t ? reward.nameFr : reward.nameEn}
                             </span>
-                            {isAssigned && (
-                              <span className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                                <input type="text" inputMode="numeric" pattern="[0-9]*"
-                                  value={reward.utilizationByTier?.[tierIdx] ?? 30}
-                                  onChange={e => updateUtilization(reward.id, tierIdx, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)}
-                                  className="w-10 px-0.5 py-0 text-[10px] text-center"
-                                  onClick={e => e.stopPropagation()}
-                                />
-                                <span className="text-[9px] text-[#8A7D6B]">%</span>
-                              </span>
-                            )}
                           </button>
                         );
                       })}
