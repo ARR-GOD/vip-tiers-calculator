@@ -225,7 +225,7 @@ export function computePurchasePointsPerYear(avgLTV, pointsPerEuro, multiplier) 
 }
 
 // ── Reward cost calculations (with burn/perk split + utilization) ──
-export function computeRewardsCost(rewards, burnRate, tierStats, tiers) {
+export function computeRewardsCost(rewards, burnRate, tierStats, tiers, scenarioMultiplier = 1) {
   const totalCustomers = tierStats.reduce((s, t) => s + t.count, 0);
   if (totalCustomers === 0) return { totalCost: 0, burnCost: 0, perkCost: 0, incrementalRevenue: 0, details: [] };
 
@@ -240,7 +240,10 @@ export function computeRewardsCost(rewards, burnRate, tierStats, tiers) {
     normalized.forEach(reward => {
       if (!reward.assignedTiers?.[tierIndex]) return;
 
-      const utilization = (reward.utilizationByTier?.[tierIndex] ?? burnRate) / 100;
+      // Scenario scales the modeled utilization rate the same way it scales
+      // mission completion — engagement is a program-wide lever.
+      const baseUtil = (reward.utilizationByTier?.[tierIndex] ?? burnRate) / 100;
+      const utilization = Math.min(1, baseUtil * scenarioMultiplier);
       const isBurn = reward.rewardUsage === 'burn' || reward.rewardUsage === 'both';
       const isPerk = reward.rewardUsage === 'perk' || reward.rewardUsage === 'both';
 
@@ -361,8 +364,8 @@ export function computeProgramFunnel(tierStats, missions, customMissions, reward
   const avgBurnRate = 40; // will be overridden
   const pointsRedeemed = totalPointsEarned * (avgBurnRate / 100);
 
-  // Rewards triggered
-  const rewardCosts = computeRewardsCost(rewards, avgBurnRate, tierStats, tiers);
+  // Rewards triggered — scaled by scenario so P&L moves with the active pick
+  const rewardCosts = computeRewardsCost(rewards, avgBurnRate, tierStats, tiers, scenarioMultiplier);
 
   return {
     totalCustomers,
