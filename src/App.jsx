@@ -10,10 +10,11 @@ import Step4_TierBuilder from './components/Step4_TierBuilder';
 import Step5_Dashboard from './components/Step5_Dashboard';
 import StepReferral from './components/StepReferral';
 import { parseSampleData } from './data/sampleData';
-import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
-import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
+import { INITIAL_REFERRAL } from './data/defaults';
+import { normalizeProgram } from './data/programDefaults';
+import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { createProgramSaver, buildProgramSnapshot, findProgramByCompany, loadProgram } from './utils/programStore';
+import { createProgramSaver, buildProgramSnapshot, findProgramByCompany, loadProgram, migrateProgramState, STATE_VERSION } from './utils/programStore';
 import { supabase, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
@@ -25,37 +26,8 @@ import { Building2 } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const INITIAL_CONFIG = {
-  tierBasis: 'spend',
-  hasMissions: true,    // "Programme à points" — Oui/Non
-  hasTiers: true,       // "Paliers VIP" — Oui/Non
-  rewardType: 'both',
-  // Points expiration (only meaningful when hasMissions)
-  pointsExpire: true,
-  expirationMonths: 12,
-  expirationType: 'rolling',
-  // Tier expiration / reassessment (independent of points — applies when hasTiers)
-  tiersExpire: true,
-  tierExpirationMonths: 12,
-  tierExpirationType: 'rolling',
-};
-
-const INITIAL_SETTINGS = {
-  segmentationType: 'revenue',
-  caWeight: 0.5,
-  aov: 60,
-  grossMargin: 60,
-  cashbackRate: 3,
-  pointsPerEuro: 100, // 100 points = 1€ de récompense
-};
-
-const INITIAL_TIERS = [
-  { name: 'Bronze', color: '#B87333', threshold: 100, spendThreshold: 0, pointsThreshold: 0, orderThreshold: 0, pointsMultiplier: 1, perks: [] },
-  { name: 'Argent', color: '#9CA3AF', threshold: 50, spendThreshold: 500, pointsThreshold: 1000, orderThreshold: 3, pointsMultiplier: 1.5, perks: [] },
-  { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, orderThreshold: 10, pointsMultiplier: 2, perks: [] },
-];
-
-const initialMissions = () => DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] }));
+// Program the wizard starts from before any preset is applied.
+const BLANK_PROGRAM = normalizeProgram();
 
 const STEPS = [
   { id: 0, labelFr: 'Programme', labelEn: 'Program' },
@@ -120,24 +92,21 @@ function App() {
 
   const [lang, setLang] = useState('fr');
   const [step, setStep] = useState(0);
-  const [config, setConfig] = useState(INITIAL_CONFIG);
-  const [settings, setSettings] = useState(INITIAL_SETTINGS);
+  const [config, setConfig] = useState(BLANK_PROGRAM.config);
+  const [settings, setSettings] = useState(BLANK_PROGRAM.settings);
   const [customers, setCustomers] = useState(() => parseSampleData());
-  const [tiers, setTiersRaw] = useState(INITIAL_TIERS);
-  const [missions, setMissions] = useState(initialMissions);
-  const [customMissions, setCustomMissions] = useState([]);
-  const [rewards, setRewards] = useState(DEFAULT_REWARDS);
-  const [burnRate, setBurnRate] = useState(40);
-  const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
+  const [tiers, setTiersRaw] = useState(BLANK_PROGRAM.tiers);
+  const [missions, setMissions] = useState(BLANK_PROGRAM.missions);
+  const [customMissions, setCustomMissions] = useState(BLANK_PROGRAM.customMissions);
+  const [rewards, setRewards] = useState(BLANK_PROGRAM.rewards);
+  const [burnRate, setBurnRate] = useState(BLANK_PROGRAM.burnRate);
+  const [referralConfig, setReferralConfig] = useState(BLANK_PROGRAM.referralConfig);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
   const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
   const [csmMode, setCsmMode] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [clientDetails, setClientDetails] = useState(null);
-  const [firefliesInsights, setFirefliesInsights] = useState(null);
-  const [firefliesLoading, setFirefliesLoading] = useState(false);
 
   // ─── Program persistence (Supabase) ───
   // programTarget is the handle of the open program: { id, hubspotCompanyId },
@@ -155,29 +124,33 @@ function App() {
     setReferralConfig(INITIAL_REFERRAL);
   };
 
-  const setTiers = useCallback((newTiersOrFn) => {
+  const setTiers = (newTiersOrFn) => {
     setTiersRaw(prev => {
       const newTiers = typeof newTiersOrFn === 'function' ? newTiersOrFn(prev) : newTiersOrFn;
       if (newTiers.length !== prev.length) {
         setRewards(r => resizeAssignedTiers(r, newTiers.length));
-        setMissions(m => resizeMissionEngagement(m, newTiers.length));
-        setCustomMissions(m => resizeMissionEngagement(m, newTiers.length));
       }
       return newTiers;
     });
-  }, []);
+  };
+
+  // Load the program-level values of a normalized program into the wizard.
+  const applyProgram = (program) => {
+    setConfig(program.config);
+    setSettings(program.settings);
+    setTiersRaw(program.tiers);
+    setRewards(program.rewards);
+    setMissions(program.missions);
+    setCustomMissions(program.customMissions);
+    setBurnRate(program.burnRate);
+    setReferralConfig(program.referralConfig);
+  };
 
   // Re-running the brand analysis from an open program keeps that program.
   const handleBrandComplete = (analysisResult) => {
     if (!programTarget) startNewProgram();
     setBrandAnalysis(analysisResult);
-    const defaults = applyBrandDefaults(analysisResult, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyBrandDefaults(analysisResult, lang));
     setPhase('wizard');
     setStep(1); // Go to CSV import step
   };
@@ -198,18 +171,9 @@ function App() {
   // Load a saved program into the wizard. `live` carries fresh HubSpot data
   // when the program is opened by picking its client in the list.
   const openProgram = (row, live = {}) => {
-    const s = row.state || {};
+    const savedVersion = row.state?.v ?? 1;
     const values = {
-      config: s.config || INITIAL_CONFIG,
-      settings: s.settings || INITIAL_SETTINGS,
-      tiers: s.tiers || INITIAL_TIERS,
-      rewards: s.rewards || DEFAULT_REWARDS,
-      missions: s.missions || initialMissions(),
-      customMissions: s.customMissions || [],
-      burnRate: s.burnRate ?? 40,
-      referralConfig: s.referralConfig || INITIAL_REFERRAL,
-      onboardingAnswers: s.onboardingAnswers ?? null,
-      brandAnalysis: s.brandAnalysis ?? null,
+      ...normalizeProgram(migrateProgramState(row.state || {})),
       customers: row.customers?.length ? row.customers : parseSampleData(),
       selectedClient: row.hubspot_company_id
         ? (live.selectedClient || { id: row.hubspot_company_id, name: row.client_name, domain: row.client_domain, plan: row.client_plan })
@@ -218,29 +182,19 @@ function App() {
     };
     const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id };
 
-    setConfig(values.config);
-    setSettings(values.settings);
-    setTiersRaw(values.tiers);
-    setRewards(values.rewards);
-    setMissions(values.missions);
-    setCustomMissions(values.customMissions);
-    setBurnRate(values.burnRate);
-    setReferralConfig(values.referralConfig);
+    applyProgram(values);
     setOnboardingAnswers(values.onboardingAnswers);
     setBrandAnalysis(values.brandAnalysis);
     setCustomers(values.customers);
     setSelectedClient(values.selectedClient);
-    setClientDetails(values.selectedClient
-      ? (live.clientDetails || { company: { name: row.client_name, domain: row.client_domain } })
-      : null);
     setCsmMode(!!values.selectedClient);
-    setFirefliesInsights(null);
     setProgramTarget(target);
     setPhase('wizard');
     setStep(values.step);
     setVisitedSteps(new Set([values.step]));
-    // This is what the database already holds: nothing to write back.
-    saver.markSaved(buildProgramSnapshot(target, values));
+    // This is what the database already holds: nothing to write back —
+    // unless it was stored in an older format, which gets rewritten.
+    if (savedVersion >= STATE_VERSION) saver.markSaved(buildProgramSnapshot(target, values));
   };
 
   const handleOpenProgram = async (programId) => {
@@ -252,27 +206,20 @@ function App() {
   const handleCSMClientSelected = async (client, details) => {
     const existing = await findProgramByCompany(client.id);
     if (existing) {
-      openProgram(existing, { selectedClient: { ...client, contacts: details.contacts || [] }, clientDetails: details });
+      openProgram(existing, { selectedClient: { ...client, contacts: details.contacts || [] } });
       return;
     }
 
     startNewProgram(String(client.id));
     setBrandAnalysis(null);
     setSelectedClient({ ...client, contacts: details.contacts || [] });
-    setClientDetails(details);
     setCsmMode(true);
 
     // Apply CSM-inferred defaults and skip straight to Step 0 (Program Setup),
     // pre-filled with values inferred from HubSpot company data so the user
     // can adjust before continuing into the wizard.
     const company = details?.company || {};
-    const defaults = applyCsmDefaults(company, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyCsmDefaults(company, lang));
     setOnboardingAnswers(buildCsmOnboardingAnswers(company));
 
     setPhase('wizard');
@@ -282,55 +229,28 @@ function App() {
 
   const handleStep0Complete = (answers) => {
     setOnboardingAnswers(answers);
-    const defaults = applyOnboardingDefaults(answers, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyOnboardingDefaults(answers, lang));
     setStep(1); // Go to CSV import step
   };
 
   const reset = () => {
     saver.flush(); // pending edits of the open program still reach the database
     setProgramTarget(null);
-    setConfig(INITIAL_CONFIG);
-    setSettings(INITIAL_SETTINGS);
+    applyProgram(BLANK_PROGRAM);
     setCustomers(parseSampleData());
-    setTiersRaw(INITIAL_TIERS);
-    setMissions(initialMissions());
-    setCustomMissions([]);
-    setRewards(DEFAULT_REWARDS);
-    setBurnRate(40);
-    setReferralConfig(INITIAL_REFERRAL);
     setOnboardingAnswers(null);
     setBrandAnalysis(null);
     setCsmMode(false);
     setSelectedClient(null);
-    setClientDetails(null);
-    setFirefliesInsights(null);
-    setFirefliesLoading(false);
     setPhase('csm');
     setStep(0);
     setVisitedSteps(new Set([0]));
-    // Clear recommendation dismiss flags
-    for (let i = 1; i <= 7; i++) {
-      try { localStorage.removeItem(`vip_reco_dismissed_step${i}`); } catch { /* noop */ }
-    }
   };
 
-  // Track visited steps
-  useEffect(() => {
-    if (phase === 'wizard') {
-      setVisitedSteps(prev => {
-        if (prev.has(step)) return prev;
-        const next = new Set(prev);
-        next.add(step);
-        return next;
-      });
-    }
-  }, [step, phase]);
+  // Track visited steps (updated during render when a new step is shown).
+  if (phase === 'wizard' && !visitedSteps.has(step)) {
+    setVisitedSteps(new Set([...visitedSteps, step]));
+  }
 
   // ── Persistence: every change of the open program is saved to Supabase ──
   const [shareToast, setShareToast] = useState(null); // success/error toast for save ops
@@ -388,25 +308,23 @@ function App() {
     setProgramTarget(null);
     setCsmMode(false);
     setSelectedClient(null);
-    setClientDetails(null);
-    setFirefliesInsights(null);
     setPhase('csm');
   };
 
   // Smooth scroll the page back to the top so the new step's title is visible.
-  const scrollToTop = useCallback(() => {
+  const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  };
 
-  const goNext = useCallback(() => {
+  const goNext = () => {
     setStep(s => Math.min(STEPS.length - 1, s + 1));
     requestAnimationFrame(scrollToTop);
-  }, [scrollToTop]);
+  };
 
-  const goPrev = useCallback(() => {
+  const goPrev = () => {
     setStep(s => Math.max(0, s - 1));
     requestAnimationFrame(scrollToTop);
-  }, [scrollToTop]);
+  };
 
   // Step navigation is click-only (Précédent / Suivant buttons + tabs).
   // Earlier prototype with wheel-driven advance was removed — it conflicted
@@ -420,7 +338,6 @@ function App() {
   };
 
   const t = lang === 'fr';
-  const clientName = csmMode ? (selectedClient?.name || selectedClient?.company?.name || null) : null;
 
   // ─── Configuration / login gate ───
   if (!supabase || !GOOGLE_CLIENT_ID) {
@@ -456,7 +373,7 @@ function App() {
         <div className="flex flex-col items-center gap-8 p-10 rounded-2xl" style={{ backgroundColor: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', maxWidth: 400, width: '100%' }}>
           <div className="flex flex-col items-center gap-3">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 40 }} />
-            <h1 className="text-[22px] font-bold" style={{ color: '#2B251F' }}>VIP Tiers Calculator</h1>
+            <h1 className="text-[22px] font-bold" style={{ color: '#2B251F' }}>Loyoly Setup</h1>
             <p className="text-[13px] text-center" style={{ color: '#8A7D6B' }}>
               Connectez-vous pour accéder à l'outil
             </p>
@@ -486,7 +403,7 @@ function App() {
         <div className="max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
-            <span className="text-[15px] font-bold text-white">VIP Tiers Calculator</span>
+            <span className="text-[15px] font-bold text-white">Loyoly Setup</span>
           </div>
           <div className="flex items-center gap-1">
             {phase === 'wizard' && programTarget && <SaveStatus saveState={saveState} lang={lang} />}
@@ -669,14 +586,15 @@ function App() {
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
-                lang={lang} brandAnalysis={brandAnalysis} clientName={clientName}
+                lang={lang} brandAnalysis={brandAnalysis}
                 onboardingAnswers={onboardingAnswers}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
-                tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
+                tiers={tiers} customers={customers} settings={settings} setSettings={setSettings}
+                config={config} lang={lang}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 4 && (
@@ -706,8 +624,7 @@ function App() {
             )}
             {step === 5 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
-                settings={settings} config={config} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName} customers={customers}
+                tiers={tiers} settings={settings} lang={lang}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 6 && (
@@ -716,16 +633,13 @@ function App() {
                 burnRate={burnRate} setBurnRate={setBurnRate}
                 customers={customers} settings={settings} config={config}
                 missions={missions} customMissions={customMissions} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 7 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
-                settings={settings} config={config}
+                settings={settings} setSettings={setSettings} config={config}
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
-                programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
-                brandAnalysis={brandAnalysis} clientName={clientName}
                 referralConfig={referralConfig}
                 onPrev={goPrev} />
             )}

@@ -8,9 +8,10 @@
 // writes so that each modification ends up in the database.
 
 import { supabase } from '../lib/supabase';
+import { defaultTierUtilization } from '../data/programDefaults';
 
 const TABLE = 'vip_programs';
-const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 const LIST_COLUMNS = 'id, hubspot_company_id, client_name, client_domain, client_plan, step, customers_count, tier_count, updated_at, updated_by';
 
 // ── Reads / deletes ──────────────────────────────────────────────────
@@ -43,6 +44,60 @@ export async function findProgramByCompany(companyId) {
 export async function deleteProgram(id) {
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw error;
+}
+
+// ── Format migrations ────────────────────────────────────────────────
+// v1 → v2: points became derived values (earn rate × base values) and the
+// reward cost per tier comes from tier.avgUtilization. A migrated program
+// shows the same figures as before: the earn rate it had is pinned, stored
+// points are converted back to base values, and each tier keeps the average
+// utilization it displayed.
+const EARN_RATE_STEPS = [1, 5, 10];
+
+export function migrateProgramState(state = {}) {
+  if ((state.v ?? 1) >= STATE_VERSION) return state;
+
+  const settings = { ...(state.settings || {}) };
+  const cashback = Number(settings.cashbackRate) || 0;
+  const oldPtsPerRewardEur = Number(settings.pointsPerEuro) || 100;
+  const oldEarnRate = cashback * oldPtsPerRewardEur / 100;
+  const snapped = EARN_RATE_STEPS.find(r => Math.abs(oldEarnRate - r) / r <= 0.1);
+  const earnRate = oldEarnRate > 0 ? (snapped ?? Math.round(oldEarnRate * 100) / 100) : 1;
+  const ptsPerRewardEur = cashback > 0 ? earnRate * 100 / cashback : 100;
+  delete settings.pointsPerEuro;
+
+  const toMission = m => (m.isPurchaseMission || m.basePoints !== undefined
+    ? m
+    : { ...m, basePoints: (m.points ?? 0) / earnRate });
+
+  const rewards = (state.rewards || []).map(r => ({
+    ...r,
+    pointsValueEur: r.pointsValueEur ?? (r.pointsCost ?? 0) / ptsPerRewardEur,
+    bonusBasePoints: r.bonusBasePoints ?? (r.pointsBonus ?? 0) / earnRate,
+    // Bonus costs were frozen when added; promo costs always followed the margin.
+    realCostAuto: r.realCostAuto ?? r.type === 'promo_percent',
+    minPurchaseAuto: r.minPurchaseAuto ?? false,
+  }));
+
+  const burnRate = state.burnRate ?? 40;
+  const tiers = (state.tiers || []).map((tier, i) => {
+    if (tier.avgUtilization !== undefined) return tier;
+    const assigned = (state.rewards || []).filter(r => r.assignedTiers?.[i]);
+    const avg = assigned.length > 0
+      ? Math.round(assigned.reduce((s, r) => s + (r.utilizationByTier?.[i] ?? burnRate), 0) / assigned.length)
+      : defaultTierUtilization(i);
+    return { ...tier, avgUtilization: avg };
+  });
+
+  return {
+    ...state,
+    v: STATE_VERSION,
+    settings: { ...settings, earnRate, earnRateManual: true },
+    missions: (state.missions || []).map(toMission),
+    customMissions: (state.customMissions || []).map(toMission),
+    rewards,
+    tiers,
+  };
 }
 
 // ── Snapshot of the wizard state ─────────────────────────────────────

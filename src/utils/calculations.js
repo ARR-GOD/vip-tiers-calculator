@@ -1,16 +1,10 @@
 // ══════════════════════════════════════════════════════════════
-// Core calculation engine for VIP Tiers Calculator
+// Core calculation engine for Loyoly Setup
 // ══════════════════════════════════════════════════════════════
 
-// ── Points derivation from cashback rate ──
-// pointsToEuro: how many points = 1€ of reward value (configurable, default 100)
-// pointsPerEuro: how many points a customer earns per 1€ spent = cashbackRate% × pointsToEuro
-export function derivePointsFromCashback(cashbackRate, pointsToEuro = 100) {
-  const rate = parseFloat(cashbackRate) || 3;
-  const pto = parseInt(pointsToEuro) || 100;
-  const pointsPerEuro = rate * pto / 100; // 3% cashback, 100pts=1€ → 3 pts/€
-  return { pointsToEuro: pto, pointsPerEuro };
-}
+import { pointsModel, missionPoints } from './pointsModel';
+import { rewardRealCost, rewardMinPurchase, rewardPointsCost, isBurnReward } from './rewardModel';
+import { defaultTierUtilization } from '../data/programDefaults';
 
 // ── Customer scoring ──
 export function computeCustomerScores(customers, segmentationType, caWeight = 0.5) {
@@ -39,56 +33,56 @@ export function computeCustomerScores(customers, segmentationType, caWeight = 0.
 }
 
 // ── Tier basis helpers ──
-// Map a customer to the metric value used by the chosen tierBasis.
-export function metricForBasis(customer, tierBasis, pointsPerEuro = 10) {
+// The points basis is the spend basis expressed in points (spend × earn rate):
+// only spend and order thresholds are stored.
+export function metricForBasis(customer, tierBasis, earnRate = 1) {
   if (tierBasis === 'orders') return customer.number_of_orders || 0;
-  if (tierBasis === 'points') return (customer.total_ordered_TTC || 0) * pointsPerEuro;
+  if (tierBasis === 'points') return (customer.total_ordered_TTC || 0) * earnRate;
   return customer.total_ordered_TTC || 0;
 }
 
 // Read the entry-threshold value of a tier for the chosen basis.
-export function thresholdForBasis(tier, tierBasis) {
+export function thresholdForBasis(tier, tierBasis, earnRate = 1) {
   if (tierBasis === 'orders') return tier?.orderThreshold ?? 0;
-  if (tierBasis === 'points') return tier?.pointsThreshold ?? 0;
+  if (tierBasis === 'points') return (tier?.spendThreshold ?? 0) * earnRate;
   return tier?.spendThreshold ?? 0;
 }
 
-// Tier shape key holding the threshold for a given basis.
+// Tier field holding the threshold for a given basis.
 export function thresholdKeyForBasis(tierBasis) {
   if (tierBasis === 'orders') return 'orderThreshold';
-  if (tierBasis === 'points') return 'pointsThreshold';
   return 'spendThreshold';
 }
 
 // Sort customers DESC by the chosen metric. Used for percentile lookups.
-export function getSortedByMetric(customers, tierBasis, pointsPerEuro = 10) {
+export function getSortedByMetric(customers, tierBasis, earnRate = 1) {
   return [...customers].sort((a, b) =>
-    metricForBasis(b, tierBasis, pointsPerEuro) - metricForBasis(a, tierBasis, pointsPerEuro)
+    metricForBasis(b, tierBasis, earnRate) - metricForBasis(a, tierBasis, earnRate)
   );
 }
 
 /**
- * Given a desired % of customers in a specific tier, return the threshold value
- * (€, #orders, or pts) that would produce that distribution — assuming higher
- * tiers' thresholds stay fixed. Lower tiers absorb the remainder.
- *
- * Usage: when the user edits tier i's "% of customers" field, call this to
- * compute the new threshold for tier i and write it back.
+ * Given a desired % of customers in a specific tier, return the stored
+ * threshold (€ or #orders, see thresholdKeyForBasis) that would produce that
+ * distribution — assuming higher tiers' thresholds stay fixed. Lower tiers
+ * absorb the remainder.
  *
  * Works for any tierIndex, including tier 0. Customers below the tier 0
  * threshold are considered non-members (tier = -1) in assignTiers.
  */
-export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierIndex, desiredPct, basis, pointsPerEuro = 10 }) {
-  const sorted = sortedCustomers || getSortedByMetric(customers || [], basis, pointsPerEuro);
+export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierIndex, desiredPct, basis }) {
+  // Points thresholds are stored in €: same ordering as the spend basis.
+  const storedBasis = basis === 'points' ? 'spend' : basis;
+  const sorted = sortedCustomers || getSortedByMetric(customers || [], storedBasis);
   const N = sorted.length;
   if (N === 0) return 0;
 
-  const metric = c => metricForBasis(c, basis, pointsPerEuro);
+  const metric = c => metricForBasis(c, storedBasis);
 
   // Customers already taken by tiers strictly above tierIndex.
   let countAbove = 0;
   if (tierIndex < tiers.length - 1) {
-    const upperT = thresholdForBasis(tiers[tierIndex + 1], basis);
+    const upperT = thresholdForBasis(tiers[tierIndex + 1], storedBasis);
     // Count customers whose metric >= upperT (qualified for the tier above).
     let i = 0;
     while (i < N && metric(sorted[i]) >= upperT) i++;
@@ -97,25 +91,19 @@ export function thresholdForTierPct({ customers, sortedCustomers, tiers, tierInd
 
   const desiredCount = Math.max(1, Math.round((Math.max(0, desiredPct) / 100) * N));
   const cutIdx = Math.max(0, Math.min(N - 1, countAbove + desiredCount - 1));
-  const v = metric(sorted[cutIdx]);
-  // Round integer metrics (orders) to integer thresholds.
-  if (basis === 'orders') return Math.max(0, Math.round(v));
-  if (basis === 'points') return Math.max(0, Math.round(v));
-  return Math.max(0, Math.round(v));
+  return Math.max(0, Math.round(metric(sorted[cutIdx])));
 }
 
 // ── Tier assignment ──
 // Unified: dispatches on tierBasis using the metric/threshold helpers above.
 // Customers whose metric is below tier 0's threshold are non-members (tier = -1).
-export function assignTiers(sortedCustomers, tiers, tierBasis, programConfig) {
+export function assignTiers(sortedCustomers, tiers, tierBasis, { earnRate = 1 } = {}) {
   if (!sortedCustomers || sortedCustomers.length === 0) return [];
-  const pointsPerEuro = programConfig?.pointsPerEuro || 10;
-  const metric = c => metricForBasis(c, tierBasis, pointsPerEuro);
   return sortedCustomers.map(customer => {
-    const v = metric(customer);
+    const v = metricForBasis(customer, tierBasis, earnRate);
     let assignedTier = -1; // non-member by default
     for (let i = tiers.length - 1; i >= 0; i--) {
-      if (v >= thresholdForBasis(tiers[i], tierBasis)) {
+      if (v >= thresholdForBasis(tiers[i], tierBasis, earnRate)) {
         assignedTier = i;
         break;
       }
@@ -182,9 +170,11 @@ export function computeNonMemberStats(assignedCustomers) {
   };
 }
 
-// ── Mission points calculations (per tier, with engagement rates) ──
-export function computeMissionPointsByTier(missions, customMissions, tiers, tierStats, scenarioMultiplier = 1) {
-  const allMissions = [...missions, ...customMissions].filter(m => m.enabled);
+// ── Mission points calculations (per tier, with completion rates) ──
+// The purchase mission is not a mission here: purchase points come from
+// revenue × earn rate (see computePointsEconomy).
+export function computeMissionPointsByTier(missions, customMissions, tiers, tierStats, settings, scenarioMultiplier = 1) {
+  const allMissions = [...missions, ...customMissions].filter(m => m.enabled && !m.isPurchaseMission);
 
   return tiers.map((tier, tierIndex) => {
     const stat = tierStats[tierIndex];
@@ -193,14 +183,9 @@ export function computeMissionPointsByTier(missions, customMissions, tiers, tier
     }
 
     const missionBreakdown = allMissions.map(m => {
-      // Prefer the new global completionRate; fall back to legacy per-tier engagement.
-      const rawRate = typeof m.completionRate === 'number'
-        ? m.completionRate
-        : (m.engagementByTier?.[tierIndex] ?? 20);
-      const engagementRate = rawRate / 100;
-      const adjustedRate = Math.min(engagementRate * scenarioMultiplier, 1);
+      const adjustedRate = Math.min(((m.completionRate ?? 20) / 100) * scenarioMultiplier, 1);
       const completionsPerYear = stat.count * adjustedRate * (m.frequency || 1);
-      const pointsGenerated = completionsPerYear * m.points;
+      const pointsGenerated = completionsPerYear * missionPoints(m, settings);
       return {
         missionId: m.id,
         name: m.nameFr || m.nameEn,
@@ -219,171 +204,65 @@ export function computeMissionPointsByTier(missions, customMissions, tiers, tier
   });
 }
 
-// ── Purchase points per year for a tier ──
-export function computePurchasePointsPerYear(avgLTV, pointsPerEuro, multiplier) {
-  return avgLTV * pointsPerEuro * multiplier;
+// Purchase points of a tier: revenue × earn rate × the tier's multiplier.
+export function computePurchasePoints(tierStat, tier, settings) {
+  return Math.round((tierStat?.revenue || 0) * pointsModel(settings).earnRate * (tier?.pointsMultiplier || 1));
 }
 
-// ── Reward cost calculations (with burn/perk split + utilization) ──
-export function computeRewardsCost(rewards, burnRate, tierStats, tiers, scenarioMultiplier = 1) {
-  const totalCustomers = tierStats.reduce((s, t) => s + t.count, 0);
-  if (totalCustomers === 0) return { totalCost: 0, burnCost: 0, perkCost: 0, incrementalRevenue: 0, details: [] };
-
-  let burnCost = 0;
-  let perkCost = 0;
-  let incrementalRevenue = 0;
-  const details = [];
-
-  tierStats.forEach((stat, tierIndex) => {
-    const normalized = rewards.map(r => normalizeReward(r, tiers.length));
-
-    normalized.forEach(reward => {
-      if (!reward.assignedTiers?.[tierIndex]) return;
-
-      // Scenario scales the modeled utilization rate the same way it scales
-      // mission completion — engagement is a program-wide lever.
-      const baseUtil = (reward.utilizationByTier?.[tierIndex] ?? burnRate) / 100;
-      const utilization = Math.min(1, baseUtil * scenarioMultiplier);
-      const isBurn = reward.rewardUsage === 'burn' || reward.rewardUsage === 'both';
-      const isPerk = reward.rewardUsage === 'perk' || reward.rewardUsage === 'both';
-
-      if (isBurn) {
-        const cost = stat.count * reward.realCost * utilization;
-        burnCost += cost;
-        // Incremental revenue from minPurchase
-        if (reward.minPurchase > 0) {
-          incrementalRevenue += stat.count * reward.minPurchase * utilization;
-        }
-      }
-      if (isPerk) {
-        const cost = stat.count * reward.realCost * utilization;
-        perkCost += cost;
-        if (reward.minPurchase > 0) {
-          incrementalRevenue += stat.count * reward.minPurchase * utilization;
-        }
-      }
+// ── Reward cost per tier ──
+// Every reward assigned to a tier is used by tier.avgUtilization % of the
+// tier's members per year — scaled by the engagement scenario and, on the
+// dashboard, by the share of customers active in the program.
+// A reward available both with points and as a perk is counted once.
+export function rewardCostByTier({ rewards, tiers, tierStats, settings }, { scenarioMultiplier = 1, participation = 1 } = {}) {
+  return tiers.map((tier, i) => {
+    const count = tierStats[i]?.count || 0;
+    const baseUtil = (tier.avgUtilization ?? defaultTierUtilization(i)) / 100;
+    const utilization = Math.min(1, baseUtil * scenarioMultiplier) * participation;
+    let burnCost = 0;
+    let perkCost = 0;
+    let incrementalRevenue = 0;
+    let rewardCount = 0;
+    rewards.forEach(reward => {
+      if (!reward.assignedTiers?.[i]) return;
+      rewardCount++;
+      const cost = count * rewardRealCost(reward, settings) * utilization;
+      if (isBurnReward(reward)) burnCost += cost;
+      else perkCost += cost;
+      incrementalRevenue += count * rewardMinPurchase(reward, settings) * utilization;
     });
+    return { tierIndex: i, rewardCount, burnCost, perkCost, totalCost: burnCost + perkCost, incrementalRevenue };
   });
+}
 
-  return { totalCost: burnCost + perkCost, burnCost, perkCost, incrementalRevenue, details };
+export function sumRewardCosts(rows) {
+  return rows.reduce((acc, r) => ({
+    burnCost: acc.burnCost + r.burnCost,
+    perkCost: acc.perkCost + r.perkCost,
+    totalCost: acc.totalCost + r.totalCost,
+    incrementalRevenue: acc.incrementalRevenue + r.incrementalRevenue,
+  }), { burnCost: 0, perkCost: 0, totalCost: 0, incrementalRevenue: 0 });
 }
 
 // ── Per-tier financial summary ──
-export function computeTierFinancials(tierIndex, tierStat, rewards, grossMargin, burnRate) {
-  if (!tierStat || tierStat.count === 0) {
-    return { rewardsCost: 0, grossProfit: 0, netProfit: 0, roi: 0, hasRewards: false };
+export function computeTierFinancials(costRow, tierStat, grossMargin) {
+  if (!tierStat || tierStat.count === 0 || !costRow) {
+    return { rewardsCost: 0, grossProfit: 0, netProfit: 0, hasRewards: false };
   }
-
-  let rewardsCost = 0;
-  let hasRewards = false;
-  const normalized = rewards.map(r => normalizeReward(r, 4));
-  normalized.forEach(reward => {
-    if (!reward.assignedTiers?.[tierIndex]) return;
-    hasRewards = true;
-    const utilization = (reward.utilizationByTier?.[tierIndex] ?? burnRate) / 100;
-    rewardsCost += tierStat.count * reward.realCost * utilization;
-  });
-
+  const hasRewards = costRow.rewardCount > 0;
   // Tier P&L view: only meaningful when there ARE rewards assigned to the tier.
   // Without rewards, the program doesn't impact the tier — no marge brute nor
-  // profit net attributable. We zero them out so the UI doesn't suggest a
-  // misleading "marge brute" sitting next to a 0€ rewards cost.
+  // profit net attributable.
   const grossProfit = hasRewards ? (tierStat.revenue || 0) * (grossMargin / 100) : 0;
-  const netProfit = grossProfit - rewardsCost;
-  const roi = rewardsCost > 0 ? ((grossProfit - rewardsCost) / rewardsCost) * 100 : 0;
-
-  return { rewardsCost, grossProfit, netProfit, roi, hasRewards };
+  return { rewardsCost: costRow.totalCost, grossProfit, netProfit: grossProfit - costRow.totalCost, hasRewards };
 }
 
-// ── Normalize reward: legacy minTier → assignedTiers ──
-export function normalizeReward(reward, tierCount) {
-  if (reward.assignedTiers && reward.assignedTiers.length >= tierCount) return reward;
-  const assignedTiers = Array.from({ length: tierCount }, (_, i) =>
-    reward.assignedTiers ? (reward.assignedTiers[i] ?? false) : i >= (reward.minTier || 0)
-  );
-  const utilizationByTier = Array.from({ length: tierCount }, (_, i) =>
-    reward.utilizationByTier?.[i] ?? 30
-  );
-  return {
-    ...reward,
-    assignedTiers,
-    utilizationByTier,
-    rewardUsage: reward.rewardUsage || 'burn',
-    minPurchase: reward.minPurchase || 0,
-  };
-}
-
-// ── Resize assignedTiers & utilizationByTier when tier count changes ──
+// ── Resize assignedTiers when tier count changes ──
 export function resizeAssignedTiers(rewards, newTierCount) {
-  return rewards.map(r => {
-    const currentAssigned = r.assignedTiers || [];
-    const currentUtil = r.utilizationByTier || [];
-    const assignedTiers = Array.from({ length: newTierCount }, (_, i) =>
-      i < currentAssigned.length ? currentAssigned[i] : false
-    );
-    const utilizationByTier = Array.from({ length: newTierCount }, (_, i) =>
-      i < currentUtil.length ? currentUtil[i] : 30
-    );
-    return { ...r, assignedTiers, utilizationByTier };
-  });
-}
-
-// ── Resize mission engagement rates when tier count changes ──
-export function resizeMissionEngagement(missions, newTierCount) {
-  return missions.map(m => {
-    const current = m.engagementByTier || [];
-    const engagementByTier = Array.from({ length: newTierCount }, (_, i) =>
-      i < current.length ? current[i] : 20
-    );
-    return { ...m, engagementByTier };
-  });
-}
-
-// ── Program funnel calculation ──
-export function computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, scenarioMultiplier = 1) {
-  const { cashbackRate, grossMargin } = settings;
-  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate, settings.pointsPerEuro);
-
-  const totalCustomers = tierStats.reduce((s, t) => s + t.count, 0);
-  const totalRevenue = tierStats.reduce((s, t) => s + t.revenue, 0);
-
-  // Points from purchases
-  let totalPurchasePoints = 0;
-  tierStats.forEach((stat, i) => {
-    const multiplier = tiers[i]?.pointsMultiplier || 1;
-    totalPurchasePoints += stat.revenue * pointsPerEuro * multiplier;
-  });
-
-  // Points from missions
-  const missionData = computeMissionPointsByTier(missions, customMissions, tiers, tierStats, scenarioMultiplier);
-  const totalMissionPoints = missionData.reduce((s, d) => s + d.totalPoints, 0);
-
-  const totalPointsEarned = totalPurchasePoints + totalMissionPoints;
-
-  // Points redeemed (estimated from burn rate)
-  const avgBurnRate = 40; // will be overridden
-  const pointsRedeemed = totalPointsEarned * (avgBurnRate / 100);
-
-  // Rewards triggered — scaled by scenario so P&L moves with the active pick
-  const rewardCosts = computeRewardsCost(rewards, avgBurnRate, tierStats, tiers, scenarioMultiplier);
-
-  return {
-    totalCustomers,
-    totalRevenue,
-    totalPurchasePoints: Math.round(totalPurchasePoints),
-    totalMissionPoints: Math.round(totalMissionPoints),
-    totalPointsEarned: Math.round(totalPointsEarned),
-    pointsRedeemed: Math.round(pointsRedeemed),
-    rewardsCost: rewardCosts.totalCost,
-    burnCost: rewardCosts.burnCost,
-    perkCost: rewardCosts.perkCost,
-    incrementalRevenue: rewardCosts.incrementalRevenue,
-    grossProfit: rewardCosts.incrementalRevenue * (grossMargin / 100),
-    netProfit: rewardCosts.incrementalRevenue * (grossMargin / 100) - rewardCosts.totalCost,
-    roi: rewardCosts.totalCost > 0
-      ? ((rewardCosts.incrementalRevenue * (grossMargin / 100) - rewardCosts.totalCost) / rewardCosts.totalCost * 100)
-      : 0,
-  };
+  return rewards.map(r => ({
+    ...r,
+    assignedTiers: Array.from({ length: newTierCount }, (_, i) => r.assignedTiers?.[i] ?? false),
+  }));
 }
 
 // ── Referral economics ──
@@ -416,92 +295,41 @@ export function computeReferralEconomics(referralConfig, aov) {
 }
 
 // ── Points economy (emitted / burned / dormant) ──
-export function computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, scenarioMultiplier = 1) {
-  const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
+// Burned points = emitted × burn rate (share of points actually redeemed).
+export function computePointsEconomy(tierStats, tiers, missions, customMissions, settings, burnRate, scenarioMultiplier = 1) {
+  const missionData = computeMissionPointsByTier(missions, customMissions, tiers, tierStats, settings, scenarioMultiplier);
 
-  // Points emitted per year per tier
   const perTier = tiers.map((tier, i) => {
     const stat = tierStats[i];
-    if (!stat || stat.count === 0) return { emitted: 0, burned: 0, dormant: 0 };
-
-    // Purchase points
-    const purchasePoints = Math.round(stat.revenue * (settings.cashbackRate / 100) * pointsPerEuro * (tier.pointsMultiplier || 1));
-
-    // Mission points — completion rate scaled by the active scenario
-    const allMissions = [...missions, ...customMissions].filter(m => m.enabled);
-    const missionPoints = allMissions.reduce((sum, m) => {
-      const rawRate = typeof m.completionRate === 'number' ? m.completionRate : (m.engagementByTier?.[i] ?? 20);
-      const rate = Math.min(1, (rawRate / 100) * scenarioMultiplier);
-      return sum + Math.round(stat.count * rate * (m.frequency || 1) * m.points);
-    }, 0);
-
-    const emitted = purchasePoints + missionPoints;
-
-    // Burned = emitted × burnRate × avg utilization of burn rewards
-    const burnRewards = rewards.filter(r => r.rewardUsage === 'burn');
-    const avgUtil = burnRewards.length > 0
-      ? burnRewards.reduce((s, r) => s + (r.utilizationByTier?.[i] ?? 30), 0) / burnRewards.length / 100
-      : 0.3;
-    const burned = Math.round(emitted * (burnRate / 100) * avgUtil);
-    const dormant = emitted - burned;
-
-    return { emitted, burned, dormant, purchasePoints, missionPoints };
+    if (!stat || stat.count === 0) return { emitted: 0, burned: 0, dormant: 0, purchasePoints: 0, missionPoints: 0 };
+    const purchasePoints = computePurchasePoints(stat, tier, settings);
+    const missionPts = missionData[i]?.totalPoints || 0;
+    const emitted = purchasePoints + missionPts;
+    const burned = Math.round(emitted * ((burnRate || 0) / 100));
+    return { emitted, burned, dormant: emitted - burned, purchasePoints, missionPoints: missionPts };
   });
 
   const totalEmitted = perTier.reduce((s, t) => s + t.emitted, 0);
   const totalBurned = perTier.reduce((s, t) => s + t.burned, 0);
   const totalDormant = totalEmitted - totalBurned;
   const utilizationRate = totalEmitted > 0 ? (totalBurned / totalEmitted) * 100 : 0;
-  const provisionEur = totalDormant / (pointsPerEuro || 100);
 
-  return { perTier, totalEmitted, totalBurned, totalDormant, utilizationRate, provisionEur };
+  return { perTier, totalEmitted, totalBurned, totalDormant, utilizationRate };
 }
 
-// ── Expiration impact (rough estimate) ──
-export function computeExpirationImpact(expirationMonths, isRolling) {
-  if (!expirationMonths || expirationMonths <= 0) return 0;
-  const base = Math.max(0, 1 - expirationMonths / 24);
-  const factor = isRolling ? 0.6 : 1;
-  return Math.min(base * factor * 100, 80);
-}
-
-// ── 12-month projection ──
-export function compute12MonthProjection(tierStats, rewards, settings, tiers, missions, customMissions, scenarioMultiplier = 1) {
-  const months = [];
-  const { cashbackRate, grossMargin } = settings;
-  const { pointsPerEuro } = derivePointsFromCashback(cashbackRate, settings.pointsPerEuro);
-
-  for (let m = 1; m <= 12; m++) {
-    const factor = m / 12;
-    let cumulativeCost = 0;
-    let cumulativeRevenue = 0;
-    let cumulativeProfit = 0;
-
-    tierStats.forEach((stat, i) => {
-      const multiplier = tiers[i]?.pointsMultiplier || 1;
-      const monthlyRevenue = (stat.revenue / 12) * m;
-
-      const normalized = rewards.map(r => normalizeReward(r, tiers.length));
-      normalized.forEach(reward => {
-        if (!reward.assignedTiers?.[i]) return;
-        const utilization = (reward.utilizationByTier?.[i] ?? 30) / 100 * factor * scenarioMultiplier;
-        cumulativeCost += stat.count * reward.realCost * utilization;
-        if (reward.minPurchase > 0) {
-          cumulativeRevenue += stat.count * reward.minPurchase * utilization;
-        }
-      });
-    });
-
-    cumulativeProfit = cumulativeRevenue * (grossMargin / 100) - cumulativeCost;
-    months.push({
-      month: m,
-      cost: Math.round(cumulativeCost),
-      revenue: Math.round(cumulativeRevenue),
-      profit: Math.round(cumulativeProfit),
-    });
-  }
-
-  return months;
+// € the brand actually pays per point redeemed: real cost / points price of
+// the points rewards offered in at least one tier. Null without such rewards.
+export function realCostPerPoint(rewards, settings) {
+  let cost = 0;
+  let points = 0;
+  rewards.forEach(r => {
+    if (!isBurnReward(r) || !r.assignedTiers?.some(Boolean)) return;
+    const price = rewardPointsCost(r, settings);
+    if (price <= 0) return;
+    cost += rewardRealCost(r, settings);
+    points += price;
+  });
+  return points > 0 ? cost / points : null;
 }
 
 // ── Formatters ──

@@ -1,4 +1,4 @@
-# VIP Tiers Calculator — Loyoly
+# Loyoly Setup
 
 Internal tool for Loyoly CSMs: design a brand's loyalty program (points, VIP tiers,
 missions, rewards, referral) from its customer export and estimate its economics.
@@ -8,6 +8,16 @@ missions, rewards, referral) from its customer export and estimate its economics
 - **Auth**: Google sign-in restricted to `@loyoly.io`, exchanged for a Supabase session
 - **Data**: every program is saved to Supabase (`vip_programs`) as you edit, shared by the whole team
 
+## Points model
+
+Points are never stored, only derived (`src/utils/pointsModel.js`):
+
+- `settings.earnRate` — points per € spent (1, 5 or 10; follows the AOV rule — ≥ 50€ → 1, below → 10 — until chosen)
+- `settings.cashbackRate` — % of spend given back; points value = earn rate × 100 ÷ cashback (pts for 1€)
+- missions store `basePoints` (1 pt/€ grid), points rewards store `pointsValueEur`, tiers store € / order thresholds
+
+Saved programs carry a format version; `migrateProgramState` (`src/utils/programStore.js`) upgrades older ones without changing their figures.
+
 ## Local development
 
 ```bash
@@ -15,6 +25,7 @@ npm install
 cp .env.example .env.local   # fill in the values
 npm run dev                  # front only (no /api)
 npm run dev:full             # front + /api through `vercel dev`
+npm test                     # unit tests (points model, calculations, migrations)
 ```
 
 ## Supabase setup

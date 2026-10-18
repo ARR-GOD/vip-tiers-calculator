@@ -1,46 +1,50 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { Download, Image, RotateCcw, ChevronLeft, TrendingUp } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
 import {
   computeCustomerScores, assignTiers, computeTierStats, computeNonMemberStats,
-  computeProgramFunnel, computeReferralEconomics, computePointsEconomy,
-  derivePointsFromCashback,
+  computeReferralEconomics, computePointsEconomy, rewardCostByTier, sumRewardCosts, realCostPerPoint,
   formatCurrency, formatNumber, formatPercent, formatCompact,
 } from '../utils/calculations';
+import { pointsModel } from '../utils/pointsModel';
+import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
+import { INITIAL_SETTINGS } from '../data/programDefaults';
 
-const SCENARIOS = [
-  { key: 'conservative', mult: 0.6, defaultParticipation: 20, labelFr: 'Conservateur', labelEn: 'Conservative' },
-  { key: 'base',          mult: 1.0, defaultParticipation: 40, labelFr: 'Base',          labelEn: 'Base' },
-  { key: 'optimistic',    mult: 1.4, defaultParticipation: 60, labelFr: 'Optimiste',     labelEn: 'Optimistic' },
-];
+const SCENARIOS = ['low', 'medium', 'high'].map(key => ({
+  key,
+  mult: ENGAGEMENT_SCENARIOS[key].multiplier,
+  labelFr: ENGAGEMENT_SCENARIOS[key].nameFr,
+  labelEn: ENGAGEMENT_SCENARIOS[key].nameEn,
+}));
 
 export default function Step5_Dashboard({
-  tiers, customers, settings, config,
+  tiers, customers, settings, setSettings, config,
   missions, customMissions, rewards, burnRate,
   lang, referralConfig, onPrev,
 }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
 
-  // ── Active scenario (selector) + single global participation rate ──
-  const [activeKey, setActiveKey] = useState('base');
-  const [globalParticipation, setGlobalParticipation] = useState(40);
-  const activeScenario = SCENARIOS.find(s => s.key === activeKey) || SCENARIOS[1];
+  // ── Active scenario + single global participation rate (saved with the program) ──
+  const activeKey = SCENARIOS.some(s => s.key === settings.scenario) ? settings.scenario : 'medium';
+  const setActiveKey = key => setSettings(p => ({ ...p, scenario: key }));
+  const globalParticipation = settings.participationRate ?? INITIAL_SETTINGS.participationRate;
+  const setGlobalParticipation = v => setSettings(p => ({ ...p, participationRate: v }));
+  const activeScenario = SCENARIOS.find(s => s.key === activeKey);
   const activeMult = activeScenario.mult;
-  const resetParticipation = () => setGlobalParticipation(40);
+  const resetParticipation = () => setGlobalParticipation(INITIAL_SETTINGS.participationRate);
+  const { ptsPerRewardEur } = pointsModel(settings);
 
-  const { tierStats, nonMembers, assignedAll } = useMemo(() => {
+  const { tierStats, nonMembers } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const { pointsPerEuro } = derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro);
-    const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
+    const assigned = assignTiers(scored, tiers, config.tierBasis, { earnRate: pointsModel(settings).earnRate });
     return {
       tierStats: computeTierStats(assigned, tiers),
       nonMembers: computeNonMemberStats(assigned),
-      assignedAll: assigned,
     };
-  }, [customers, settings, tiers, config]);
+  }, [customers, settings, tiers, config.tierBasis]);
 
   // Total customer revenue includes non-members so percentages of the imported
   // base are honest, regardless of where tier 0's threshold sits.
@@ -57,49 +61,44 @@ export default function Step5_Dashboard({
 
   // Single global participation rate applied to all scenarios.
   //   CA loyalty   = totalCustomerRevenue × globalParticipation%
-  //   Coût rewards = f.rewardsCost × globalParticipation%  (+ referral cost × mult)
+  //   Coût rewards = tier reward costs × globalParticipation%  (+ referral cost × mult)
   // Referral CA + cost scale with the scenario multiplier since engagement
   // drives how many referrals actually happen.
   const scenarioRows = useMemo(() => {
     const part = globalParticipation / 100;
     return SCENARIOS.map(s => {
-      const f = computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, s.mult);
+      const costs = sumRewardCosts(rewardCostByTier(
+        { rewards, tiers, tierStats, settings },
+        { scenarioMultiplier: s.mult, participation: part },
+      ));
       const caLoyalty     = totalCustomerRevenue * part;
       const caReferral    = referralEcon.revenuePerYear * s.mult;
       const referralCost  = referralEcon.totalCostPerYear * s.mult;
       const caTotal       = caLoyalty + caReferral;
       const margin        = caTotal * (settings.grossMargin / 100);
-      const rewardsCost   = f.rewardsCost * part + referralCost;
+      const rewardsCost   = costs.totalCost + referralCost;
       const netProfit     = margin - rewardsCost;
       return { ...s,
         caLoyalty, caReferral, caTotal, margin, rewardsCost, netProfit,
-        burnCost: f.burnCost * part, perkCost: f.perkCost * part };
+        burnCost: costs.burnCost, perkCost: costs.perkCost };
     });
-  }, [tierStats, missions, customMissions, rewards, settings, tiers, referralEcon, totalCustomerRevenue, globalParticipation]);
+  }, [tierStats, rewards, settings, tiers, referralEcon, totalCustomerRevenue, globalParticipation]);
 
   const pointsEconomy = useMemo(
-    () => computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult),
-    [tierStats, tiers, missions, customMissions, rewards, settings, burnRate, activeMult]
-  );
-
-  // ── Real cost per burned point, derived from modeled reward utilization ──
-  // Reflects the burn cost under the ACTIVE scenario so the provision moves with it.
-  const activeFunnel = useMemo(
-    () => computeProgramFunnel(tierStats, missions, customMissions, rewards, settings, tiers, activeMult),
-    [tierStats, missions, customMissions, rewards, settings, tiers, activeMult]
+    () => computePointsEconomy(tierStats, tiers, missions, customMissions, settings, burnRate, activeMult),
+    [tierStats, tiers, missions, customMissions, settings, burnRate, activeMult]
   );
 
   // Two ways to value the dormant points (the outstanding liability):
-  //   - faceValue: 1 pt = 1 / pointsPerEuro € (what the customer can redeem in face value)
-  //   - realCost:  burnCost / totalBurned (what the company actually pays per point burned)
-  // Fallback: if no burn rewards are modeled (or 0 utilization), the modeled
-  // burn cost is 0 — in that case "real cost" is undefined and we fall back to
-  // face value so the column doesn't display a misleading 0€.
-  const pointFaceValue = 1 / (settings.pointsPerEuro || 100);
-  const realCostPerBurnedPoint = (pointsEconomy.totalBurned > 0 && activeFunnel.burnCost > 0)
-    ? activeFunnel.burnCost / pointsEconomy.totalBurned
-    : pointFaceValue;
-  const realCostIsFallback = !(pointsEconomy.totalBurned > 0 && activeFunnel.burnCost > 0);
+  //   - faceValue: 1 pt = 1 / ptsPerRewardEur € (what the customer can redeem)
+  //   - realCost:  real cost ÷ points price of the points rewards offered
+  //     (what the brand actually pays per point redeemed)
+  // Fallback: without points rewards the real cost per point is undefined, so
+  // the column falls back to face value instead of a misleading 0€.
+  const pointFaceValue = 1 / (ptsPerRewardEur || 100);
+  const catalogCostPerPoint = realCostPerPoint(rewards, settings);
+  const realCostPerBurnedPoint = catalogCostPerPoint ?? pointFaceValue;
+  const realCostIsFallback = catalogCostPerPoint === null;
   const provisionFace = pointsEconomy.totalDormant * pointFaceValue;
   const provisionReal = pointsEconomy.totalDormant * realCostPerBurnedPoint;
 
@@ -135,14 +134,14 @@ export default function Step5_Dashboard({
       ].join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, 'vip-tiers-dashboard.csv');
+    saveAs(blob, 'loyoly-setup-dashboard.csv');
   };
 
   const exportPNG = async () => {
     if (!dashRef.current) return;
     try {
       const dataUrl = await toPng(dashRef.current, { backgroundColor: '#F0F0F0', pixelRatio: 2 });
-      saveAs(dataUrl, 'vip-tiers-dashboard.png');
+      saveAs(dataUrl, 'loyoly-setup-dashboard.png');
     } catch (err) { console.error(err); }
   };
 
@@ -391,7 +390,7 @@ export default function Step5_Dashboard({
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">
                       <div className="flex items-center gap-1 justify-end">
                         {t ? 'Valeur faciale €' : 'Face value €'}
-                        <Tooltip text={t ? `1 pt = ${formatCurrency(pointFaceValue)} (1/${settings.pointsPerEuro})` : `1 pt = ${formatCurrency(pointFaceValue)} (1/${settings.pointsPerEuro})`} />
+                        <Tooltip text={`1 pt = ${pointFaceValue.toLocaleString(t ? 'fr-FR' : 'en-US', { maximumFractionDigits: 4 })} € (${formatNumber(ptsPerRewardEur || 100)} pts = 1 €)`} />
                       </div>
                     </th>
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">
@@ -399,11 +398,11 @@ export default function Step5_Dashboard({
                         {t ? 'Coût réel €' : 'Real cost €'}
                         <Tooltip text={t
                           ? (realCostIsFallback
-                              ? `Aucune récompense burn n'est modélisée (ou utilisation à 0) — coût réel non calculable. Fallback : valeur faciale = ${formatCurrency(pointFaceValue)}/pt.`
-                              : `Coût réel par point brûlé = coût burn modélisé / pts brûlés = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflète l'utilisation modélisée (utilization × paliers × rewards).`)
+                              ? `Aucune récompense en points n'est proposée — coût réel non calculable. Valeur faciale utilisée : ${pointFaceValue.toFixed(4)} €/pt.`
+                              : `Coût réel par point utilisé = coût réel ÷ prix en points des récompenses en points proposées = ${realCostPerBurnedPoint.toFixed(4)} €/pt.`)
                           : (realCostIsFallback
-                              ? `No burn reward modeled (or 0 utilization) — real cost not derivable. Fallback: face value = ${formatCurrency(pointFaceValue)}/pt.`
-                              : `Real cost per burned point = modeled burn cost / pts burned = ${formatCurrency(realCostPerBurnedPoint)}/pt. Reflects modeled utilization (utilization × tiers × rewards).`)
+                              ? `No points reward offered — real cost not derivable. Face value used: ${pointFaceValue.toFixed(4)} €/pt.`
+                              : `Real cost per redeemed point = real cost ÷ points price of the points rewards offered = ${realCostPerBurnedPoint.toFixed(4)} €/pt.`)
                         } />
                       </div>
                     </th>
@@ -423,7 +422,7 @@ export default function Step5_Dashboard({
                     volume={pointsEconomy.totalBurned}
                     face={pointsEconomy.totalBurned * pointFaceValue}
                     real={pointsEconomy.totalBurned * realCostPerBurnedPoint}
-                    comment={`${t ? 'Cible burn' : 'Burn target'} ${burnRate}% × ${t ? 'utilisation modélisée' : 'modeled utilization'}`}
+                    comment={`${t ? 'Taux d\'utilisation des points' : 'Points utilization rate'} : ${burnRate}%`}
                     color="green"
                   />
                   <PointsRow
@@ -469,8 +468,8 @@ export default function Step5_Dashboard({
                 </li>
                 <li>
                   <strong>{t ? 'Cash flow effectif' : 'Effective cash impact'} :</strong>{' '}
-                  {formatCurrency(activeFunnel.burnCost)} {t ? 'de coût burn modélisé par an' : 'in modeled burn cost per year'}{' '}
-                  ({formatCompact(pointsEconomy.totalBurned)} pts × {formatCurrency(realCostPerBurnedPoint)}/pt).
+                  {formatCurrency(pointsEconomy.totalBurned * realCostPerBurnedPoint)} {t ? 'de coût réel par an' : 'in real cost per year'}{' '}
+                  ({formatCompact(pointsEconomy.totalBurned)} pts × {realCostPerBurnedPoint.toFixed(4)} €/pt).
                 </li>
                 <li>
                   <strong>{t ? 'Provision recommandée' : 'Recommended provision'} :</strong>{' '}

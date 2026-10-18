@@ -1,7 +1,5 @@
-import { DEFAULT_MISSIONS } from './defaults';
 import { INDUSTRY_PRESETS } from './onboardingPresets';
-
-const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706'];
+import { buildProgramDefaults } from './programDefaults';
 
 // Map HubSpot industry strings → app industry keys
 const HUBSPOT_INDUSTRY_MAP = {
@@ -75,84 +73,16 @@ export function applyCsmDefaults(company, lang) {
     ? Math.round(annualRevenue / annualOrders)
     : preset.aov;
 
-  const grossMargin = preset.grossMargin;
-
-  // Program type adjustments
-  let cashbackRate = preset.cashbackRate;
-  let burnRate = preset.burnRate;
-  let hasMissions = true;
-  let rewardType = 'both';
-
-  if (programType === 'luxury') {
-    hasMissions = false;
-    rewardType = 'perks';
-    cashbackRate = 0;
-    burnRate = 0;
-  } else if (programType === 'mass') {
-    cashbackRate = Math.min(cashbackRate + 1, 8);
-    burnRate = Math.min(burnRate + 10, 60);
-  }
-
-  const tierNames = lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn;
-  const spendThresholds = [0, Math.round(aov * 5), Math.round(aov * 20)];
-
-  const tiers = tierNames.map((name, i) => ({
-    name,
-    color: DEFAULT_TIER_COLORS[i] || '#5A8AFF',
-    threshold: preset.tierThresholds[i],
-    spendThreshold: spendThresholds[i] || 0,
-    pointsThreshold: i * 1000,
-    pointsMultiplier: preset.multipliers[i],
-    perks: [],
-  }));
-
-  const rewards = preset.rewards.map(r => ({
-    ...r,
-    assignedTiers: tiers.map((_, i) => {
-      if (r.rewardUsage === 'perk') return i >= 1;
-      return true;
-    }),
-    utilizationByTier: tiers.map((_, i) => {
-      if (r.rewardUsage === 'perk') return i >= 1 ? 30 + i * 10 : 0;
-      return 20 + i * 10;
-    }),
-  }));
-
-  const config = {
-    tierBasis: 'spend',
-    hasMissions,
-    hasTiers: true,
-    rewardType,
-    pointsExpire: true,
-    expirationMonths: 12,
-    expirationType: 'rolling',
-    tiersExpire: true,
-    tierExpirationMonths: 12,
-    tierExpirationType: 'rolling',
-  };
-
-  const settings = {
-    segmentationType: 'revenue',
-    caWeight: 0.5,
+  return buildProgramDefaults({
+    lang,
     aov,
-    grossMargin,
-    cashbackRate,
-    pointsPerEuro: 100,
-  };
-
-  const missions = DEFAULT_MISSIONS
-    .filter(m => {
-      if (m.isPurchaseMission) return true;
-      if (!hasMissions) return false;
-      return true;
-    })
-    .map(m => ({
-      ...m,
-      enabled: true,
-      engagementByTier: [...(m.engagementByTier || [20, 30, 50])],
-    }));
-
-  return { config, settings, tiers, rewards, missions, burnRate };
+    grossMargin: preset.grossMargin,
+    programType,
+    tierNames: lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn,
+    multipliers: preset.multipliers,
+    rewardTemplates: preset.rewards,
+    burnRate: programType === 'mass' ? Math.min(preset.burnRate + 10, 60) : preset.burnRate,
+  });
 }
 
 export function buildCsmOnboardingAnswers(company) {

@@ -1,20 +1,19 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Lightbulb } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
+import { EARN_RATE_OPTIONS, defaultEarnRate, pointsModel } from '../utils/pointsModel';
+import { suggestedCashback } from '../data/programDefaults';
 
-// Default cashback rate suggestion based on gross margin.
-// Rule: margin < 40 → 5%; < 60 → 10%; < 80 → 15%; else → 20%.
-function suggestedCashback(margin) {
-  if (!margin || margin < 40) return 5;
-  if (margin < 60) return 10;
-  if (margin < 80) return 15;
-  return 20;
-}
-
-export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onboardingAnswers, onPrev, onNext }) {
+export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
   const update = (key, val) => setConfig(prev => ({ ...prev, [key]: val }));
+  // Without points, tiers can't be based on points.
+  const setHasMissions = (val) => setConfig(prev => ({
+    ...prev,
+    hasMissions: val,
+    tierBasis: !val && prev.tierBasis === 'points' ? 'spend' : prev.tierBasis,
+  }));
 
   // ── Derived stats from imported customers ──
   const stats = useMemo(() => {
@@ -41,45 +40,12 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         : `Industry estimate (${industry}) — adjustable`)
     : (lang === 'fr' ? 'Saisi manuellement' : 'Manually entered');
 
-  // ── Cashback suggestion ──
+  // ── Points: earn rate (follows the AOV rule until chosen) + cashback ──
+  // Suggestions are applied on click only: values the CSM set are never
+  // overwritten when coming back to this step.
   const suggested = suggestedCashback(settings.grossMargin);
-
-  // Track whether the user has manually edited cashback. If not, we keep it in
-  // sync with the margin-derived suggestion when margin changes.
-  const [cashbackTouched, setCashbackTouched] = useState(false);
-  useEffect(() => {
-    if (!cashbackTouched) {
-      setSettings(p => ({ ...p, cashbackRate: suggested }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggested]);
-
-  // ── Derive pointsToEuro so that 1€ spent = 1 pt earned ──
-  // points_earned_per_euro = cashbackRate × pointsToEuro / 100
-  // We want points_earned_per_euro = 1 → pointsToEuro = 100 / cashbackRate.
-  // Auto-derive unless user has manually overridden.
-  const [pointsTouched, setPointsTouched] = useState(false);
-  const derivedPointsValue = settings.cashbackRate > 0
-    ? Math.max(1, Math.round(100 / settings.cashbackRate))
-    : 100;
-  useEffect(() => {
-    if (!pointsTouched) {
-      setSettings(p => ({ ...p, pointsPerEuro: derivedPointsValue }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [derivedPointsValue]);
-
-  // ── Keep config consistent: if no points, tierBasis can't be 'points' ──
-  useEffect(() => {
-    if (!config.hasMissions && config.tierBasis === 'points') {
-      update('tierBasis', 'spend');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.hasMissions]);
-
-  const pointsEarnedPerEuro = settings.pointsPerEuro > 0
-    ? (settings.cashbackRate * settings.pointsPerEuro) / 100
-    : 0;
+  const { earnRate, ptsPerRewardEur } = pointsModel(settings);
+  const autoEarnRate = defaultEarnRate(settings.aov);
 
   return (
     <div className="space-y-3">
@@ -97,7 +63,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             title={t.qPoints}
             tooltip={t.qPointsTip}
             value={config.hasMissions}
-            onChange={v => update('hasMissions', v)}
+            onChange={setHasMissions}
             lang={lang}
           />
           <YesNoCard
@@ -251,6 +217,32 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             </div>
           </div>
 
+          {/* Earn rate — points per € spent */}
+          {config.hasMissions && (
+            <div className="pt-3 border-t border-[#D9D5CB]">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="text-[12px] font-medium text-[#645648]">{t.earnRate}</label>
+                <Tooltip text={t.earnRateTip} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {EARN_RATE_OPTIONS.map(rate => (
+                  <PillOption key={rate} label={`${rate} ${rate > 1 ? 'pts' : 'pt'} / €`} active={earnRate === rate}
+                    onClick={() => setSettings(p => ({ ...p, earnRate: rate, earnRateManual: true }))} />
+                ))}
+                {settings.earnRateManual ? (
+                  <button
+                    onClick={() => setSettings(p => ({ ...p, earnRateManual: false }))}
+                    className="text-[12px] text-primary hover:underline font-medium ml-1"
+                  >
+                    {lang === 'fr' ? `Revenir à la règle panier moyen (${autoEarnRate} pt${autoEarnRate > 1 ? 's' : ''}/€)` : `Back to the AOV rule (${autoEarnRate} pt${autoEarnRate > 1 ? 's' : ''}/€)`}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-[#8A7D6B] ml-1">{t.earnRateAuto}</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Cashback rate — number input + suggested hint */}
           {config.hasMissions && (
             <div className="pt-3 border-t border-[#D9D5CB]">
@@ -266,10 +258,7 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
                     max={100}
                     step={0.5}
                     value={settings.cashbackRate || ''}
-                    onChange={e => {
-                      setCashbackTouched(true);
-                      setSettings(p => ({ ...p, cashbackRate: parseFloat(e.target.value) || 0 }));
-                    }}
+                    onChange={e => setSettings(p => ({ ...p, cashbackRate: parseFloat(e.target.value) || 0 }))}
                     className="w-full px-3 py-2 pr-8 text-[15px]"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">%</span>
@@ -283,13 +272,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
                   </span>
                   {settings.cashbackRate !== suggested && (
                     <button
-                      onClick={() => {
-                        setCashbackTouched(false);
-                        setSettings(p => ({ ...p, cashbackRate: suggested }));
-                      }}
+                      onClick={() => setSettings(p => ({ ...p, cashbackRate: suggested }))}
                       className="text-primary hover:underline font-medium"
                     >
-                      {lang === 'fr' ? 'Utiliser' : 'Apply'}
+                      {lang === 'fr' ? 'Appliquer la suggestion' : 'Apply suggestion'}
                     </button>
                   )}
                 </div>
@@ -302,47 +288,27 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             </div>
           )}
 
-          {/* Points value — derived to keep 1€ = 1pt earning convention */}
+          {/* Points value — derived from the earn rate and the cashback */}
           {config.hasMissions && (
             <div className="pt-3 border-t border-[#D9D5CB]">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <label className="text-[12px] font-medium text-[#645648]">{t.pointsPerEuro}</label>
                 <Tooltip text={t.pointsPerEuroTip} />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative" style={{ width: 180 }}>
-                  <input
-                    type="number" min={1} max={10000}
-                    value={settings.pointsPerEuro || ''}
-                    onChange={e => {
-                      setPointsTouched(true);
-                      setSettings(p => ({ ...p, pointsPerEuro: parseInt(e.target.value) || 1 }));
-                    }}
-                    className="w-full px-3 py-2 pr-16 text-[15px]"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">pts = 1€</span>
+              {ptsPerRewardEur ? (
+                <div className="text-[15px] font-semibold text-[#52473C]">
+                  {formatNumber(ptsPerRewardEur)} pts = 1 €
+                  <span className="ml-2 text-[12px] font-normal text-[#8A7D6B]">
+                    (1 pt = {(1 / ptsPerRewardEur).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { maximumFractionDigits: 4 })} €)
+                  </span>
                 </div>
-                {settings.pointsPerEuro !== derivedPointsValue && derivedPointsValue > 0 && (
-                  <button
-                    onClick={() => {
-                      setPointsTouched(false);
-                      setSettings(p => ({ ...p, pointsPerEuro: derivedPointsValue }));
-                    }}
-                    className="text-[12px] text-primary hover:underline font-medium"
-                  >
-                    {lang === 'fr' ? `Réinitialiser (${derivedPointsValue} pts = 1€)` : `Reset (${derivedPointsValue} pts = 1€)`}
-                  </button>
-                )}
-              </div>
-              <div className="mt-2 text-[11px] text-[#8A7D6B]">
+              ) : (
+                <div className="text-[13px] text-[#8A7D6B]">{t.noCashback}</div>
+              )}
+              <div className="mt-1 text-[11px] text-[#8A7D6B]">
                 {lang === 'fr'
-                  ? `→ ${settings.cashbackRate}% × ${settings.pointsPerEuro || 1} pts/€ = ${pointsEarnedPerEuro.toFixed(2)} pt(s) gagné(s) par 1€ dépensé`
-                  : `→ ${settings.cashbackRate}% × ${settings.pointsPerEuro || 1} pts/€ = ${pointsEarnedPerEuro.toFixed(2)} pt(s) earned per 1€ spent`}
-              </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#059669' }}>
-                {lang === 'fr'
-                  ? '💡 Convention par défaut : 1€ dépensé = 1 pt gagné. Ajuster « pts = 1€ » change ce que les points valent à la conversion.'
-                  : '💡 Default convention: 1€ spent = 1 pt earned. Adjusting "pts = 1€" changes what points are worth at redemption.'}
+                  ? `→ ${earnRate} pt${earnRate > 1 ? 's' : ''} par € dépensé × ${settings.cashbackRate || 0}% de cashback. Change le ratio ou le cashback pour ajuster la valeur des points.`
+                  : `→ ${earnRate} pt${earnRate > 1 ? 's' : ''} per € spent × ${settings.cashbackRate || 0}% cashback. Change the earn rate or the cashback to adjust the points value.`}
               </div>
             </div>
           )}
@@ -447,7 +413,11 @@ const FR = {
   cashbackTip: '% de la valeur d\'achat retourné au client en valeur de récompense.',
   ofMargin: 'de la marge',
   pointsPerEuro: 'Valeur des points',
-  pointsPerEuroTip: 'Combien de points valent 1€ à la conversion en récompense.',
+  pointsPerEuroTip: 'Combien de points valent 1€ à la conversion en récompense. Calculé : ratio de points × 100 ÷ cashback.',
+  earnRate: 'Points gagnés par € dépensé',
+  earnRateTip: 'Règle Loyoly : panier moyen ≥ 50 € → 1 pt/€, sous 50 € → 10 pts/€. Les points des missions et le prix des récompenses suivent ce ratio.',
+  earnRateAuto: 'Automatique selon le panier moyen (≥ 50 € → 1 pt/€, < 50 € → 10 pts/€)',
+  noCashback: 'Pas de cashback : les points ne donnent pas de valeur en récompense.',
 };
 
 const EN = {
@@ -480,5 +450,9 @@ const EN = {
   cashbackTip: '% of purchase value returned to the customer as reward value.',
   ofMargin: 'of margin',
   pointsPerEuro: 'Points value',
-  pointsPerEuroTip: 'How many points equal 1€ at redemption.',
+  pointsPerEuroTip: 'How many points equal 1€ at redemption. Computed: earn rate × 100 ÷ cashback.',
+  earnRate: 'Points earned per € spent',
+  earnRateTip: 'Loyoly rule: AOV ≥ 50€ → 1 pt/€, below 50€ → 10 pts/€. Mission points and reward prices follow this rate.',
+  earnRateAuto: 'Automatic from the AOV (≥ 50€ → 1 pt/€, < 50€ → 10 pts/€)',
+  noCashback: 'No cashback: points carry no reward value.',
 };

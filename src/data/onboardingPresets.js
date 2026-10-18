@@ -1,9 +1,9 @@
-import { DEFAULT_MISSIONS } from './defaults';
+import { buildProgramDefaults } from './programDefaults';
 
 const INDUSTRY_PRESETS = {
   fashion: {
-    cashbackRate: 3, burnRate: 40, aov: 85, grossMargin: 55,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.5, 2],
+    burnRate: 40, aov: 85, grossMargin: 55,
+    multipliers: [1, 1.5, 2],
     tierNamesFr: ['Bronze', 'Argent', 'Or'], tierNamesEn: ['Bronze', 'Silver', 'Gold'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
@@ -13,8 +13,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   beauty: {
-    cashbackRate: 4, burnRate: 45, aov: 55, grossMargin: 65,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.5, 2.5],
+    burnRate: 45, aov: 55, grossMargin: 65,
+    multipliers: [1, 1.5, 2.5],
     tierNamesFr: ['Essentiel', 'Premium', 'Prestige'], tierNamesEn: ['Essential', 'Premium', 'Prestige'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 150, realCost: 4, minPurchase: 0 },
@@ -24,8 +24,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   food: {
-    cashbackRate: 2, burnRate: 50, aov: 45, grossMargin: 40,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.25, 1.75],
+    burnRate: 50, aov: 45, grossMargin: 40,
+    multipliers: [1, 1.25, 1.75],
     tierNamesFr: ['Découverte', 'Gourmet', 'Chef'], tierNamesEn: ['Discovery', 'Gourmet', 'Chef'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 150, realCost: 5, minPurchase: 0 },
@@ -35,8 +35,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   health: {
-    cashbackRate: 3, burnRate: 45, aov: 60, grossMargin: 60,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.5, 2],
+    burnRate: 45, aov: 60, grossMargin: 60,
+    multipliers: [1, 1.5, 2],
     tierNamesFr: ['Bien-être', 'Vitalité', 'Élite'], tierNamesEn: ['Wellness', 'Vitality', 'Elite'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
@@ -46,8 +46,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   electronics: {
-    cashbackRate: 2, burnRate: 35, aov: 150, grossMargin: 30,
-    tierThresholds: [100, 50, 10], multipliers: [1, 1.5, 2],
+    burnRate: 35, aov: 150, grossMargin: 30,
+    multipliers: [1, 1.5, 2],
     tierNamesFr: ['Standard', 'Pro', 'Elite'], tierNamesEn: ['Standard', 'Pro', 'Elite'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison express', nameEn: 'Express delivery', rewardUsage: 'perk', pointsCost: 0, realCost: 8, minPurchase: 0 },
@@ -57,8 +57,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   sports: {
-    cashbackRate: 3, burnRate: 40, aov: 95, grossMargin: 45,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.5, 2],
+    burnRate: 40, aov: 95, grossMargin: 45,
+    multipliers: [1, 1.5, 2],
     tierNamesFr: ['Rookie', 'Athlète', 'Champion'], tierNamesEn: ['Rookie', 'Athlete', 'Champion'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
@@ -68,8 +68,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   home: {
-    cashbackRate: 2, burnRate: 35, aov: 120, grossMargin: 45,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.25, 1.75],
+    burnRate: 35, aov: 120, grossMargin: 45,
+    multipliers: [1, 1.25, 1.75],
     tierNamesFr: ['Cocon', 'Intérieur', 'Maison'], tierNamesEn: ['Cozy', 'Interior', 'Home'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 250, realCost: 8, minPurchase: 0 },
@@ -79,8 +79,8 @@ const INDUSTRY_PRESETS = {
     ],
   },
   other: {
-    cashbackRate: 3, burnRate: 40, aov: 80, grossMargin: 50,
-    tierThresholds: [100, 50, 15], multipliers: [1, 1.5, 2],
+    burnRate: 40, aov: 80, grossMargin: 50,
+    multipliers: [1, 1.5, 2],
     tierNamesFr: ['Bronze', 'Argent', 'Or'], tierNamesEn: ['Bronze', 'Silver', 'Gold'],
     rewards: [
       { id: 'r1', type: 'free_delivery', nameFr: 'Livraison gratuite', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
@@ -91,100 +91,42 @@ const INDUSTRY_PRESETS = {
   },
 };
 
-const DEFAULT_TIER_COLORS = ['#B87333', '#9CA3AF', '#D97706'];
-
 const PRICE_ADJUSTMENTS = {
-  low: { aovMult: 0.5, cashbackAdd: 1 },
-  medium: { aovMult: 1, cashbackAdd: 0 },
-  high: { aovMult: 1.5, cashbackAdd: -0.5 },
-  premium: { aovMult: 3, cashbackAdd: -1 },
+  low: { aovMult: 0.5 },
+  medium: { aovMult: 1 },
+  high: { aovMult: 1.5 },
+  premium: { aovMult: 3 },
 };
 
 const GOAL_ADJUSTMENTS = {
-  retention: { burnRateAdd: 5, hasMissions: true },
-  aov: { cashbackAdd: 0.5, multiplierAdd: 0.25 },
-  engagement: { hasMissions: true, burnRateAdd: -5 },
-  referral: { hasMissions: true, cashbackAdd: 0.5 },
+  retention: { burnRateAdd: 5 },
+  aov: { multiplierAdd: 0.25 },
+  engagement: { burnRateAdd: -5 },
+  referral: {},
 };
 
 export function applyOnboardingDefaults(answers, lang) {
   const preset = INDUSTRY_PRESETS[answers.industry] || INDUSTRY_PRESETS.other;
   const priceAdj = PRICE_ADJUSTMENTS[answers.priceRange] || PRICE_ADJUSTMENTS.medium;
 
-  let cashbackRate = preset.cashbackRate + (priceAdj.cashbackAdd || 0);
   let burnRate = preset.burnRate;
-  let hasMissions = true;
   let multiplierBoost = 0;
+  (answers.goals || []).forEach(goal => {
+    const adj = GOAL_ADJUSTMENTS[goal];
+    if (adj?.burnRateAdd) burnRate += adj.burnRateAdd;
+    if (adj?.multiplierAdd) multiplierBoost += adj.multiplierAdd;
+  });
 
-  if (answers.goals) {
-    answers.goals.forEach(goal => {
-      const adj = GOAL_ADJUSTMENTS[goal];
-      if (adj) {
-        if (adj.burnRateAdd) burnRate += adj.burnRateAdd;
-        if (adj.cashbackAdd) cashbackRate += adj.cashbackAdd;
-        if (adj.multiplierAdd) multiplierBoost += adj.multiplierAdd;
-        if (adj.hasMissions !== undefined) hasMissions = adj.hasMissions;
-      }
-    });
-  }
-
-  cashbackRate = Math.max(0.5, Math.min(10, cashbackRate));
-  burnRate = Math.max(10, Math.min(80, burnRate));
-
-  const tierNames = lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn;
-  const aov = preset.aov || 60;
-  const spendThresholds = [0, Math.round(aov * 5), Math.round(aov * 20)];
-  const tiers = tierNames.map((name, i) => ({
-    name,
-    color: DEFAULT_TIER_COLORS[i] || '#5A8AFF',
-    threshold: preset.tierThresholds[i],
-    spendThreshold: spendThresholds[i] || 0,
-    pointsThreshold: i * 1000,
-    pointsMultiplier: Math.round((preset.multipliers[i] + multiplierBoost) * 100) / 100,
-    perks: [],
-  }));
-
-  const rewards = preset.rewards.map(r => ({
-    ...r,
-    assignedTiers: tiers.map((_, i) => {
-      if (r.rewardUsage === 'perk') return i >= 1;
-      return true;
-    }),
-    utilizationByTier: tiers.map((_, i) => {
-      if (r.rewardUsage === 'perk') return i >= 1 ? 30 + i * 10 : 0;
-      return 20 + i * 10;
-    }),
-  }));
-
-  const config = {
-    tierBasis: 'spend',
-    hasMissions,
-    hasTiers: true,
-    rewardType: 'both',
-    pointsExpire: true,
-    expirationMonths: 12,
-    expirationType: 'rolling',
-    tiersExpire: true,
-    tierExpirationMonths: 12,
-    tierExpirationType: 'rolling',
-  };
-
-  const settings = {
-    segmentationType: 'revenue',
-    caWeight: 0.5,
-    aov: Math.round(preset.aov * priceAdj.aovMult),
+  return buildProgramDefaults({
+    lang,
+    aov: preset.aov * priceAdj.aovMult,
     grossMargin: preset.grossMargin,
-    cashbackRate,
-    pointsPerEuro: 100,
-  };
-
-  const missions = DEFAULT_MISSIONS.map(m => ({
-    ...m,
-    engagementByTier: [...(m.engagementByTier || [20, 30, 50])],
-  }));
-
-  return { config, settings, tiers, rewards, missions, burnRate };
+    programType: 'mid',
+    tierNames: lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn,
+    multipliers: preset.multipliers.map(m => Math.round((m + multiplierBoost) * 100) / 100),
+    rewardTemplates: preset.rewards,
+    burnRate: Math.max(0, Math.min(80, burnRate)),
+  });
 }
 
-export { INDUSTRIES, PRICE_RANGES, GOALS } from './defaults';
 export { INDUSTRY_PRESETS };

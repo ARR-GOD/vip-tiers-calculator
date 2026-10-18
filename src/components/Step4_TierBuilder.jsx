@@ -2,8 +2,10 @@ import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Plus, Minus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
-import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, derivePointsFromCashback, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
-import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
+import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, rewardCostByTier, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
+import { pointsModel } from '../utils/pointsModel';
+import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN } from '../data/defaults';
+import { defaultTierUtilization } from '../data/programDefaults';
 
 const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED', '#0EA5E9', '#10B981', '#F43F5E', '#F59E0B'];
 
@@ -26,26 +28,23 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, brandAnalysis, clientName, onPrev, onNext }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, onPrev, onNext }) {
   const t = lang === 'fr';
 
-  const { pointsPerEuro } = useMemo(
-    () => derivePointsFromCashback(settings.cashbackRate, settings.pointsPerEuro),
-    [settings.cashbackRate, settings.pointsPerEuro]
-  );
+  const { earnRate } = pointsModel(settings);
 
   // Memoised DESC sort by the relevant metric — used both for tier assignment
   // and for bidirectional % ↔ threshold computation. ~50ms on 380k customers.
   const sortedByMetric = useMemo(
-    () => getSortedByMetric(customers, config.tierBasis, pointsPerEuro),
-    [customers, config.tierBasis, pointsPerEuro]
+    () => getSortedByMetric(customers, config.tierBasis, earnRate),
+    [customers, config.tierBasis, earnRate]
   );
 
   const tierStats = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
-    const assigned = assignTiers(scored, tiers, config.tierBasis, { pointsPerEuro });
+    const assigned = assignTiers(scored, tiers, config.tierBasis, { earnRate });
     return computeTierStats(assigned, tiers);
-  }, [customers, settings, tiers, config, pointsPerEuro]);
+  }, [customers, settings, tiers, config, earnRate]);
 
   // Edit-by-percent: when user types a % for tier i, recompute that tier's threshold.
   const updateTierByPct = useCallback((tierIdx, desiredPct) => {
@@ -55,19 +54,19 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
       tierIndex: tierIdx,
       desiredPct,
       basis: config.tierBasis,
-      pointsPerEuro,
     });
     const key = thresholdKeyForBasis(config.tierBasis);
     setTiers(prev => prev.map((t, i) => i === tierIdx ? { ...t, [key]: newThreshold } : t));
-  }, [sortedByMetric, tiers, config.tierBasis, pointsPerEuro, setTiers]);
+  }, [sortedByMetric, tiers, config.tierBasis, setTiers]);
 
   const tierFinancials = useMemo(() => {
-    return tiers.map((_, i) => computeTierFinancials(i, tierStats[i], rewards, settings.grossMargin, burnRate));
-  }, [tiers, tierStats, rewards, settings.grossMargin, burnRate]);
+    const costs = rewardCostByTier({ rewards, tiers, tierStats, settings });
+    return tiers.map((_, i) => computeTierFinancials(costs[i], tierStats[i], settings.grossMargin));
+  }, [tiers, tierStats, rewards, settings]);
 
   const pointsEconomy = useMemo(() => {
-    return computePointsEconomy(tierStats, tiers, missions, customMissions, rewards, settings, burnRate);
-  }, [tierStats, tiers, missions, customMissions, rewards, settings, burnRate]);
+    return computePointsEconomy(tierStats, tiers, missions, customMissions, settings, burnRate);
+  }, [tierStats, tiers, missions, customMissions, settings, burnRate]);
 
   const addTier = () => {
     const idx = tiers.length;
@@ -75,12 +74,10 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     setTiers(prev => [...prev, {
       name: names[idx] || `Tier ${idx + 1}`,
       color: FIXED_COLORS[idx % FIXED_COLORS.length] || '#5A8AFF',
-      threshold: Math.max(5, Math.round(prev[prev.length - 1]?.threshold * 0.5 || 10)),
       spendThreshold: (prev[prev.length - 1]?.spendThreshold || 0) * 2 || 5000,
-      pointsThreshold: (idx) * 1500,
       orderThreshold: Math.max(1, Math.round((prev[prev.length - 1]?.orderThreshold || 1) * 2)),
       pointsMultiplier: 1 + idx * 0.5,
-      perks: [],
+      avgUtilization: defaultTierUtilization(idx),
     }]);
   };
 
@@ -94,56 +91,17 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   };
 
   const toggleRewardForTier = (rewardId, tierIdx) => {
-    setRewards(prev => {
-      // Snapshot the tier's current average utilization so newly-toggled rewards
-      // inherit it instead of the hardcoded 30 default.
-      const assignedInTier = prev.filter(r => r.assignedTiers?.[tierIdx]);
-      const avgUtil = assignedInTier.length > 0
-        ? Math.round(assignedInTier.reduce((s, r) => s + (r.utilizationByTier?.[tierIdx] ?? burnRate), 0) / assignedInTier.length)
-        : burnRate;
-      return prev.map(r => {
-        if (r.id !== rewardId) return r;
-        const assigned = [...(r.assignedTiers || [])];
-        const nowOn = !assigned[tierIdx];
-        assigned[tierIdx] = nowOn;
-        const util = [...(r.utilizationByTier || [])];
-        // Seed utilization to the tier's current average when turning ON
-        if (nowOn && (util[tierIdx] === undefined || util[tierIdx] === 0)) {
-          util[tierIdx] = avgUtil;
-        }
-        return { ...r, assignedTiers: assigned, utilizationByTier: util };
-      });
-    });
-  };
-
-  const updateUtilization = (rewardId, tierIdx, value) => {
     setRewards(prev => prev.map(r => {
       if (r.id !== rewardId) return r;
-      const util = [...(r.utilizationByTier || [])];
-      util[tierIdx] = Math.max(0, Math.min(100, value));
-      return { ...r, utilizationByTier: util };
+      const assigned = [...(r.assignedTiers || [])];
+      assigned[tierIdx] = !assigned[tierIdx];
+      return { ...r, assignedTiers: assigned };
     }));
   };
 
-  // Sets the utilization rate for ALL rewards assigned to this tier to the same
-  // value. Useful for quickly setting a baseline; individual rewards can still
-  // be tweaked afterwards via the per-row input.
+  // Share of the tier's members who use each of its rewards in a year.
   const setTierAvgUtilization = (tierIdx, value) => {
-    const v = Math.max(0, Math.min(100, parseInt(value) || 0));
-    setRewards(prev => prev.map(r => {
-      if (!r.assignedTiers?.[tierIdx]) return r;
-      const util = [...(r.utilizationByTier || [])];
-      util[tierIdx] = v;
-      return { ...r, utilizationByTier: util };
-    }));
-  };
-
-  // Average utilization across rewards assigned to a tier (display value).
-  const getTierAvgUtilization = (tierIdx) => {
-    const assigned = rewards.filter(r => r.assignedTiers?.[tierIdx]);
-    if (assigned.length === 0) return 0;
-    const sum = assigned.reduce((s, r) => s + (r.utilizationByTier?.[tierIdx] ?? burnRate), 0);
-    return Math.round(sum / assigned.length);
+    updateTier(tierIdx, 'avgUtilization', Math.max(0, Math.min(100, parseFloat(value) || 0)));
   };
 
   const maxRevenue = Math.max(...tierStats.map(s => s?.revenue || 0), 1);
@@ -319,40 +277,37 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       const aov = settings.aov || 60;
                       const spendVal = tier.spendThreshold ?? 0;
                       const ordersVal = tier.orderThreshold ?? 0;
-                      const pointsVal = tier.pointsThreshold ?? 0;
-                      const activeKey = basis === 'orders' ? 'orderThreshold' : basis === 'points' ? 'pointsThreshold' : 'spendThreshold';
-                      const activeValue = tier[activeKey] ?? 0;
+                      // Points thresholds are the € threshold expressed in points.
+                      const pointsVal = Math.round(spendVal * earnRate);
+                      const activeValue = thresholdForBasis(tier, basis, earnRate);
                       const qualifying = (() => {
                         if (!customers || customers.length === 0) return 0;
                         let count = 0;
                         for (const c of customers) {
-                          if (metricForBasis(c, basis, pointsPerEuro) >= activeValue) count++;
+                          if (metricForBasis(c, basis, earnRate) >= activeValue) count++;
                         }
                         return count;
                       })();
                       const pctValue = stat?.percentage || 0;
 
-                      // Sync helpers — editing one threshold updates the others
-                      const setAllThresholds = ({ spend, orders, points }) => {
-                        setTiers(prev => prev.map((tt, i) => i === tierIdx ? { ...tt, spendThreshold: spend, orderThreshold: orders, pointsThreshold: points } : tt));
+                      // Sync helpers — editing one threshold updates the other via the AOV
+                      const setAllThresholds = ({ spend, orders }) => {
+                        setTiers(prev => prev.map((tt, i) => i === tierIdx ? { ...tt, spendThreshold: spend, orderThreshold: orders } : tt));
                       };
                       const handleSpendChange = (val) => {
                         const s = Math.max(0, parseFloat(val) || 0);
                         const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
-                        const p = Math.max(0, Math.round(s * pointsPerEuro));
-                        setAllThresholds({ spend: s, orders: o, points: p });
+                        setAllThresholds({ spend: s, orders: o });
                       };
                       const handleOrdersChange = (val) => {
                         const o = Math.max(0, parseInt(val) || 0);
                         const s = aov > 0 ? Math.max(0, Math.round(o * aov)) : spendVal;
-                        const p = Math.max(0, Math.round(s * pointsPerEuro));
-                        setAllThresholds({ spend: s, orders: o, points: p });
+                        setAllThresholds({ spend: s, orders: o });
                       };
                       const handlePointsChange = (val) => {
-                        const p = Math.max(0, parseFloat(val) || 0);
-                        const s = pointsPerEuro > 0 ? Math.max(0, Math.round(p / pointsPerEuro)) : spendVal;
+                        const s = Math.max(0, Math.round((parseFloat(val) || 0) / earnRate));
                         const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
-                        setAllThresholds({ spend: s, orders: o, points: p });
+                        setAllThresholds({ spend: s, orders: o });
                       };
 
                       // Inline threshold field — sub-component would remount on every
@@ -465,18 +420,16 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       <div className="section-header" style={{ marginBottom: 0, fontSize: 11 }}>
                         {t ? 'RÉCOMPENSES' : 'REWARDS'}
                       </div>
-                      {rewards.some(r => r.assignedTiers?.[tierIdx]) && (
-                        <div className="flex items-center gap-1">
-                          <label className="text-[10px] text-[#8A7D6B]">{t ? 'Util. moyenne' : 'Avg util.'}</label>
-                          <input type="text" inputMode="numeric" pattern="[0-9]*"
-                            value={getTierAvgUtilization(tierIdx)}
-                            onChange={e => setTierAvgUtilization(tierIdx, e.target.value.replace(/[^0-9]/g, ''))}
-                            className="w-12 px-1 py-0.5 text-[10px] text-center"
-                            title={t ? 'Applique cette valeur à toutes les récompenses du palier' : 'Apply this value to all rewards in this tier'}
-                          />
-                          <span className="text-[9px] text-[#8A7D6B]">%</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <label className="text-[10px] text-[#8A7D6B]">{t ? 'Util. moyenne' : 'Avg util.'}</label>
+                        <input type="text" inputMode="decimal"
+                          value={tier.avgUtilization ?? defaultTierUtilization(tierIdx)}
+                          onChange={e => setTierAvgUtilization(tierIdx, e.target.value.replace(/[^0-9.]/g, ''))}
+                          className="w-12 px-1 py-0.5 text-[10px] text-center"
+                          title={t ? '% des membres du palier qui utilisent chaque récompense du palier dans l\'année' : '% of the tier members who use each of its rewards in a year'}
+                        />
+                        <span className="text-[9px] text-[#8A7D6B]">%</span>
+                      </div>
                     </div>
                     {/* Points multiplier — a tier-level perk that boosts points earning */}
                     {config.hasMissions && (
