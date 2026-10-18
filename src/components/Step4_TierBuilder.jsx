@@ -7,6 +7,10 @@ import { pointsModel } from '../utils/pointsModel';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN } from '../data/defaults';
 import { defaultTierUtilization } from '../data/programDefaults';
 
+// Tier cards share the row width; past CARD_MIN_WIDTH the row scrolls.
+const CARD_MIN_WIDTH = 300;
+const CARD_GAP = 12;
+
 const FIXED_COLORS = ['#B87333', '#9CA3AF', '#D97706', '#7C3AED', '#0EA5E9', '#10B981', '#F43F5E', '#F59E0B'];
 
 // Per-tier badge styling: bg + text color for the header badge
@@ -67,6 +71,11 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
 
   const addTier = () => {
     const idx = tiers.length;
+    // Bring the new card into view once it is rendered.
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      el?.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+    });
     const names = t ? DEFAULT_TIER_NAMES_FR : DEFAULT_TIER_NAMES_EN;
     setTiers(prev => [...prev, {
       name: names[idx] || `Tier ${idx + 1}`,
@@ -120,26 +129,25 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     return () => window.removeEventListener('resize', checkOverflow);
   }, [tiers.length, checkOverflow]);
 
+  // Cards stretch to fill the row, so one scroll step is the rendered card
+  // width plus the gap.
+  const cardStep = () => (scrollRef.current?.firstElementChild?.offsetWidth || 0) + CARD_GAP;
+
   const scrollTo = (dir) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const cardW = 260 + 12; // min-width + gap
-    el.scrollBy({ left: dir === 'right' ? cardW : -cardW, behavior: 'smooth' });
+    const step = cardStep();
+    scrollRef.current?.scrollBy({ left: dir === 'right' ? step : -step, behavior: 'smooth' });
   };
 
   const handleScroll = () => {
     const el = scrollRef.current;
-    if (!el) return;
-    const cardW = 260 + 12;
-    const idx = Math.round(el.scrollLeft / cardW);
+    const step = cardStep();
+    if (!el || step <= CARD_GAP) return;
+    const idx = Math.round(el.scrollLeft / step);
     setActiveIdx(Math.max(0, Math.min(idx, tiers.length - 1)));
   };
 
   const scrollToIdx = (idx) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const cardW = 260 + 12;
-    el.scrollTo({ left: idx * cardW, behavior: 'smooth' });
+    scrollRef.current?.scrollTo({ left: idx * cardStep(), behavior: 'smooth' });
   };
 
   return (
@@ -192,13 +200,12 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
           <div
             ref={scrollRef}
             onScroll={handleScroll}
-            className="flex gap-3 overflow-x-auto tier-scroll"
+            className="flex overflow-x-auto tier-row"
             style={{
+              gap: CARD_GAP,
               scrollBehavior: 'smooth',
               scrollSnapType: 'x mandatory',
               WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
               maskImage: showArrows ? 'linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)' : 'none',
               WebkitMaskImage: showArrows ? 'linear-gradient(to right, transparent 0px, black 40px, black calc(100% - 40px), transparent 100%)' : 'none',
             }}
@@ -214,11 +221,9 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
               return (
                 <div
                   key={tierIdx}
-                  className="card overflow-hidden flex-shrink-0"
+                  className="card overflow-hidden"
                   style={{
-                    width: 260,
-                    minWidth: 260,
-                    maxWidth: 260,
+                    flex: `1 0 ${CARD_MIN_WIDTH}px`,
                     borderLeft: `3px solid ${tierColor}`,
                     scrollSnapAlign: 'start',
                     padding: 16,
@@ -236,7 +241,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         </span>
                         <input type="text" value={tier.name}
                           onChange={e => updateTier(tierIdx, 'name', e.target.value)}
-                          className="text-[20px] font-bold text-[#52473C] bg-transparent border-b border-transparent hover:border-[#D9D5CB] focus:border-primary focus:outline-none w-full max-w-[180px] block" style={{ padding: 0 }} />
+                          className="text-[20px] font-bold text-[#52473C] bg-transparent border-b border-transparent hover:border-[#D9D5CB] focus:border-primary focus:outline-none w-full block" style={{ padding: 0 }} />
                       </div>
                       <div className="text-right">
                         <div className="text-[22px] font-bold text-[#52473C] leading-tight" title={`${stat?.count || 0}`}>{formatCompact(stat?.count || 0)}</div>
@@ -319,7 +324,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       );
                     })()}
 
-                    {/* Tier stats grid — compact format so card width stays narrow */}
+                    {/* Tier stats grid — compact format */}
                     <div className="mt-3 pt-3 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">
                       <div title={formatCurrency(stat?.revenue || 0)}>
                         <div className="text-[13px] font-bold text-[#52473C]">{formatCompact(stat?.revenue || 0)}€</div>
@@ -370,7 +375,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         <div className="flex items-center gap-0.5 shrink-0">
                           <input type="number" value={tier.pointsMultiplier} min={1} max={5} step={0.25}
                             onChange={e => updateTier(tierIdx, 'pointsMultiplier', parseFloat(e.target.value) || 1)}
-                            className="w-12 px-1 py-0 text-[11px] text-center" />
+                            className="w-16 px-1 py-0.5 text-[12px] text-center" />
                           <span className="text-[10px] text-[#8A7D6B]">×</span>
                         </div>
                       </div>
