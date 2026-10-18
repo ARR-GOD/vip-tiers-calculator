@@ -1,16 +1,37 @@
-# React + Vite
+# VIP Tiers Calculator — Loyoly
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Internal tool for Loyoly CSMs: design a brand's loyalty program (points, VIP tiers,
+missions, rewards, referral) from its customer export and estimate its economics.
 
-Currently, two official plugins are available:
+- **Front**: React 19 + Vite + Tailwind 4 (`src/`)
+- **API**: Vercel serverless functions (`api/`) — HubSpot clients, brand analysis (Claude), Fireflies
+- **Auth**: Google sign-in restricted to `@loyoly.io`, exchanged for a Supabase session
+- **Data**: every program is saved to Supabase (`vip_programs`) as you edit, shared by the whole team
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Local development
 
-## React Compiler
+```bash
+npm install
+cp .env.example .env.local   # fill in the values
+npm run dev                  # front only (no /api)
+npm run dev:full             # front + /api through `vercel dev`
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Supabase setup
 
-## Expanding the ESLint configuration
+1. Run `supabase/migrations/20261018000000_vip_programs.sql` in the SQL editor
+   (creates the `vip_programs` table, its trigger and the `@loyoly.io` access rules).
+2. **Authentication → Sign In / Providers → Google**: enable it and add the Google
+   OAuth Web client ID (the same as `VITE_GOOGLE_CLIENT_ID`) to the authorized client IDs.
+3. Keep **Confirm email** enabled so nobody can claim an `@loyoly.io` address without owning it.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Google OAuth client
+
+In Google Cloud Console → Credentials → the Web client: add every origin the app is
+served from to **Authorized JavaScript origins** (`http://localhost:5173`, the Vercel
+production domain, preview domains if needed).
+
+## Deployment (Vercel)
+
+Set the variables of `.env.example` in the Vercel project (Production + Preview).
+`VITE_*` values are baked into the front at build time: redeploy after changing them.

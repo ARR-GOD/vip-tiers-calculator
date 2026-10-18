@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Globe, ArrowRight, Pencil, Check, X, RotateCcw } from 'lucide-react';
+import { apiFetch } from '../lib/supabase';
 
 const LOADING_MESSAGES_FR = [
   '🔍 Analyse de votre site en cours...',
@@ -64,7 +65,7 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
     setError('');
 
     try {
-      const res = await fetch('/api/analyze-brand', {
+      const res = await apiFetch('/api/analyze-brand', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() }),

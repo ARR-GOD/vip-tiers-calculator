@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle } from 'lucide-react';
+import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2 } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -13,13 +13,17 @@ import { parseSampleData } from './data/sampleData';
 import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
 import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { saveDraft, loadDraft, listDrafts } from './utils/persistence';
+import { createProgramSaver, buildProgramSnapshot, findProgramByCompany, loadProgram } from './utils/programStore';
+import { supabase, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
 import StepCSM_Selector from './components/StepCSM_Selector';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
+import SaveStatus from './components/SaveStatus';
 import { Building2 } from 'lucide-react';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const INITIAL_CONFIG = {
   tierBasis: 'spend',
@@ -51,6 +55,8 @@ const INITIAL_TIERS = [
   { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, orderThreshold: 10, pointsMultiplier: 2, perks: [] },
 ];
 
+const initialMissions = () => DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] }));
+
 const STEPS = [
   { id: 0, labelFr: 'Programme', labelEn: 'Program' },
   { id: 1, labelFr: 'Import', labelEn: 'Import' },
@@ -64,41 +70,52 @@ const STEPS = [
 
 function App() {
   // ─── Auth state ───
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('loyoly_user');
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      // Verify domain on reload
-      if (!parsed.email?.endsWith('@loyoly.io')) {
-        localStorage.removeItem('loyoly_user');
-        return null;
-      }
-      return parsed;
-    } catch { return null; }
-  });
-
-  const ALLOWED_DOMAIN = 'loyoly.io';
+  // CSMs sign in with Google (@loyoly.io only). The Google ID token is then
+  // exchanged for a Supabase session, which gives access to the shared
+  // programs table and is forwarded to the /api functions.
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(!supabase);
   const [loginError, setLoginError] = useState(null);
 
-  const handleLoginSuccess = (credentialResponse) => {
+  useEffect(() => {
+    if (!supabase) return;
+    const accept = (s) => {
+      if (s && !isLoyolyEmail(s.user?.email)) {
+        setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
+        // Supabase calls must not be awaited inside the auth callback.
+        setTimeout(() => supabase.auth.signOut(), 0);
+        return null;
+      }
+      return s;
+    };
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(accept(data.session));
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(accept(s)));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const meta = session?.user?.user_metadata || {};
+  const user = session?.user
+    ? { name: meta.full_name || meta.name || session.user.email, email: session.user.email, picture: meta.avatar_url || meta.picture }
+    : null;
+
+  const handleLoginSuccess = async (credentialResponse) => {
+    setLoginError(null);
     try {
-      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+      const credential = credentialResponse.credential;
+      const decoded = JSON.parse(atob(credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       // Restrict to @loyoly.io domain
       if (decoded.hd !== ALLOWED_DOMAIN) {
         setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
         return;
       }
-      setLoginError(null);
-      const userData = { name: decoded.name, email: decoded.email, picture: decoded.picture };
-      setUser(userData);
-      localStorage.setItem('loyoly_user', JSON.stringify(userData));
-    } catch { /* invalid token */ }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('loyoly_user');
+      const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: credential });
+      if (error) setLoginError(`Connexion impossible : ${error.message}`);
+    } catch {
+      setLoginError('Erreur de connexion Google');
+    }
   };
 
   const [lang, setLang] = useState('fr');
@@ -107,7 +124,7 @@ function App() {
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
   const [customers, setCustomers] = useState(() => parseSampleData());
   const [tiers, setTiersRaw] = useState(INITIAL_TIERS);
-  const [missions, setMissions] = useState(() => DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] })));
+  const [missions, setMissions] = useState(initialMissions);
   const [customMissions, setCustomMissions] = useState([]);
   const [rewards, setRewards] = useState(DEFAULT_REWARDS);
   const [burnRate, setBurnRate] = useState(40);
@@ -122,6 +139,22 @@ function App() {
   const [firefliesInsights, setFirefliesInsights] = useState(null);
   const [firefliesLoading, setFirefliesLoading] = useState(false);
 
+  // ─── Program persistence (Supabase) ───
+  // programTarget is the handle of the open program: { id, hubspotCompanyId },
+  // null while none is open. Its id is filled in by the first save.
+  const [programTarget, setProgramTarget] = useState(null);
+  const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
+  const [saver] = useState(() => createProgramSaver({ onChange: setSaveState }));
+
+  // A new program starts clean: nothing from the previously opened brand
+  // (imported customers, custom missions, referral) carries over.
+  const startNewProgram = (hubspotCompanyId = null) => {
+    setProgramTarget({ id: null, hubspotCompanyId });
+    setCustomers(parseSampleData());
+    setCustomMissions([]);
+    setReferralConfig(INITIAL_REFERRAL);
+  };
+
   const setTiers = useCallback((newTiersOrFn) => {
     setTiersRaw(prev => {
       const newTiers = typeof newTiersOrFn === 'function' ? newTiersOrFn(prev) : newTiersOrFn;
@@ -134,7 +167,9 @@ function App() {
     });
   }, []);
 
+  // Re-running the brand analysis from an open program keeps that program.
   const handleBrandComplete = (analysisResult) => {
+    if (!programTarget) startNewProgram();
     setBrandAnalysis(analysisResult);
     const defaults = applyBrandDefaults(analysisResult, lang);
     setConfig(defaults.config);
@@ -148,21 +183,81 @@ function App() {
   };
 
   const handleBrandSkip = () => {
+    if (!programTarget) startNewProgram();
     setBrandAnalysis(null);
     setPhase('wizard');
     setStep(0); // Go to manual onboarding
   };
 
   // CSM mode handlers
-  const handleHubSpotUnavailable = useCallback(() => {
-    setPhase('brand'); // Fallback: skip CSM selector, go to brand analysis
-  }, []);
-
   const handleSkipToManual = () => {
+    setProgramTarget(null);
     setPhase('brand'); // Go to brand analysis
   };
 
-  const handleCSMClientSelected = (client, details) => {
+  // Load a saved program into the wizard. `live` carries fresh HubSpot data
+  // when the program is opened by picking its client in the list.
+  const openProgram = (row, live = {}) => {
+    const s = row.state || {};
+    const values = {
+      config: s.config || INITIAL_CONFIG,
+      settings: s.settings || INITIAL_SETTINGS,
+      tiers: s.tiers || INITIAL_TIERS,
+      rewards: s.rewards || DEFAULT_REWARDS,
+      missions: s.missions || initialMissions(),
+      customMissions: s.customMissions || [],
+      burnRate: s.burnRate ?? 40,
+      referralConfig: s.referralConfig || INITIAL_REFERRAL,
+      onboardingAnswers: s.onboardingAnswers ?? null,
+      brandAnalysis: s.brandAnalysis ?? null,
+      customers: row.customers?.length ? row.customers : parseSampleData(),
+      selectedClient: row.hubspot_company_id
+        ? (live.selectedClient || { id: row.hubspot_company_id, name: row.client_name, domain: row.client_domain, plan: row.client_plan })
+        : null,
+      step: row.step ?? 1,
+    };
+    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id };
+
+    setConfig(values.config);
+    setSettings(values.settings);
+    setTiersRaw(values.tiers);
+    setRewards(values.rewards);
+    setMissions(values.missions);
+    setCustomMissions(values.customMissions);
+    setBurnRate(values.burnRate);
+    setReferralConfig(values.referralConfig);
+    setOnboardingAnswers(values.onboardingAnswers);
+    setBrandAnalysis(values.brandAnalysis);
+    setCustomers(values.customers);
+    setSelectedClient(values.selectedClient);
+    setClientDetails(values.selectedClient
+      ? (live.clientDetails || { company: { name: row.client_name, domain: row.client_domain } })
+      : null);
+    setCsmMode(!!values.selectedClient);
+    setFirefliesInsights(null);
+    setProgramTarget(target);
+    setPhase('wizard');
+    setStep(values.step);
+    setVisitedSteps(new Set([values.step]));
+    // This is what the database already holds: nothing to write back.
+    saver.markSaved(buildProgramSnapshot(target, values));
+  };
+
+  const handleOpenProgram = async (programId) => {
+    openProgram(await loadProgram(programId));
+  };
+
+  // Throws when Supabase can't be reached: the selector then shows the error
+  // rather than starting from defaults over a program saved for this client.
+  const handleCSMClientSelected = async (client, details) => {
+    const existing = await findProgramByCompany(client.id);
+    if (existing) {
+      openProgram(existing, { selectedClient: { ...client, contacts: details.contacts || [] }, clientDetails: details });
+      return;
+    }
+
+    startNewProgram(String(client.id));
+    setBrandAnalysis(null);
     setSelectedClient({ ...client, contacts: details.contacts || [] });
     setClientDetails(details);
     setCsmMode(true);
@@ -198,11 +293,13 @@ function App() {
   };
 
   const reset = () => {
+    saver.flush(); // pending edits of the open program still reach the database
+    setProgramTarget(null);
     setConfig(INITIAL_CONFIG);
     setSettings(INITIAL_SETTINGS);
     setCustomers(parseSampleData());
     setTiersRaw(INITIAL_TIERS);
-    setMissions(DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] })));
+    setMissions(initialMissions());
     setCustomMissions([]);
     setRewards(DEFAULT_REWARDS);
     setBurnRate(40);
@@ -235,100 +332,66 @@ function App() {
     }
   }, [step, phase]);
 
-  // ── Persistence: auto-save to localStorage on every change during the wizard ──
-  const [savedAt, setSavedAt] = useState(null);
+  // ── Persistence: every change of the open program is saved to Supabase ──
   const [shareToast, setShareToast] = useState(null); // success/error toast for save ops
 
-  // Latest-state ref so the beforeunload listener always reads the freshest
-  // values (avoids stale closure capture).
-  const latestStateRef = useRef(null);
+  // The saver debounces (600 ms), serializes and retries the writes.
   useEffect(() => {
-    latestStateRef.current = {
+    if (phase !== 'wizard' || !programTarget) return;
+    saver.schedule(buildProgramSnapshot(programTarget, {
       config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers,
+      burnRate, referralConfig, onboardingAnswers, brandAnalysis,
       selectedClient, customers, step,
-    };
-  });
+    }));
+  }, [saver, phase, programTarget, config, settings, tiers, rewards, missions, customMissions,
+      burnRate, referralConfig, onboardingAnswers, brandAnalysis, selectedClient, customers, step]);
 
-  // Debounced auto-save on every change (250 ms).
+  // Write immediately when the tab is hidden, and ask before closing it while
+  // a change hasn't reached the database yet.
   useEffect(() => {
-    if (phase !== 'wizard') return;
-    const handle = setTimeout(() => {
-      const res = saveDraft({
-        config, settings, tiers, rewards, missions, customMissions,
-        burnRate, referralConfig, onboardingAnswers,
-        selectedClient, customers, step,
-      });
-      if (res.ok) setSavedAt(res.savedAt);
-    }, 250);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
-
-  // Synchronous flush on tab close / navigation / refresh — guarantees
-  // last-second edits (reward utilization, tier threshold, etc.) reach
-  // localStorage even if the user moves on within the 250 ms debounce.
-  useEffect(() => {
-    if (phase !== 'wizard') return;
-    const flush = () => {
-      if (latestStateRef.current) saveDraft(latestStateRef.current);
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') saver.flush();
     };
-    window.addEventListener('beforeunload', flush);
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') flush();
-    });
+    const onBeforeUnload = (e) => {
+      if (!saver.hasUnsaved()) return;
+      saver.flush();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', flush);
-      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
     };
-  }, [phase]);
+  }, [saver]);
 
-  // Restore a saved draft (called from the CSM selector).
-  const restoreDraft = useCallback((draft) => {
-    if (!draft) return;
-    setConfig(draft.config);
-    setSettings(draft.settings);
-    setTiersRaw(draft.tiers);
-    setRewards(draft.rewards);
-    setMissions(draft.missions);
-    setCustomMissions(draft.customMissions || []);
-    setBurnRate(draft.burnRate);
-    setReferralConfig(draft.referralConfig);
-    setOnboardingAnswers(draft.onboardingAnswers);
-    if (draft.customers && draft.customers.length) setCustomers(draft.customers);
-    if (draft.selectedClient) {
-      setSelectedClient(draft.selectedClient);
-      setClientDetails({ company: { name: draft.selectedClient.name, domain: draft.selectedClient.domain } });
-      setCsmMode(true);
-    }
-    setPhase('wizard');
-    setStep(draft.step ?? 1);
-  }, []);
-
-  // Force an immediate save (bypasses the 600ms debounce) and confirm via toast.
-  // The auto-save useEffect already does this on every change, but the explicit
-  // button gives the user a clear visual confirmation that work won't be lost.
-  const forceSave = useCallback(() => {
-    const res = saveDraft({
-      config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers,
-      selectedClient, customers, step,
-    });
-    if (res.ok) {
-      setSavedAt(res.savedAt);
-      const tierCount = tiers.length;
+  // Explicit save button: writes right away and confirms via toast.
+  const forceSave = useCallback(async () => {
+    const ok = await saver.flush();
+    if (ok) {
       const custCount = customers?.length || 0;
-      const msg = res.withCustomers
-        ? `Brouillon enregistré · ${tierCount} paliers · ${custCount.toLocaleString('fr-FR')} clients`
-        : `Brouillon enregistré · ${tierCount} paliers (clients trop volumineux, réimportez le CSV à la reprise)`;
-      setShareToast({ ok: true, message: msg });
+      setShareToast({ ok: true, message: `Programme enregistré · ${tiers.length} paliers · ${custCount.toLocaleString('fr-FR')} clients` });
     } else {
-      setShareToast({ ok: false, message: 'Échec de l\'enregistrement — espace navigateur plein ?' });
+      setShareToast({ ok: false, message: 'Échec de l\'enregistrement — nouvelle tentative automatique dans quelques secondes' });
     }
     setTimeout(() => setShareToast(null), 4000);
-  }, [config, settings, tiers, rewards, missions, customMissions, burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
+  }, [saver, tiers.length, customers]);
+
+  const handleLogout = async () => {
+    await saver.flush();
+    await supabase.auth.signOut();
+  };
+
+  const leaveProgram = () => {
+    saver.flush();
+    setProgramTarget(null);
+    setCsmMode(false);
+    setSelectedClient(null);
+    setClientDetails(null);
+    setFirefliesInsights(null);
+    setPhase('csm');
+  };
 
   // Smooth scroll the page back to the top so the new step's title is visible.
   const scrollToTop = useCallback(() => {
@@ -359,7 +422,34 @@ function App() {
   const t = lang === 'fr';
   const clientName = csmMode ? (selectedClient?.name || selectedClient?.company?.name || null) : null;
 
-  // ─── Login gate ───
+  // ─── Configuration / login gate ───
+  if (!supabase || !GOOGLE_CLIENT_ID) {
+    const missing = [
+      !import.meta.env.VITE_SUPABASE_URL && 'VITE_SUPABASE_URL',
+      !import.meta.env.VITE_SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY',
+      !GOOGLE_CLIENT_ID && 'VITE_GOOGLE_CLIENT_ID',
+    ].filter(Boolean);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: '#EEEDE6' }}>
+        <div className="card max-w-md text-center">
+          <AlertCircle size={28} className="mx-auto text-red-500 mb-3" />
+          <h1 className="text-[18px] font-bold text-[#52473C] mb-2">Configuration incomplète</h1>
+          <p className="text-[13px] text-[#645648]">
+            Variables d'environnement manquantes : <code>{missing.join(', ')}</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
+        <Loader2 size={24} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
@@ -399,6 +489,7 @@ function App() {
             <span className="text-[15px] font-bold text-white">VIP Tiers Calculator</span>
           </div>
           <div className="flex items-center gap-1">
+            {phase === 'wizard' && programTarget && <SaveStatus saveState={saveState} lang={lang} />}
             <button onClick={copyShareableLink}
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
               title={t ? 'Copier le lien' : 'Copy link'}>
@@ -448,16 +539,11 @@ function App() {
               </>
             )}
             <div className="ml-auto flex items-center gap-3">
-              {savedAt && (
-                <span className="text-[11px] text-[#059669] inline-flex items-center gap-1" title={t ? 'Brouillon enregistré automatiquement dans ce navigateur' : 'Draft auto-saved in this browser'}>
-                  <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
               <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
-                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                title={t ? 'Enregistrer immédiatement en base (partagé avec l\'équipe)' : 'Save to the database now (shared with the team)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
-              <button onClick={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
+              <button onClick={leaveProgram}
                 className="text-primary font-medium hover:underline text-[12px]">
                 {t ? 'Changer de client' : 'Change client'}
               </button>
@@ -486,13 +572,8 @@ function App() {
             <span className="text-[#B0A595]">|</span>
             <span className="text-[#52473C] whitespace-nowrap">{onboardingAnswers.goals?.join(', ')}</span>
             <div className="ml-auto flex items-center gap-3">
-              {savedAt && (
-                <span className="text-[11px] text-[#059669] inline-flex items-center gap-1">
-                  <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
               <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
-                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                title={t ? 'Enregistrer immédiatement en base (partagé avec l\'équipe)' : 'Save to the database now (shared with the team)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
               <button onClick={() => setStep(0)} className="text-primary font-medium hover:underline text-[12px]">
@@ -565,8 +646,7 @@ function App() {
             lang={lang}
             onClientSelected={handleCSMClientSelected}
             onSkipToManual={handleSkipToManual}
-            onHubSpotUnavailable={handleHubSpotUnavailable}
-            onResumeDraft={restoreDraft}
+            onOpenProgram={handleOpenProgram}
           />
         ) : phase === 'brand' ? (
           <StepBrand_Analyzer

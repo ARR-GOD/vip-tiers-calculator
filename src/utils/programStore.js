@@ -1,0 +1,183 @@
+// ════════════════════════════════════════════════════════════════════
+// Program persistence — Supabase table `vip_programs`
+// ════════════════════════════════════════════════════════════════════
+//
+// Every program designed in the wizard is saved to Supabase and shared by the
+// whole Loyoly team. App builds a snapshot of the wizard state on every change
+// and hands it to a ProgramSaver, which debounces, serializes and retries the
+// writes so that each modification ends up in the database.
+
+import { supabase } from '../lib/supabase';
+
+const TABLE = 'vip_programs';
+const STATE_VERSION = 1;
+const LIST_COLUMNS = 'id, hubspot_company_id, client_name, client_domain, client_plan, step, customers_count, tier_count, updated_at, updated_by';
+
+// ── Reads / deletes ──────────────────────────────────────────────────
+export async function listPrograms() {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(LIST_COLUMNS)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function loadProgram(id) {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+
+// Full row of the program attached to a HubSpot company, or null.
+export async function findProgramByCompany(companyId) {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('hubspot_company_id', String(companyId))
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteProgram(id) {
+  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Snapshot of the wizard state ─────────────────────────────────────
+// `target` is the mutable handle of the open program: { id, hubspotCompanyId }.
+// id stays null until the first save inserts the row.
+export function buildProgramSnapshot(target, s) {
+  const row = {
+    client_name: s.selectedClient?.name || s.brandAnalysis?.brand_name || 'Configuration manuelle',
+    client_domain: s.selectedClient?.domain || null,
+    client_plan: s.selectedClient?.plan || null,
+    step: s.step ?? 1,
+    state: {
+      v: STATE_VERSION,
+      config: s.config,
+      settings: s.settings,
+      tiers: s.tiers,
+      rewards: s.rewards,
+      missions: s.missions,
+      customMissions: s.customMissions,
+      burnRate: s.burnRate,
+      referralConfig: s.referralConfig,
+      onboardingAnswers: s.onboardingAnswers ?? null,
+      brandAnalysis: s.brandAnalysis ?? null,
+    },
+  };
+  return { target, row, key: stableStringify(row), customers: s.customers };
+}
+
+// JSON with sorted keys: Postgres jsonb does not keep key order, so this is
+// what lets a reloaded program compare equal to the one in the database.
+export function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(v => (v === undefined ? 'null' : stableStringify(v))).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort()
+      .filter(k => value[k] !== undefined)
+      .map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+// ── Writes ───────────────────────────────────────────────────────────
+// Insert on first save, update afterwards. Customers are only sent when they
+// changed (the list can be large) — except on insert, which always carries them.
+export async function persistProgram(target, row, customers, includeCustomers) {
+  if (target.id) {
+    const payload = includeCustomers ? { ...row, customers } : row;
+    const { data, error } = await supabase.from(TABLE).update(payload).eq('id', target.id).select('id');
+    if (error) throw error;
+    if (data.length > 0) return;
+    // The row was deleted in the meantime (by another CSM): recreate it.
+    target.id = null;
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({ ...row, customers, hubspot_company_id: target.hubspotCompanyId ?? null })
+    .select('id')
+    .single();
+  if (error?.code === '23505' && target.hubspotCompanyId) {
+    // Another CSM created this company's program meanwhile: write into it.
+    const existing = await findProgramByCompany(target.hubspotCompanyId);
+    if (existing) {
+      target.id = existing.id;
+      return persistProgram(target, row, customers, true);
+    }
+  }
+  if (error) throw error;
+  target.id = data.id;
+}
+
+// Debounced, serialized, retrying writer. One instance per App.
+//   schedule(snapshot) — queue the latest state of a program
+//   flush()            — write everything queued now; resolves when drained
+//   markSaved(snapshot)— declare a freshly loaded program as already in the DB
+//   hasUnsaved()       — true while something is queued or being written
+export function createProgramSaver({ persist = persistProgram, onChange, debounceMs = 600, retryMs = 5000 }) {
+  const queue = new Map();        // target → latest unsaved snapshot
+  const latest = new WeakMap();   // target → last snapshot accepted (queued, in flight or saved)
+  const saved = new WeakMap();    // target → customers array last written
+  let running = null;
+  let timer = null;
+  let status = { status: 'idle', savedAt: null, error: null };
+
+  const update = patch => {
+    status = { ...status, ...patch };
+    onChange?.(status);
+  };
+
+  const isSame = (a, b) => !!a && !!b && a.key === b.key && a.customers === b.customers;
+
+  async function drain() {
+    while (queue.size > 0) {
+      const [target, snap] = queue.entries().next().value;
+      queue.delete(target);
+      update({ status: 'saving' });
+      try {
+        const includeCustomers = !saved.has(target) || saved.get(target) !== snap.customers;
+        await persist(target, snap.row, snap.customers, includeCustomers);
+        saved.set(target, snap.customers);
+      } catch (error) {
+        if (!queue.has(target)) queue.set(target, snap);
+        update({ status: 'error', error });
+        timer = setTimeout(flush, retryMs);
+        return false;
+      }
+    }
+    update({ status: 'saved', savedAt: Date.now(), error: null });
+    return true;
+  }
+
+  function flush() {
+    clearTimeout(timer);
+    timer = null;
+    if (!running) {
+      running = drain().finally(() => { running = null; });
+    }
+    return running;
+  }
+
+  function schedule(snap) {
+    if (isSame(latest.get(snap.target), snap)) return;
+    latest.set(snap.target, snap);
+    queue.set(snap.target, snap);
+    if (status.status !== 'error') update({ status: 'pending' });
+    clearTimeout(timer);
+    timer = setTimeout(flush, debounceMs);
+  }
+
+  function markSaved(snap) {
+    latest.set(snap.target, snap);
+    saved.set(snap.target, snap.customers);
+  }
+
+  const hasUnsaved = () => queue.size > 0 || running !== null;
+
+  return { schedule, flush, markSaved, hasUnsaved };
+}

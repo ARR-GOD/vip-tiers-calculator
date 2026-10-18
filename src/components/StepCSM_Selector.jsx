@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, FileText, Trash2 } from 'lucide-react';
-import { listDrafts, deleteDraft } from '../utils/persistence';
+import { listPrograms, deleteProgram } from '../utils/programStore';
+import { apiFetch } from '../lib/supabase';
 
 const FR = {
   title: 'Sélection client',
@@ -62,11 +63,23 @@ function normalizeSearchTerm(s) {
   return q.trim();
 }
 
-export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onHubSpotUnavailable, onResumeDraft }) {
+export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onOpenProgram }) {
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
-  const [drafts, setDrafts] = useState(() => listDrafts());
-  const refreshDrafts = () => setDrafts(listDrafts());
+
+  // Programs saved in Supabase (shared by the whole team)
+  const [programs, setPrograms] = useState([]);
+  const [programsError, setProgramsError] = useState('');
+  const [openingProgramId, setOpeningProgramId] = useState(null);
+  const refreshPrograms = useCallback(() => listPrograms()
+    .then(list => { setPrograms(list); setProgramsError(''); })
+    .catch(err => setProgramsError(err.message)), []);
+  useEffect(() => { refreshPrograms(); }, [refreshPrograms]);
+  const companiesWithProgram = useMemo(
+    () => new Set(programs.map(p => p.hubspot_company_id).filter(Boolean)),
+    [programs]
+  );
+  const [hubspotUnavailable, setHubspotUnavailable] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -81,11 +94,15 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/hubspot-clients');
+        const res = await apiFetch('/api/hubspot-clients');
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          if (data.code === 'NO_API_KEY' || res.status === 503) {
-            onHubSpotUnavailable();
+          if (data.code === 'NO_API_KEY') {
+            // Saved programs and manual setup stay available without HubSpot.
+            if (!cancelled) {
+              setHubspotUnavailable(true);
+              setPhase('ready');
+            }
             return;
           }
           throw new Error(data.error || `Error ${res.status}`);
@@ -103,7 +120,7 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
       }
     })();
     return () => { cancelled = true; };
-  }, [onHubSpotUnavailable]);
+  }, []);
 
   // Filter + sort clients
   const filteredClients = useMemo(() => {
@@ -143,17 +160,40 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     setLoadingClientId(client.id);
     setPhase('loading_details');
     try {
-      const res = await fetch(`/api/hubspot-client-details?companyId=${client.id}`);
+      const res = await apiFetch(`/api/hubspot-client-details?companyId=${client.id}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Error ${res.status}`);
       }
       const details = await res.json();
-      onClientSelected(client, details);
+      await onClientSelected(client, details);
     } catch (err) {
       setError(err.message);
       setPhase('error');
       setLoadingClientId(null);
+    }
+  };
+
+  const handleOpenProgram = async (programId) => {
+    setOpeningProgramId(programId);
+    try {
+      await onOpenProgram(programId);
+    } catch (err) {
+      setProgramsError(err.message);
+      setOpeningProgramId(null);
+    }
+  };
+
+  const handleDeleteProgram = async (program) => {
+    const msg = lang === 'fr'
+      ? `Supprimer le programme « ${program.client_name} » pour toute l'équipe ?`
+      : `Delete the "${program.client_name}" program for the whole team?`;
+    if (!confirm(msg)) return;
+    try {
+      await deleteProgram(program.id);
+      refreshPrograms();
+    } catch (err) {
+      setProgramsError(err.message);
     }
   };
 
@@ -187,55 +227,56 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
         <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
       </div>
 
-      {/* Saved drafts (resume your work) */}
-      {drafts.length > 0 && onResumeDraft && (
+      {/* Saved programs (shared by the team) */}
+      {programsError && (
+        <div className="card mb-4 text-[12px] text-red-600 flex items-center gap-2">
+          <AlertCircle size={14} className="shrink-0" />
+          {lang === 'fr' ? 'Base de données : ' : 'Database: '}{programsError}
+        </div>
+      )}
+      {programs.length > 0 && (
         <div className="card mb-4" style={{ borderLeft: '3px solid #2965FE' }}>
           <div className="flex items-center justify-between mb-3">
             <div className="section-subheader" style={{ marginBottom: 0 }}>
               <FileText size={11} className="inline mr-1" />
-              {lang === 'fr' ? `MES BROUILLONS (${drafts.length})` : `MY DRAFTS (${drafts.length})`}
+              {lang === 'fr' ? `PROGRAMMES ENREGISTRÉS (${programs.length})` : `SAVED PROGRAMS (${programs.length})`}
             </div>
             <span className="text-[10px] text-[#8A7D6B]">
-              {lang === 'fr' ? 'Auto-sauvegardés dans ce navigateur' : 'Auto-saved in this browser'}
+              {lang === 'fr' ? 'Partagés avec toute l\'équipe' : 'Shared with the whole team'}
             </span>
           </div>
-          <div className="max-h-[200px] overflow-y-auto -mx-1 tier-scroll">
-            {drafts.map(d => {
-              const label = d.selectedClient?.name || (lang === 'fr' ? 'Configuration manuelle' : 'Manual configuration');
-              const customersCount = (d.customers || []).length;
-              const tierCount = (d.tiers || []).length;
+          <div className="max-h-[240px] overflow-y-auto -mx-1 tier-scroll">
+            {programs.map(p => {
+              const updatedBy = p.updated_by ? p.updated_by.split('@')[0] : null;
               return (
-                <div key={d.key} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#E5E1D8] transition-all">
+                <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#E5E1D8] transition-all">
                   <button
-                    onClick={() => onResumeDraft(d)}
-                    className="flex-1 text-left min-w-0"
+                    onClick={() => handleOpenProgram(p.id)}
+                    disabled={openingProgramId !== null}
+                    className="flex-1 text-left min-w-0 disabled:opacity-60"
                   >
-                    <div className="text-[13px] font-semibold text-[#52473C] truncate">{label}</div>
+                    <div className="text-[13px] font-semibold text-[#52473C] truncate">{p.client_name}</div>
                     <div className="text-[11px] text-[#8A7D6B] truncate">
-                      {customersCount > 0
-                        ? (lang === 'fr' ? `${customersCount.toLocaleString('fr-FR')} clients` : `${customersCount.toLocaleString()} customers`)
+                      {p.customers_count > 0
+                        ? (lang === 'fr' ? `${p.customers_count.toLocaleString('fr-FR')} clients` : `${p.customers_count.toLocaleString()} customers`)
                         : (lang === 'fr' ? 'Données client à importer' : 'Customer data to import')}
                       {' · '}
-                      {lang === 'fr' ? `${tierCount} paliers` : `${tierCount} tiers`}
+                      {lang === 'fr' ? `${p.tier_count ?? 0} paliers` : `${p.tier_count ?? 0} tiers`}
                       {' · '}
-                      {new Date(d.savedAt).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
+                      {new Date(p.updated_at).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
+                      {updatedBy && ` · ${updatedBy}`}
                     </div>
                   </button>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(lang === 'fr' ? 'Supprimer ce brouillon ?' : 'Delete this draft?')) {
-                        const clientId = d.key.replace(/^vip_draft_/, '');
-                        deleteDraft(clientId === 'manual' ? null : clientId);
-                        refreshDrafts();
-                      }
-                    }}
+                    onClick={(e) => { e.stopPropagation(); handleDeleteProgram(p); }}
                     className="text-[#8A7D6B] hover:text-red-500 transition-colors p-1"
                     title={lang === 'fr' ? 'Supprimer' : 'Delete'}
                   >
                     <Trash2 size={13} />
                   </button>
-                  <ArrowRight size={12} className="text-[#D9D5CB] shrink-0" />
+                  {openingProgramId === p.id
+                    ? <Loader2 size={12} className="animate-spin text-primary shrink-0" />
+                    : <ArrowRight size={12} className="text-[#D9D5CB] shrink-0" />}
                 </div>
               );
             })}
@@ -314,7 +355,12 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
               </div>
 
               {/* Client list */}
-              {filteredClients.length === 0 ? (
+              {hubspotUnavailable ? (
+                <div className="text-center py-8">
+                  <AlertCircle size={24} className="mx-auto text-[#D9D5CB] mb-2" />
+                  <p className="text-[13px] text-[#8A7D6B]">{t.errorHubspot}</p>
+                </div>
+              ) : filteredClients.length === 0 ? (
                 <div className="text-center py-8">
                   <Users size={24} className="mx-auto text-[#D9D5CB] mb-2" />
                   <p className="text-[13px] text-[#8A7D6B]">
@@ -339,6 +385,11 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
                             {[client.domain, client.platform, client.country].filter(Boolean).join(' · ')}
                           </div>
                         </div>
+                        {companiesWithProgram.has(String(client.id)) && (
+                          <span className="text-[10px] font-medium text-primary shrink-0 inline-flex items-center gap-1">
+                            <FileText size={10} /> {lang === 'fr' ? 'Programme enregistré' : 'Saved program'}
+                          </span>
+                        )}
                         {client.plan && (
                           <span className="pill pill-purple text-[10px] shrink-0">
                             {client.plan}
