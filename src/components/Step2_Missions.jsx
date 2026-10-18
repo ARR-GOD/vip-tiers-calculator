@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Crown, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Crown, ChevronLeft, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { computeCustomerScores, assignTiers, computeTierStats, computeMissionPointsByTier, computePurchasePoints, formatCompact } from '../utils/calculations';
 import { pointsModel, missionPoints, basePointsFromPoints } from '../utils/pointsModel';
-import { ENGAGEMENT_SCENARIOS, MISSION_CATALOG } from '../data/defaults';
+import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
+import { MISSION_CATALOG, MISSION_CATEGORIES, ENGAGEMENT_LEVELS, RECOMMENDED_MISSION_IDS, recommendedMissions } from '../data/missionCatalog';
+
+const formatRate = rate => `${String(rate).replace('.', ',')}%`;
 
 export default function Step2_Missions({ missions, setMissions, customMissions, setCustomMissions, tiers, customers, settings, setSettings, config, lang, onPrev, onNext }) {
   const t = lang === 'fr';
@@ -61,23 +64,23 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
   };
 
   const addFromCatalog = (catalogItem) => {
-    const allIds = [...missions, ...customMissions].map(m => m.id);
-    if (allIds.includes(catalogItem.id)) return;
-    const defaultEng = catalogItem.defaultEngagement;
-    const completionRate = Array.isArray(defaultEng) && defaultEng.length > 0
-      ? Math.round(defaultEng.reduce((s, v) => s + (v || 0), 0) / defaultEng.length)
-      : 20;
-    setCustomMissions(prev => [...prev, {
-      id: catalogItem.id,
-      icon: catalogItem.icon || '',
-      nameFr: catalogItem.nameFr,
-      nameEn: catalogItem.nameEn,
-      basePoints: catalogItem.points || 20,
-      frequency: catalogItem.frequency || 1,
-      enabled: true,
-      completionRate,
-    }]);
+    if (allMissions.some(m => m.id === catalogItem.id)) return;
+    setMissions(prev => [...prev, { ...catalogItem, enabled: true }]);
     setShowCatalog(false);
+  };
+
+  const applyRecommendedPreset = () => {
+    const msg = t
+      ? `Remplacer les missions actuelles par les ${RECOMMENDED_MISSION_IDS.length} missions recommandées par Loyoly ?`
+      : `Replace the current missions with the ${RECOMMENDED_MISSION_IDS.length} missions recommended by Loyoly?`;
+    if (!confirm(msg)) return;
+    setMissions(recommendedMissions());
+    setCustomMissions([]);
+  };
+
+  const removeMission = (id) => {
+    setMissions(prev => prev.filter(m => m.id !== id));
+    setCustomMissions(prev => prev.filter(m => m.id !== id));
   };
 
   const totalPts = missionsByTier.reduce((s, d) => s + d.totalPoints, 0) + purchasePointsTotal;
@@ -124,29 +127,35 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
           <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Catalogue de missions' : 'Missions Catalog'}</h2>
           <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Définissez les actions qui génèrent des points au-delà des achats.' : 'Define point-earning actions beyond purchases.'}</p>
         </div>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          <button onClick={applyRecommendedPreset} className="btn-secondary"
+            title={t ? 'Les 11 missions recommandées par Loyoly' : 'The 11 missions recommended by Loyoly'}>
+            <Sparkles size={14} /> {t ? 'Preset recommandé' : 'Recommended preset'}
+          </button>
           <button onClick={() => setShowCatalog(v => !v)} className="btn-primary">
             <Plus size={14} /> {t ? 'Ajouter' : 'Add'} <ChevronDown size={14} />
           </button>
           {showCatalog && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowCatalog(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-[#EEEDE6] rounded-xl shadow-lg border border-[#D9D5CB] w-72 py-2 max-h-[400px] overflow-y-auto">
-                {Object.entries(MISSION_CATALOG).map(([cat, items]) => {
-                  const allIds = [...missions, ...customMissions].map(m => m.id);
-                  const catLabel = { social: t ? 'Social' : 'Social', engagement: 'Engagement', purchase: t ? 'Achats' : 'Purchase' }[cat] || cat;
+              <div className="absolute right-0 top-full mt-1 z-50 bg-[#FBFAF6] rounded-xl shadow-lg border border-[#D9D5CB] w-[420px] py-2 max-h-[480px] overflow-y-auto">
+                {MISSION_CATEGORIES.map(cat => {
+                  const items = MISSION_CATALOG.filter(item => item.category === cat.id);
                   return (
-                    <div key={cat}>
-                      <div className="px-3 py-1.5 text-[10px] font-bold text-[#8A7D6B] uppercase tracking-wide">{catLabel}</div>
+                    <div key={cat.id}>
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-[#8A7D6B] uppercase tracking-wide">{t ? cat.labelFr : cat.labelEn}</div>
                       {items.map(item => {
-                        const alreadyAdded = allIds.includes(item.id);
+                        const alreadyAdded = allMissions.some(m => m.id === item.id);
                         return (
                           <button key={item.id} disabled={alreadyAdded}
                             onClick={() => addFromCatalog(item)}
-                            className={`w-full text-left px-3 py-2 flex items-center gap-2 text-[13px] transition-colors ${alreadyAdded ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#EEEDE6]'}`}>
-                            <span className="text-base">{item.icon}</span>
-                            <span className="text-[#645648]">{t ? item.nameFr : item.nameEn}</span>
-                            <span className="ml-auto text-[11px] text-[#8A7D6B]">{item.points} pts</span>
+                            className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[12px] transition-colors ${alreadyAdded ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#EEEDE6]'}`}>
+                            <span className="text-[14px] w-5 text-center">{item.icon}</span>
+                            <span className="text-[#52473C] flex-1">{t ? item.nameFr : item.nameEn}{item.caution && ' ⚠️'}</span>
+                            <span className="text-[10px] text-[#8A7D6B] w-12 text-right">{item.isPurchaseMission ? '—' : formatRate(item.completionRate)}</span>
+                            <span className="text-[11px] font-medium text-[#645648] w-20 text-right">
+                              {item.isPurchaseMission ? `${earnRate} pt${earnRate > 1 ? 's' : ''}/€` : `${missionPoints(item, settings)} pts`}
+                            </span>
                           </button>
                         );
                       })}
@@ -211,11 +220,15 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
               {allMissions.map(m => {
                 const isCustom = customMissions.some(c => c.id === m.id);
                 const isPurchase = m.isPurchaseMission;
-                const totalMissionPts = isPurchase ? purchasePointsTotal : missionsByTier.reduce((s, td) => {
+                const totalMissionPts = isPurchase ? (m.id === 'purchase' ? purchasePointsTotal : 0) : missionsByTier.reduce((s, td) => {
                   const mb = td.missionBreakdown.find(b => b.missionId === m.id);
                   return s + (mb?.pointsGenerated || 0);
                 }, 0);
                 const completion = m.completionRate ?? 0;
+                const category = MISSION_CATEGORIES.find(c => c.id === m.category);
+                const categoryLabel = category ? (t ? category.labelFr : category.labelEn) : null;
+                const engagementLabel = ENGAGEMENT_LEVELS[m.engagement] ? (t ? ENGAGEMENT_LEVELS[m.engagement].labelFr : ENGAGEMENT_LEVELS[m.engagement].labelEn) : null;
+                const isMainPurchase = m.id === 'purchase';
 
                 return (
                   <tr key={m.id} className={`border-b border-[#E5E1D8] hover:bg-[#EEEDE6] ${!m.enabled ? 'opacity-40' : ''}`} style={{ transition: 'all 0.15s ease' }}>
@@ -234,7 +247,17 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                             onChange={e => updateField(m.id, t ? 'nameFr' : 'nameEn', e.target.value)}
                             className="px-1.5 py-0.5 text-[12px] w-40" />
                         ) : (
-                          <span className="font-medium text-[#645648]">{t ? m.nameFr : m.nameEn}</span>
+                          <div>
+                            <span className="font-medium text-[#645648]">{t ? m.nameFr : m.nameEn}</span>
+                            {m.caution && (
+                              <Tooltip text={t ? 'Signalée ⚠️ dans la grille Loyoly : vérifier la faisabilité avec la marque.' : 'Flagged ⚠️ in the Loyoly grid: check feasibility with the brand.'}>
+                                <span className="ml-1 cursor-help">⚠️</span>
+                              </Tooltip>
+                            )}
+                            {(categoryLabel || engagementLabel) && (
+                              <div className="text-[10px] text-[#8A7D6B]">{[categoryLabel, engagementLabel].filter(Boolean).join(' · ')}</div>
+                            )}
+                          </div>
                         )}
                         {isPurchase && (
                           <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded font-medium">{t ? 'auto' : 'auto'}</span>
@@ -274,19 +297,20 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                         <span className="text-[11px] text-[#8A7D6B]">{t ? 'tous les achats' : 'every purchase'}</span>
                       ) : (() => {
                         const mult = scenarioData.multiplier;
-                        const effective = Math.min(100, Math.round(completion * mult));
+                        // Grid rates go down to 0.1%: keep one decimal.
+                        const effective = Math.min(100, Math.round(completion * mult * 10) / 10);
                         const shifted = mult !== 1;
                         return (
                           <div>
                             <div className="flex items-center justify-center gap-1">
                               <input
-                                type="number" min={0} max={100}
+                                type="number" min={0} max={100} step={0.1}
                                 value={effective}
                                 onChange={e => {
-                                  const typed = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                                  const typed = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
                                   if (typed === effective) return; // avoid silent base-rescaling when clamped value is re-entered
                                   const newBase = mult > 0 ? typed / mult : typed;
-                                  updateCompletion(m.id, Math.round(Math.max(0, Math.min(100, newBase))));
+                                  updateCompletion(m.id, Math.round(Math.max(0, Math.min(100, newBase)) * 100) / 100);
                                 }}
                                 className="w-16 px-1.5 py-0.5 text-[12px] text-center"
                                 title={shifted ? (t ? `Base : ${completion}% × ${mult} = ${effective}% (capé à 100%)` : `Base: ${completion}% × ${mult} = ${effective}% (capped at 100%)`) : undefined}
@@ -302,10 +326,15 @@ export default function Step2_Missions({ missions, setMissions, customMissions, 
                         );
                       })()}
                     </td>
-                    <td className="px-3 py-2 text-center font-medium text-[#645648]">{formatCompact(totalMissionPts)}</td>
+                    <td className="px-3 py-2 text-center font-medium text-[#645648]">
+                      {isPurchase && !isMainPurchase ? (
+                        <span className="text-[#8A7D6B]" title={t ? 'Points comptés avec le CA importé (même ratio de points par €)' : 'Points counted with the imported revenue (same earn rate)'}>—</span>
+                      ) : formatCompact(totalMissionPts)}
+                    </td>
                     <td className="px-2 py-2">
-                      {isCustom && (
-                        <button onClick={() => setCustomMissions(p => p.filter(c => c.id !== m.id))}
+                      {!isMainPurchase && (
+                        <button onClick={() => removeMission(m.id)}
+                          title={t ? 'Retirer la mission' : 'Remove mission'}
                           className="text-[#8A7D6B] hover:text-red-500 transition-all"><Trash2 size={13} /></button>
                       )}
                     </td>

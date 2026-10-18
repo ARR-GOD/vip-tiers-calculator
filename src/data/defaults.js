@@ -13,9 +13,7 @@ export const TIER_COLOR_MAP = {
   Platinum: '#7C3AED',
 };
 
-// ── Missions ──
-// Each mission has per-tier engagement rates (% of tier customers who complete it per year)
-// ── Referral config (separate module, not a mission) ──
+// ── Referral config ──
 export const INITIAL_REFERRAL = {
   enabled: true,
   referrerType: 'fixed',      // 'percent' | 'fixed'
@@ -70,26 +68,6 @@ export function getReferralBaseline({ customerCount, aov, industry }) {
   return baseline;
 }
 
-// ── Mission catalog (CSM) ──
-export const MISSION_CATALOG = {
-  social: [
-    { id: 'tiktok_follow', icon: '🎵', nameFr: 'Follow TikTok', nameEn: 'Follow on TikTok', points: 75, frequency: 1, defaultEngagement: [15, 25, 40] },
-    { id: 'instagram_follow', icon: '📸', nameFr: 'Follow Instagram', nameEn: 'Follow on Instagram', points: 75, frequency: 1, defaultEngagement: [20, 30, 45] },
-    { id: 'ugc_content', icon: '📹', nameFr: 'Créer du contenu UGC', nameEn: 'Create UGC content', points: 300, frequency: 2, defaultEngagement: [3, 8, 15] },
-    { id: 'share_purchase', icon: '📤', nameFr: 'Partager un achat', nameEn: 'Share a purchase', points: 50, frequency: 4, defaultEngagement: [8, 15, 30] },
-  ],
-  engagement: [
-    { id: 'quiz', icon: '❓', nameFr: 'Compléter un quiz', nameEn: 'Complete a quiz', points: 50, frequency: 4, defaultEngagement: [25, 40, 60] },
-    { id: 'poll', icon: '📊', nameFr: 'Répondre à un sondage', nameEn: 'Answer a poll', points: 30, frequency: 6, defaultEngagement: [30, 45, 65] },
-    { id: 'profile_complete', icon: '✏️', nameFr: 'Compléter son profil', nameEn: 'Complete profile', points: 100, frequency: 1, defaultEngagement: [40, 60, 80] },
-  ],
-  purchase: [
-    { id: 'min_basket', icon: '🛒', nameFr: 'Panier minimum 100€', nameEn: 'Min basket €100', points: 200, frequency: 3, defaultEngagement: [15, 30, 50] },
-    { id: 'subscribe', icon: '🔄', nameFr: 'Souscrire un abonnement', nameEn: 'Subscribe', points: 500, frequency: 1, defaultEngagement: [5, 15, 30] },
-    { id: 'cross_sell', icon: '🔀', nameFr: 'Acheter une autre catégorie', nameEn: 'Buy from another category', points: 150, frequency: 2, defaultEngagement: [10, 20, 35] },
-  ],
-};
-
 // ── Reward catalog (CSM) ──
 export const REWARD_CATALOG = {
   monetary: [
@@ -115,51 +93,6 @@ export const REWARD_CATALOG = {
     { type: 'bonus_points', nameFr: 'Double points (anniversaire)', nameEn: 'Double points (birthday)', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 300, realCost: 3, minPurchase: 0 },
   ],
 };
-
-export const DEFAULT_MISSIONS = [
-  {
-    id: 'purchase', icon: '🛒',
-    nameFr: 'Réaliser un achat', nameEn: 'Make a purchase',
-    points: 1, frequency: 4, enabled: true, isPurchaseMission: true,
-    engagementByTier: [100, 100, 100],
-  },
-  {
-    id: 'review', icon: '⭐',
-    nameFr: 'Avis produit', nameEn: 'Product review',
-    points: 100, frequency: 3, enabled: true,
-    engagementByTier: [10, 25, 45],
-  },
-  {
-    id: 'birthday', icon: '🎂',
-    nameFr: 'Anniversaire', nameEn: 'Birthday',
-    points: 200, frequency: 1, enabled: true,
-    engagementByTier: [30, 50, 70],
-  },
-  {
-    id: 'social_share', icon: '📱',
-    nameFr: 'Partage social', nameEn: 'Social share',
-    points: 50, frequency: 4, enabled: true,
-    engagementByTier: [8, 15, 30],
-  },
-  {
-    id: 'first_purchase', icon: '🛍️',
-    nameFr: 'Premier achat', nameEn: 'First purchase',
-    points: 150, frequency: 1, enabled: true,
-    engagementByTier: [100, 100, 100],
-  },
-  {
-    id: 'newsletter', icon: '📧',
-    nameFr: 'Inscription newsletter', nameEn: 'Newsletter signup',
-    points: 75, frequency: 1, enabled: true,
-    engagementByTier: [40, 55, 70],
-  },
-  {
-    id: 'account_creation', icon: '👤',
-    nameFr: 'Création de compte', nameEn: 'Account creation',
-    points: 100, frequency: 1, enabled: true,
-    engagementByTier: [100, 100, 100],
-  },
-];
 
 // ── Engagement scenarios (scale engagement rates globally) ──
 export const ENGAGEMENT_SCENARIOS = {

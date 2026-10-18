@@ -7,9 +7,10 @@
 // freshly built or loaded from the database — with the fields the app expects.
 
 import {
-  DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL,
+  DEFAULT_REWARDS, INITIAL_REFERRAL,
   DEFAULT_TIER_COLORS, DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN,
 } from './defaults';
+import { recommendedMissions } from './missionCatalog';
 
 export const INITIAL_CONFIG = {
   tierBasis: 'spend',
@@ -104,7 +105,8 @@ export function buildProgramDefaults({
     },
     tiers,
     rewards,
-    missions: luxury ? DEFAULT_MISSIONS.filter(m => m.isPurchaseMission) : DEFAULT_MISSIONS,
+    // Luxury programs have no points: only the purchase mission is kept.
+    missions: recommendedMissions().filter(m => !luxury || m.isPurchaseMission),
     customMissions: [],
     burnRate: luxury ? 0 : burnRate,
     referralConfig: INITIAL_REFERRAL,
@@ -181,7 +183,7 @@ export function normalizeProgram(program = {}) {
     settings: { ...INITIAL_SETTINGS, ...(program.settings || {}) },
     tiers,
     rewards: (program.rewards ?? DEFAULT_REWARDS).map(r => normalizeReward(r, tiers.length)),
-    missions: (program.missions ?? DEFAULT_MISSIONS).map(normalizeMission),
+    missions: (program.missions ?? recommendedMissions()).map(normalizeMission),
     customMissions: (program.customMissions ?? []).map(normalizeMission),
     burnRate: program.burnRate ?? 40,
     referralConfig: { ...INITIAL_REFERRAL, ...(program.referralConfig || {}) },
