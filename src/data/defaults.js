@@ -16,10 +16,21 @@ export const TIER_COLOR_MAP = {
 // ── Referral config ──
 export const INITIAL_REFERRAL = {
   enabled: true,
+  // Rewards follow the AOV (see utils/referralModel.js) until edited.
+  rewardsAuto: true,
   referrerType: 'fixed',      // 'percent' | 'fixed'
   referrerValue: 10,          // 10€
   refereeType: 'fixed',       // 'percent' | 'fixed'
   refereeValue: 10,           // 10€
+  // Expirations follow the reward amount until edited.
+  expirationsAuto: true,
+  referrerExpirationDays: 14,
+  refereeExpirationDays: 7,
+  // Minimum purchase follows the AOV until edited.
+  referrerMinPurchaseAuto: true,
+  referrerMinPurchase: 0,
+  refereeMinPurchaseAuto: true,
+  refereeMinPurchase: 0,
   estimatedReferralsPerMonth: 10,
   conversionRate: 30,         // % of referees who purchase
   avgFirstOrderValue: 80,     // avg first order value of referee

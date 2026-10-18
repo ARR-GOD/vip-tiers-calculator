@@ -68,7 +68,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 5' : 'STEP 5'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
           <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Catalogue de récompenses' : 'Rewards Catalog'}</h2>
           <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Définissez vos récompenses. L\'attribution par palier se fait à l\'étape suivante.' : 'Define your rewards. Tier assignment happens in the next step.'}</p>
         </div>

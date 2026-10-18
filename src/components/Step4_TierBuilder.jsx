@@ -146,7 +146,7 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 7' : 'STEP 7'}</div>
           <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Constructeur de paliers VIP' : 'VIP Tier Builder'}</h2>
           <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Définissez vos paliers et attribuez les récompenses.' : 'Define your tiers and assign rewards.'}</p>
         </div>

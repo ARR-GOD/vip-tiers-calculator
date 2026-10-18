@@ -169,6 +169,14 @@ export function normalizeReward(reward, tierCount) {
   };
 }
 
+// Referral configs saved before the AOV-indexed defaults keep the rewards
+// their CSM chose; their new fields (expirations, minimum purchase) start auto.
+function normalizeReferral(referral) {
+  if (!referral) return { ...INITIAL_REFERRAL };
+  const legacy = !('rewardsAuto' in referral);
+  return { ...INITIAL_REFERRAL, ...(legacy ? { rewardsAuto: false } : {}), ...referral };
+}
+
 export function normalizeProgram(program = {}) {
   const config = { ...INITIAL_CONFIG, ...(program.config || {}) };
   // A points threshold needs a points program.
@@ -183,7 +191,7 @@ export function normalizeProgram(program = {}) {
     missions: (program.missions ?? recommendedMissions()).map(normalizeMission),
     customMissions: (program.customMissions ?? []).map(normalizeMission),
     burnRate: program.burnRate ?? DEFAULT_BURN_RATE,
-    referralConfig: { ...INITIAL_REFERRAL, ...(program.referralConfig || {}) },
+    referralConfig: normalizeReferral(program.referralConfig),
     onboardingAnswers: program.onboardingAnswers ?? null,
     brandAnalysis: program.brandAnalysis ?? null,
   };

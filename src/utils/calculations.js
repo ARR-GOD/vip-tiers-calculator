@@ -4,6 +4,7 @@
 
 import { pointsModel, missionPoints } from './pointsModel';
 import { rewardRealCost, rewardMinPurchase, rewardPointsCost, isBurnReward } from './rewardModel';
+import { resolveReferral } from './referralModel';
 import { defaultTierUtilization } from '../data/programDefaults';
 
 // ── Customer scoring ──
@@ -270,7 +271,7 @@ export function computeReferralEconomics(referralConfig, aov) {
   if (!referralConfig || !referralConfig.enabled) {
     return { costReferrerPerYear: 0, costRefereePerYear: 0, totalCostPerYear: 0, revenuePerYear: 0, roi: 0 };
   }
-  const { referrerType, referrerValue, refereeType, refereeValue, estimatedReferralsPerMonth, conversionRate, avgFirstOrderValue } = referralConfig;
+  const { referrerType, referrerValue, refereeType, refereeValue, estimatedReferralsPerMonth, conversionRate, avgFirstOrderValue } = resolveReferral(referralConfig, aov);
   const referralsPerYear = (estimatedReferralsPerMonth || 0) * 12;
   const convRate = (conversionRate || 0) / 100;
   const convertedPerYear = referralsPerYear * convRate;

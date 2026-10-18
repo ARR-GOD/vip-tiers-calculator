@@ -1,15 +1,44 @@
 import { useMemo } from 'react';
-import { Users, UserPlus, Lightbulb } from 'lucide-react';
+import { Users, UserPlus, Lightbulb, Sparkles } from 'lucide-react';
+import Tooltip from './Tooltip';
 import { formatNumber } from '../utils/calculations';
 import { getReferralBaseline } from '../data/defaults';
+import { referralRewardForAov, referralExpirationDays, resolveReferral, formatReferralReward } from '../utils/referralModel';
 
 export default function StepReferral({ referralConfig, setReferralConfig, lang, aov, customers, industry }) {
   const t = lang === 'fr';
-  const c = referralConfig;
+  // Values shown are the resolved ones: auto fields follow the AOV.
+  const c = resolveReferral(referralConfig, aov);
 
   const update = (field, value) => {
     setReferralConfig(prev => ({ ...prev, [field]: value }));
   };
+
+  // Editing a reward / an expiration freezes both sides at what is shown.
+  const updateReward = (field, value) => setReferralConfig(prev => ({
+    ...prev,
+    rewardsAuto: false,
+    referrerType: c.referrerType, referrerValue: c.referrerValue,
+    refereeType: c.refereeType, refereeValue: c.refereeValue,
+    [field]: value,
+  }));
+  const updateExpiration = (field, value) => setReferralConfig(prev => ({
+    ...prev,
+    expirationsAuto: false,
+    referrerExpirationDays: c.referrerExpirationDays,
+    refereeExpirationDays: c.refereeExpirationDays,
+    [field]: value,
+  }));
+  const updateMinPurchase = (side, value) => setReferralConfig(prev => ({
+    ...prev, [`${side}MinPurchaseAuto`]: false, [`${side}MinPurchase`]: value,
+  }));
+
+  const recommended = referralRewardForAov(aov);
+  const isRecommended = referralConfig.rewardsAuto && referralConfig.expirationsAuto
+    && referralConfig.referrerMinPurchaseAuto && referralConfig.refereeMinPurchaseAuto;
+  const applyRecommended = () => setReferralConfig(prev => ({
+    ...prev, rewardsAuto: true, expirationsAuto: true, referrerMinPurchaseAuto: true, refereeMinPurchaseAuto: true,
+  }));
 
   // Data-driven baseline projections from the imported customer base + industry.
   const baseline = useMemo(
@@ -30,6 +59,17 @@ export default function StepReferral({ referralConfig, setReferralConfig, lang, 
     }));
   };
 
+  const sides = [
+    {
+      key: 'referrer', icon: <Users size={16} className="text-primary" />, iconBg: 'bg-primary/10',
+      title: t ? 'Parrain' : 'Referrer', subtitle: t ? 'Récompense pour celui qui parraine' : 'Reward for the one who refers',
+    },
+    {
+      key: 'referee', icon: <UserPlus size={16} className="text-green-600" />, iconBg: 'bg-green-50',
+      title: t ? 'Filleul' : 'Referee', subtitle: t ? 'Récompense pour le nouveau client' : 'Reward for the new customer',
+    },
+  ];
+
   return (
     <div className="space-y-3">
       {/* Toggle */}
@@ -45,77 +85,82 @@ export default function StepReferral({ referralConfig, setReferralConfig, lang, 
 
       {c.enabled && (
         <>
+          {/* Loyoly recommendation for this AOV */}
+          <div className="card flex flex-wrap items-center gap-3" style={{ padding: '12px 16px', borderLeft: '3px solid #2965FE' }}>
+            <Sparkles size={14} className="text-primary shrink-0" />
+            <span className="text-[12px] text-[#52473C]">
+              {t
+                ? `Recommandé pour un panier moyen de ${aov || 0} € : ${formatReferralReward(recommended.type, recommended.value)} parrain et filleul, expiration ${referralExpirationDays(recommended.type, recommended.value, 'referrer')} j / ${referralExpirationDays(recommended.type, recommended.value, 'referee')} j, achat minimum = panier moyen.`
+                : `Recommended for a ${aov || 0}€ AOV: ${formatReferralReward(recommended.type, recommended.value)} for referrer and referee, expiry ${referralExpirationDays(recommended.type, recommended.value, 'referrer')} d / ${referralExpirationDays(recommended.type, recommended.value, 'referee')} d, minimum purchase = AOV.`}
+            </span>
+            {isRecommended ? (
+              <span className="ml-auto text-[11px] font-medium text-[#059669]">{t ? '✓ Valeurs recommandées appliquées' : '✓ Recommended values applied'}</span>
+            ) : (
+              <button onClick={applyRecommended} className="ml-auto btn-secondary text-[11px] px-2 py-1">
+                {t ? 'Valeurs recommandées' : 'Recommended values'}
+              </button>
+            )}
+          </div>
+
           {/* Referrer + Referee side by side */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Referrer */}
-            <div className="card">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Users size={16} className="text-primary" />
+            {sides.map(side => {
+              const type = c[`${side.key}Type`];
+              return (
+                <div key={side.key} className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-8 h-8 rounded-full ${side.iconBg} flex items-center justify-center`}>
+                      {side.icon}
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-semibold text-[#52473C]">{side.title}</div>
+                      <div className="text-[11px] text-[#8A7D6B]">{side.subtitle}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex gap-1.5">
+                      {[['fixed', t ? '€ fixe' : '€ fixed'], ['percent', t ? '% de la commande' : '% of order']].map(([value, label]) => (
+                        <button key={value}
+                          onClick={() => updateReward(`${side.key}Type`, value)}
+                          className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${type === value ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min={0} value={c[`${side.key}Value`]}
+                        onChange={e => updateReward(`${side.key}Value`, parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
+                      <span className="text-[13px] text-[#8A7D6B] shrink-0">{type === 'percent' ? '%' : '€'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] text-[#645648] mb-1 flex items-center gap-1">
+                          {t ? 'Expiration' : 'Expiry'}
+                          <Tooltip text={t ? 'Durée de validité de la récompense. Par défaut selon le montant (10 % / 10 € / 15 € : 7 j filleul, 14 j parrain ; 5 € / 20 € : 14 j filleul, 30 j parrain).' : 'How long the reward stays valid. Default by amount (10% / €10 / €15: 7 d referee, 14 d referrer; €5 / €20: 14 d referee, 30 d referrer).'} />
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input type="number" min={0} value={c[`${side.key}ExpirationDays`]}
+                            onChange={e => updateExpiration(`${side.key}ExpirationDays`, parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1.5 text-[13px] rounded-lg border border-[#D9D5CB]" />
+                          <span className="text-[12px] text-[#8A7D6B] shrink-0">{t ? 'jours' : 'days'}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-[#645648] mb-1 block">{t ? 'Achat minimum' : 'Min purchase'}</label>
+                        <div className="flex items-center gap-1">
+                          <input type="number" min={0} value={c[`${side.key}MinPurchase`]}
+                            onChange={e => updateMinPurchase(side.key, parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1.5 text-[13px] rounded-lg border border-[#D9D5CB]" />
+                          <span className="text-[12px] text-[#8A7D6B] shrink-0">€</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[13px] font-semibold text-[#52473C]">{t ? 'Parrain' : 'Referrer'}</div>
-                  <div className="text-[11px] text-[#8A7D6B]">{t ? 'Récompense pour celui qui parraine' : 'Reward for the one who refers'}</div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => update('referrerType', 'fixed')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${c.referrerType === 'fixed' ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}
-                  >
-                    {t ? '€ fixe' : '€ fixed'}
-                  </button>
-                  <button
-                    onClick={() => update('referrerType', 'percent')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${c.referrerType === 'percent' ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}
-                  >
-                    {t ? '% de la commande' : '% of order'}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0} value={c.referrerValue}
-                    onChange={e => update('referrerValue', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
-                  <span className="text-[13px] text-[#8A7D6B] shrink-0">{c.referrerType === 'percent' ? '%' : '€'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Referee */}
-            <div className="card">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center">
-                  <UserPlus size={16} className="text-green-600" />
-                </div>
-                <div>
-                  <div className="text-[13px] font-semibold text-[#52473C]">{t ? 'Filleul' : 'Referee'}</div>
-                  <div className="text-[11px] text-[#8A7D6B]">{t ? 'Récompense pour le nouveau client' : 'Reward for the new customer'}</div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => update('refereeType', 'fixed')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${c.refereeType === 'fixed' ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}
-                  >
-                    {t ? '€ fixe' : '€ fixed'}
-                  </button>
-                  <button
-                    onClick={() => update('refereeType', 'percent')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${c.refereeType === 'percent' ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}
-                  >
-                    {t ? '% de la commande' : '% of order'}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0} value={c.refereeValue}
-                    onChange={e => update('refereeValue', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-[13px] rounded-lg border border-[#D9D5CB]" />
-                  <span className="text-[13px] text-[#8A7D6B] shrink-0">{c.refereeType === 'percent' ? '%' : '€'}</span>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* Data-driven projections */}
