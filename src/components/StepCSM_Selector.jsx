@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, FileText, Trash2 } from 'lucide-react';
-import { listPrograms, deleteProgram } from '../utils/programStore';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, ChevronDown, ChevronLeft, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, Folder } from 'lucide-react';
+import { listPrograms } from '../utils/programStore';
+import { normalizeDomain } from '../utils/clientFolders';
 import { apiFetch } from '../lib/supabase';
 
 const FR = {
   title: 'Sélection client',
-  subtitle: 'Choisissez un client HubSpot pour pré-remplir le configurateur VIP.',
+  subtitle: 'Choisissez un client HubSpot : son dossier s\'ouvre, ou il est créé avec un premier programme pré-rempli.',
   searchPlaceholder: 'Rechercher un client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
@@ -24,7 +25,7 @@ const FR = {
 
 const EN = {
   title: 'Client selection',
-  subtitle: 'Pick a HubSpot client to pre-fill the VIP configurator.',
+  subtitle: 'Pick a HubSpot client: its folder opens, or is created with a first pre-filled program.',
   searchPlaceholder: 'Search for a client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
@@ -50,31 +51,19 @@ function formatMrr(value) {
   return `${Math.round(value)}€/m`;
 }
 
-// Strip URL noise so users can paste full URLs like "https://www.lecoqsportif.com/"
-// and still match on the bare domain stored in HubSpot ("lecoqsportif.com").
-function normalizeSearchTerm(s) {
-  if (!s) return '';
-  let q = s.toLowerCase().trim();
-  q = q.replace(/^https?:\/\//, '');   // strip protocol
-  q = q.replace(/^www\./, '');         // strip www.
-  q = q.split('/')[0];                 // drop path
-  q = q.split('?')[0];                 // drop query string
-  q = q.split('#')[0];                 // drop fragment
-  return q.trim();
-}
+// Users can paste full URLs like "https://www.lecoqsportif.com/" and still
+// match on the bare domain stored in HubSpot ("lecoqsportif.com").
+const normalizeSearchTerm = normalizeDomain;
 
-export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onOpenProgram }) {
+export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onBack }) {
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
 
-  // Programs saved in Supabase (shared by the whole team)
+  // Clients that already have a folder (saved programs, shared by the team)
   const [programs, setPrograms] = useState([]);
-  const [programsError, setProgramsError] = useState('');
-  const [openingProgramId, setOpeningProgramId] = useState(null);
-  const refreshPrograms = useCallback(() => listPrograms()
-    .then(list => { setPrograms(list); setProgramsError(''); })
-    .catch(err => setProgramsError(err.message)), []);
-  useEffect(() => { refreshPrograms(); }, [refreshPrograms]);
+  useEffect(() => {
+    listPrograms().then(setPrograms).catch(() => setPrograms([]));
+  }, []);
   const companiesWithProgram = useMemo(
     () => new Set(programs.map(p => p.hubspot_company_id).filter(Boolean)),
     [programs]
@@ -174,29 +163,6 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     }
   };
 
-  const handleOpenProgram = async (programId) => {
-    setOpeningProgramId(programId);
-    try {
-      await onOpenProgram(programId);
-    } catch (err) {
-      setProgramsError(err.message);
-      setOpeningProgramId(null);
-    }
-  };
-
-  const handleDeleteProgram = async (program) => {
-    const msg = lang === 'fr'
-      ? `Supprimer le programme « ${program.client_name} » pour toute l'équipe ?`
-      : `Delete the "${program.client_name}" program for the whole team?`;
-    if (!confirm(msg)) return;
-    try {
-      await deleteProgram(program.id);
-      refreshPrograms();
-    } catch (err) {
-      setProgramsError(err.message);
-    }
-  };
-
   // Error state
   if (phase === 'error') {
     return (
@@ -218,6 +184,10 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
 
   return (
     <div className="max-w-2xl mx-auto">
+      <button onClick={onBack} className="mb-4 text-[13px] text-[#645648] hover:text-primary inline-flex items-center gap-1">
+        <ChevronLeft size={14} /> {lang === 'fr' ? 'Espace clients' : 'Client space'}
+      </button>
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
@@ -226,63 +196,6 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
         </div>
         <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
       </div>
-
-      {/* Saved programs (shared by the team) */}
-      {programsError && (
-        <div className="card mb-4 text-[12px] text-red-600 flex items-center gap-2">
-          <AlertCircle size={14} className="shrink-0" />
-          {lang === 'fr' ? 'Base de données : ' : 'Database: '}{programsError}
-        </div>
-      )}
-      {programs.length > 0 && (
-        <div className="card mb-4" style={{ borderLeft: '3px solid #2965FE' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="section-subheader" style={{ marginBottom: 0 }}>
-              <FileText size={11} className="inline mr-1" />
-              {lang === 'fr' ? `PROGRAMMES ENREGISTRÉS (${programs.length})` : `SAVED PROGRAMS (${programs.length})`}
-            </div>
-            <span className="text-[10px] text-[#8A7D6B]">
-              {lang === 'fr' ? 'Partagés avec toute l\'équipe' : 'Shared with the whole team'}
-            </span>
-          </div>
-          <div className="max-h-[240px] overflow-y-auto -mx-1 tier-scroll">
-            {programs.map(p => {
-              const updatedBy = p.updated_by ? p.updated_by.split('@')[0] : null;
-              return (
-                <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#E5E1D8] transition-all">
-                  <button
-                    onClick={() => handleOpenProgram(p.id)}
-                    disabled={openingProgramId !== null}
-                    className="flex-1 text-left min-w-0 disabled:opacity-60"
-                  >
-                    <div className="text-[13px] font-semibold text-[#52473C] truncate">{p.client_name}</div>
-                    <div className="text-[11px] text-[#8A7D6B] truncate">
-                      {p.customers_count > 0
-                        ? (lang === 'fr' ? `${p.customers_count.toLocaleString('fr-FR')} clients` : `${p.customers_count.toLocaleString()} customers`)
-                        : (lang === 'fr' ? 'Données client à importer' : 'Customer data to import')}
-                      {' · '}
-                      {lang === 'fr' ? `${p.tier_count ?? 0} paliers` : `${p.tier_count ?? 0} tiers`}
-                      {' · '}
-                      {new Date(p.updated_at).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
-                      {updatedBy && ` · ${updatedBy}`}
-                    </div>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteProgram(p); }}
-                    className="text-[#8A7D6B] hover:text-red-500 transition-colors p-1"
-                    title={lang === 'fr' ? 'Supprimer' : 'Delete'}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                  {openingProgramId === p.id
-                    ? <Loader2 size={12} className="animate-spin text-primary shrink-0" />
-                    : <ArrowRight size={12} className="text-[#D9D5CB] shrink-0" />}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Client list area */}
       <div className="card">
@@ -387,7 +300,7 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
                         </div>
                         {companiesWithProgram.has(String(client.id)) && (
                           <span className="text-[10px] font-medium text-primary shrink-0 inline-flex items-center gap-1">
-                            <FileText size={10} /> {lang === 'fr' ? 'Programme enregistré' : 'Saved program'}
+                            <Folder size={10} /> {lang === 'fr' ? 'Dossier existant' : 'Existing folder'}
                           </span>
                         )}
                         {client.plan && (

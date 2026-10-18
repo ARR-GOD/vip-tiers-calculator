@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2 } from 'lucide-react';
+import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2 } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -14,12 +14,15 @@ import { INITIAL_REFERRAL } from './data/defaults';
 import { normalizeProgram } from './data/programDefaults';
 import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { createProgramSaver, buildProgramSnapshot, findProgramByCompany, loadProgram, migrateProgramState, STATE_VERSION } from './utils/programStore';
-import { supabase, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
+import { createProgramSaver, buildProgramSnapshot, programClientFields, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
+import { folderKeyOf } from './utils/clientFolders';
+import { supabase, apiFetch, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
 import StepCSM_Selector from './components/StepCSM_Selector';
+import ClientSpace from './components/ClientSpace';
+import ClientFolder from './components/ClientFolder';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import SaveStatus from './components/SaveStatus';
 import { Building2 } from 'lucide-react';
@@ -102,14 +105,15 @@ function App() {
   const [burnRate, setBurnRate] = useState(BLANK_PROGRAM.burnRate);
   const [referralConfig, setReferralConfig] = useState(BLANK_PROGRAM.referralConfig);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
+  const [phase, setPhase] = useState('clients'); // 'clients' | 'folder' | 'csm' | 'brand' | 'wizard'
+  const [folderKey, setFolderKey] = useState(null); // client folder shown in the 'folder' phase
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
   const [csmMode, setCsmMode] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
 
   // ─── Program persistence (Supabase) ───
-  // programTarget is the handle of the open program: { id, hubspotCompanyId },
+  // programTarget is the handle of the open program: { id, hubspotCompanyId, name },
   // null while none is open. Its id is filled in by the first save.
   const [programTarget, setProgramTarget] = useState(null);
   const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
@@ -117,8 +121,8 @@ function App() {
 
   // A new program starts clean: nothing from the previously opened brand
   // (imported customers, custom missions, referral) carries over.
-  const startNewProgram = (hubspotCompanyId = null) => {
-    setProgramTarget({ id: null, hubspotCompanyId });
+  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME) => {
+    setProgramTarget({ id: null, hubspotCompanyId, name });
     setCustomers(parseSampleData());
     setCustomMissions([]);
     setReferralConfig(INITIAL_REFERRAL);
@@ -168,19 +172,18 @@ function App() {
     setPhase('brand'); // Go to brand analysis
   };
 
-  // Load a saved program into the wizard. `live` carries fresh HubSpot data
-  // when the program is opened by picking its client in the list.
-  const openProgram = (row, live = {}) => {
+  // Load a saved program into the wizard.
+  const openProgram = (row) => {
     const savedVersion = row.state?.v ?? 1;
     const values = {
       ...normalizeProgram(migrateProgramState(row.state || {})),
       customers: row.customers?.length ? row.customers : parseSampleData(),
       selectedClient: row.hubspot_company_id
-        ? (live.selectedClient || { id: row.hubspot_company_id, name: row.client_name, domain: row.client_domain, plan: row.client_plan })
+        ? { id: row.hubspot_company_id, name: row.client_name, domain: row.client_domain, plan: row.client_plan }
         : null,
       step: row.step ?? 1,
     };
-    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id };
+    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name };
 
     applyProgram(values);
     setOnboardingAnswers(values.onboardingAnswers);
@@ -201,30 +204,57 @@ function App() {
     openProgram(await loadProgram(programId));
   };
 
-  // Throws when Supabase can't be reached: the selector then shows the error
-  // rather than starting from defaults over a program saved for this client.
+  // A client that already has a folder opens it; otherwise its first program
+  // starts. Throws when Supabase can't be reached: the selector then shows the
+  // error rather than starting a second folder for this client.
   const handleCSMClientSelected = async (client, details) => {
-    const existing = await findProgramByCompany(client.id);
-    if (existing) {
-      openProgram(existing, { selectedClient: { ...client, contacts: details.contacts || [] } });
+    const existing = await listCompanyPrograms(client.id);
+    if (existing.length > 0) {
+      openFolder(`hs:${client.id}`);
       return;
     }
+    startCsmProgram(client, details, DEFAULT_PROGRAM_NAME);
+  };
 
-    startNewProgram(String(client.id));
+  // New program for a HubSpot client: CSM-inferred defaults, then Step 0
+  // (Program Setup) pre-filled from the HubSpot company data.
+  const startCsmProgram = (client, details, name) => {
+    startNewProgram(String(client.id), name);
     setBrandAnalysis(null);
-    setSelectedClient({ ...client, contacts: details.contacts || [] });
+    setSelectedClient(client);
     setCsmMode(true);
-
-    // Apply CSM-inferred defaults and skip straight to Step 0 (Program Setup),
-    // pre-filled with values inferred from HubSpot company data so the user
-    // can adjust before continuing into the wizard.
     const company = details?.company || {};
     applyProgram(applyCsmDefaults(company, lang));
     setOnboardingAnswers(buildCsmOnboardingAnswers(company));
-
     setPhase('wizard');
     setStep(0);
     setVisitedSteps(new Set([0]));
+  };
+
+  // "Nouveau programme" in a client folder.
+  const handleNewProgramInFolder = async (folder, name) => {
+    if (folder.hubspotCompanyId) {
+      const client = { id: folder.hubspotCompanyId, name: folder.name, domain: folder.domain, plan: folder.plan };
+      // HubSpot details refine the defaults; without them the program starts from generic ones.
+      const details = await apiFetch(`/api/hubspot-client-details?companyId=${client.id}`)
+        .then(res => (res.ok ? res.json() : {}))
+        .catch(() => ({}));
+      startCsmProgram(client, details, name);
+      return;
+    }
+    // Outside HubSpot: start again from the brand analysis of the folder's latest program.
+    const latest = await loadProgram(folder.programs[0].id);
+    const analysis = latest.state?.brandAnalysis || null;
+    const firstStep = analysis ? 1 : 0;
+    startNewProgram(null, name);
+    setSelectedClient(null);
+    setCsmMode(false);
+    setOnboardingAnswers(null);
+    setBrandAnalysis(analysis);
+    applyProgram(analysis ? applyBrandDefaults(analysis, lang) : BLANK_PROGRAM);
+    setPhase('wizard');
+    setStep(firstStep);
+    setVisitedSteps(new Set([firstStep]));
   };
 
   const handleStep0Complete = (answers) => {
@@ -233,8 +263,10 @@ function App() {
     setStep(1); // Go to CSV import step
   };
 
-  const reset = () => {
-    saver.flush(); // pending edits of the open program still reach the database
+  // Close the open program once its pending edits reach the database; the
+  // wizard is cleared so nothing carries over to the next program.
+  const closeProgram = async () => {
+    await saver.flush();
     setProgramTarget(null);
     applyProgram(BLANK_PROGRAM);
     setCustomers(parseSampleData());
@@ -242,9 +274,28 @@ function App() {
     setBrandAnalysis(null);
     setCsmMode(false);
     setSelectedClient(null);
-    setPhase('csm');
     setStep(0);
     setVisitedSteps(new Set([0]));
+  };
+
+  const openFolder = (key) => {
+    setFolderKey(key);
+    setPhase('folder');
+  };
+
+  const goToClientSpace = async () => {
+    if (programTarget) await closeProgram();
+    setPhase('clients');
+  };
+
+  // Back from the wizard to the folder of the open program.
+  const leaveProgram = async () => {
+    const key = folderKeyOf({
+      hubspot_company_id: programTarget?.hubspotCompanyId,
+      ...programClientFields({ selectedClient, brandAnalysis }),
+    });
+    await closeProgram();
+    openFolder(key);
   };
 
   // Track visited steps (updated during render when a new step is shown).
@@ -301,14 +352,6 @@ function App() {
   const handleLogout = async () => {
     await saver.flush();
     await supabase.auth.signOut();
-  };
-
-  const leaveProgram = () => {
-    saver.flush();
-    setProgramTarget(null);
-    setCsmMode(false);
-    setSelectedClient(null);
-    setPhase('csm');
   };
 
   // Smooth scroll the page back to the top so the new step's title is visible.
@@ -401,9 +444,22 @@ function App() {
       {/* ─── Navbar ─── */}
       <header className="sticky top-0 z-40" style={{ height: 60, backgroundColor: '#2B251F' }}>
         <div className="max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
-            <span className="text-[15px] font-bold text-white">Loyoly Setup</span>
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={goToClientSpace} className="flex items-center gap-3 shrink-0" title={t ? 'Espace clients' : 'Client space'}>
+              <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
+              <span className="text-[15px] font-bold text-white">Loyoly Setup</span>
+            </button>
+            {/* Breadcrumb of the open program: client folder › program */}
+            {phase === 'wizard' && programTarget && (
+              <div className="hidden md:flex items-center gap-2 text-[13px] text-white/50 min-w-0">
+                <ChevronRight size={13} className="shrink-0" />
+                <button onClick={leaveProgram} className="text-white/80 hover:text-white truncate">
+                  {programClientFields({ selectedClient, brandAnalysis }).client_name}
+                </button>
+                <ChevronRight size={13} className="shrink-0" />
+                <span className="text-white font-medium truncate">{programTarget.name}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {phase === 'wizard' && programTarget && <SaveStatus saveState={saveState} lang={lang} />}
@@ -416,9 +472,9 @@ function App() {
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
               <Globe size={15} />
             </button>
-            <button onClick={reset}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
-              <RotateCcw size={15} />
+            <button onClick={goToClientSpace} title={t ? 'Espace clients' : 'Client space'}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+              <FolderOpen size={15} />
             </button>
             {/* User avatar + logout */}
             <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
@@ -455,6 +511,12 @@ function App() {
                 <span className="pill pill-purple text-[10px]">{selectedClient.plan}</span>
               </>
             )}
+            {programTarget?.name && (
+              <>
+                <span className="text-[#B0A595]">|</span>
+                <span className="text-[#52473C] whitespace-nowrap">{programTarget.name}</span>
+              </>
+            )}
             <div className="ml-auto flex items-center gap-3">
               <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
                 title={t ? 'Enregistrer immédiatement en base (partagé avec l\'équipe)' : 'Save to the database now (shared with the team)'}>
@@ -462,7 +524,7 @@ function App() {
               </button>
               <button onClick={leaveProgram}
                 className="text-primary font-medium hover:underline text-[12px]">
-                {t ? 'Changer de client' : 'Change client'}
+                {t ? 'Dossier client' : 'Client folder'}
               </button>
             </div>
           </div>
@@ -558,12 +620,28 @@ function App() {
 
       {/* ─── Main Content ─── */}
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-12">
-        {phase === 'csm' ? (
+        {phase === 'clients' ? (
+          <ClientSpace
+            lang={lang}
+            userEmail={user.email}
+            onOpenFolder={openFolder}
+            onNewClient={() => setPhase('csm')}
+            onManual={handleSkipToManual}
+          />
+        ) : phase === 'folder' ? (
+          <ClientFolder
+            lang={lang}
+            folderKey={folderKey}
+            onBack={() => setPhase('clients')}
+            onOpenProgram={handleOpenProgram}
+            onNewProgram={handleNewProgramInFolder}
+          />
+        ) : phase === 'csm' ? (
           <StepCSM_Selector
             lang={lang}
             onClientSelected={handleCSMClientSelected}
             onSkipToManual={handleSkipToManual}
-            onOpenProgram={handleOpenProgram}
+            onBack={() => setPhase('clients')}
           />
         ) : phase === 'brand' ? (
           <StepBrand_Analyzer

@@ -88,7 +88,8 @@ export default function StepBrand_Analyzer({ lang, onComplete, onSkip, initialDa
 
   const handleComplete = () => {
     // Preserve original detected type for future edits
-    onComplete({ ...editValues, _originalDetectedProgram: originalDetectedType });
+    // The analyzed site files the program in its brand's client folder.
+    onComplete({ ...editValues, brand_url: editValues.brand_url || url.trim() || null, _originalDetectedProgram: originalDetectedType });
   };
 
   // ── INPUT / ERROR PHASE ──

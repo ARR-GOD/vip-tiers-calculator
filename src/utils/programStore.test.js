@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { migrateProgramState, STATE_VERSION } from './programStore';
+import { migrateProgramState, STATE_VERSION, buildProgramSnapshot, newProgramRow, copyProgramRow, programClientFields, DEFAULT_PROGRAM_NAME } from './programStore';
 import { normalizeProgram, buildProgramDefaults } from '../data/programDefaults';
 import { missionPoints } from './pointsModel';
 import { rewardPointsCost } from './rewardModel';
@@ -103,5 +103,36 @@ describe('default rewards (Loyoly recommendations)', () => {
     expect(p.rewards.every(r => r.expirationDays === 90)).toBe(true);
     expect(p.rewards.find(r => r.id === 'perk_voucher_10').minPurchaseAuto).toBe(true);
     expect(p.burnRate).toBe(6);
+  });
+});
+
+describe('program rows (client folders)', () => {
+  const snapshot = buildProgramSnapshot({ id: null }, {
+    ...buildProgramDefaults({ aov: 80 }),
+    selectedClient: { id: '42', name: 'Brand A', domain: 'branda.com', plan: 'Premium' },
+    customers: [],
+  });
+
+  it('names a program on its first save', () => {
+    expect(newProgramRow({ id: null, hubspotCompanyId: '42', name: 'Proposition B' }, snapshot.row, []))
+      .toMatchObject({ hubspot_company_id: '42', program_name: 'Proposition B', client_name: 'Brand A', customers: [] });
+    expect(newProgramRow({ id: null }, snapshot.row, []))
+      .toMatchObject({ hubspot_company_id: null, program_name: DEFAULT_PROGRAM_NAME });
+  });
+
+  it('files a brand-analysis program under the analyzed site', () => {
+    expect(programClientFields({ brandAnalysis: { brand_name: 'Maison Lune', brand_url: 'https://www.maisonlune.fr/' } }))
+      .toEqual({ client_name: 'Maison Lune', client_domain: 'maisonlune.fr', client_plan: null });
+    expect(programClientFields({}).client_name).toBe('Configuration manuelle');
+  });
+
+  it('copies a program into the same folder under a new name', () => {
+    const source = { id: 'p1', ...newProgramRow({ hubspotCompanyId: '42' }, snapshot.row, [{ customer_id: 'c1' }]), created_by: 'ana@loyoly.io' };
+    const copy = copyProgramRow(source, 'Programme principal (copie)');
+    expect(copy).toEqual({
+      hubspot_company_id: '42', client_name: 'Brand A', client_domain: 'branda.com', client_plan: 'Premium',
+      program_name: 'Programme principal (copie)', step: snapshot.row.step,
+      state: snapshot.row.state, customers: [{ customer_id: 'c1' }],
+    });
   });
 });

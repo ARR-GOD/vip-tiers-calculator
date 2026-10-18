@@ -9,10 +9,12 @@
 
 import { supabase } from '../lib/supabase';
 import { defaultTierUtilization } from '../data/programDefaults';
+import { normalizeDomain } from './clientFolders';
 
 const TABLE = 'vip_programs';
+export const DEFAULT_PROGRAM_NAME = 'Programme principal';
 export const STATE_VERSION = 2;
-const LIST_COLUMNS = 'id, hubspot_company_id, client_name, client_domain, client_plan, step, customers_count, tier_count, updated_at, updated_by';
+const LIST_COLUMNS = 'id, hubspot_company_id, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, created_by, updated_at, updated_by';
 
 // ── Reads / deletes ──────────────────────────────────────────────────
 export async function listPrograms() {
@@ -30,13 +32,13 @@ export async function loadProgram(id) {
   return data;
 }
 
-// Full row of the program attached to a HubSpot company, or null.
-export async function findProgramByCompany(companyId) {
+// Programs of a HubSpot company — its client folder.
+export async function listCompanyPrograms(companyId) {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('*')
+    .select(LIST_COLUMNS)
     .eq('hubspot_company_id', String(companyId))
-    .maybeSingle();
+    .order('updated_at', { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -44,6 +46,32 @@ export async function findProgramByCompany(companyId) {
 export async function deleteProgram(id) {
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw error;
+}
+
+export async function renameProgram(id, name) {
+  const { error } = await supabase.from(TABLE).update({ program_name: name }).eq('id', id);
+  if (error) throw error;
+}
+
+// A copy of a saved program, in the same client folder.
+export function copyProgramRow(source, name) {
+  return {
+    hubspot_company_id: source.hubspot_company_id ?? null,
+    client_name: source.client_name,
+    client_domain: source.client_domain ?? null,
+    client_plan: source.client_plan ?? null,
+    program_name: name,
+    step: source.step ?? 1,
+    state: source.state,
+    customers: source.customers ?? [],
+  };
+}
+
+export async function duplicateProgram(id, name) {
+  const source = await loadProgram(id);
+  const { data, error } = await supabase.from(TABLE).insert(copyProgramRow(source, name)).select('id').single();
+  if (error) throw error;
+  return data.id;
 }
 
 // ── Format migrations ────────────────────────────────────────────────
@@ -101,13 +129,11 @@ export function migrateProgramState(state = {}) {
 }
 
 // ── Snapshot of the wizard state ─────────────────────────────────────
-// `target` is the mutable handle of the open program: { id, hubspotCompanyId }.
+// `target` is the mutable handle of the open program: { id, hubspotCompanyId, name }.
 // id stays null until the first save inserts the row.
 export function buildProgramSnapshot(target, s) {
   const row = {
-    client_name: s.selectedClient?.name || s.brandAnalysis?.brand_name || 'Configuration manuelle',
-    client_domain: s.selectedClient?.domain || null,
-    client_plan: s.selectedClient?.plan || null,
+    ...programClientFields(s),
     step: s.step ?? 1,
     state: {
       v: STATE_VERSION,
@@ -124,6 +150,15 @@ export function buildProgramSnapshot(target, s) {
     },
   };
   return { target, row, key: stableStringify(row), customers: s.customers };
+}
+
+// Client a program is filed under: its HubSpot company, else the analyzed brand.
+export function programClientFields({ selectedClient, brandAnalysis }) {
+  return {
+    client_name: selectedClient?.name || brandAnalysis?.brand_name || 'Configuration manuelle',
+    client_domain: selectedClient?.domain || normalizeDomain(brandAnalysis?.brand_url) || null,
+    client_plan: selectedClient?.plan || null,
+  };
 }
 
 // JSON with sorted keys: Postgres jsonb does not keep key order, so this is
@@ -154,19 +189,21 @@ export async function persistProgram(target, row, customers, includeCustomers) {
 
   const { data, error } = await supabase
     .from(TABLE)
-    .insert({ ...row, customers, hubspot_company_id: target.hubspotCompanyId ?? null })
+    .insert(newProgramRow(target, row, customers))
     .select('id')
     .single();
-  if (error?.code === '23505' && target.hubspotCompanyId) {
-    // Another CSM created this company's program meanwhile: write into it.
-    const existing = await findProgramByCompany(target.hubspotCompanyId);
-    if (existing) {
-      target.id = existing.id;
-      return persistProgram(target, row, customers, true);
-    }
-  }
   if (error) throw error;
   target.id = data.id;
+}
+
+// Row inserted by the first save of a program.
+export function newProgramRow(target, row, customers) {
+  return {
+    ...row,
+    customers,
+    hubspot_company_id: target.hubspotCompanyId ?? null,
+    program_name: target.name || DEFAULT_PROGRAM_NAME,
+  };
 }
 
 // Debounced, serialized, retrying writer. One instance per App.

@@ -25,6 +25,14 @@ VIP tiers and their perks — for Claude Cowork to configure it in Loyoly
 (`src/utils/setupSheet.js`): **Exporter la fiche de setup (PDF)** prints it through the browser
 (text stays selectable), **Copier pour Claude** copies the same content as Markdown.
 
+## Client space
+
+The home page lists one folder per client (`src/utils/clientFolders.js`): programs of a
+HubSpot company are grouped by company, the others by analyzed brand (domain, else name).
+A folder holds several named programs — create, open, rename, duplicate, delete. **Nouveau
+client** opens the HubSpot client selection: a client that already has a folder opens it,
+otherwise its first program starts.
+
 ## Local development
 
 ```bash
@@ -37,8 +45,10 @@ npm test                     # unit tests (points model, calculations, migration
 
 ## Supabase setup
 
-1. Run `supabase/migrations/20261018000000_vip_programs.sql` in the SQL editor
-   (creates the `vip_programs` table, its trigger and the `@loyoly.io` access rules).
+1. Run the files of `supabase/migrations/` in the SQL editor, in order:
+   `20261018000000_vip_programs.sql` (the `vip_programs` table, its trigger and the
+   `@loyoly.io` access rules), then `20261019000000_program_folders.sql` (several
+   named programs per client).
 2. **Authentication → Sign In / Providers → Google**: enable it and add the Google
    OAuth Web client ID (the same as `VITE_GOOGLE_CLIENT_ID`) to the authorized client IDs.
 3. Keep **Confirm email** enabled so nobody can claim an `@loyoly.io` address without owning it.
