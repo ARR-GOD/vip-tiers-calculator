@@ -18,6 +18,13 @@ Points are never stored, only derived (`src/utils/pointsModel.js`):
 
 Saved programs carry a format version; `migrateProgramState` (`src/utils/programStore.js`) upgrades older ones without changing their figures.
 
+## Setup sheet
+
+The Dashboard exports the program structure — points ratio, missions, points rewards, referral,
+VIP tiers and their perks — for Claude Cowork to configure it in Loyoly
+(`src/utils/setupSheet.js`): **Exporter la fiche de setup (PDF)** prints it through the browser
+(text stays selectable), **Copier pour Claude** copies the same content as Markdown.
+
 ## Local development
 
 ```bash

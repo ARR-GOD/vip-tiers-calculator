@@ -408,3 +408,44 @@ input[type="checkbox"] {
   color: white;
   flex-shrink: 0;
 }
+
+/* ─── Setup sheet — printed alone (Dashboard → Exporter la fiche de setup) ─── */
+.print-sheet { display: none; }
+
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff !important; }
+  body > *:not(.print-sheet) { display: none !important; }
+  .print-sheet {
+    display: block;
+    color: #111;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+  .print-sheet h1 { font-size: 20pt; font-weight: 700; margin: 0; }
+  .print-sheet-subtitle { color: #555; margin: 2pt 0 14pt; }
+  .print-sheet section { margin-bottom: 14pt; }
+  .print-sheet h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    margin: 0 0 6pt;
+    padding-bottom: 3pt;
+    border-bottom: 1px solid #999;
+    break-after: avoid;
+  }
+  .print-sheet dl { margin: 0 0 6pt; }
+  .print-sheet dl > div { display: flex; gap: 8pt; }
+  .print-sheet dt { font-weight: 600; min-width: 170pt; }
+  .print-sheet dd { margin: 0; }
+  .print-sheet table { width: 100%; border-collapse: collapse; }
+  .print-sheet th, .print-sheet td {
+    border: 1px solid #ccc;
+    padding: 3pt 6pt;
+    text-align: left;
+    vertical-align: top;
+  }
+  .print-sheet td:not(:last-child) { white-space: nowrap; }
+  .print-sheet th { font-weight: 600; background: #f3f3f3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-sheet tr { break-inside: avoid; }
+  .print-sheet ul { margin: 0; padding-left: 12pt; list-style: disc; }
+}

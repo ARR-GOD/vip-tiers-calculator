@@ -640,6 +640,8 @@ function App() {
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 referralConfig={referralConfig}
+                clientName={selectedClient?.name || brandAnalysis?.brand_name}
+                author={user.name}
                 onPrev={goPrev} />
             )}
           </div>

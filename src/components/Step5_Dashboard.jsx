@@ -1,8 +1,10 @@
-import { useMemo, useRef } from 'react';
-import { Download, Image, RotateCcw, ChevronLeft, TrendingUp } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { Download, Image, RotateCcw, ChevronLeft, TrendingUp, FileText, ClipboardCopy, Check } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
+import SetupSheet from './SetupSheet';
 import {
   computeCustomerScores, assignTiers, computeTierStats, computeNonMemberStats,
   computeReferralEconomics, computePointsEconomy, rewardCostByTier, sumRewardCosts, realCostPerPoint,
@@ -11,6 +13,7 @@ import {
 import { pointsModel } from '../utils/pointsModel';
 import { ENGAGEMENT_SCENARIOS } from '../data/defaults';
 import { INITIAL_SETTINGS } from '../data/programDefaults';
+import { buildSetupSheet, setupSheetMarkdown } from '../utils/setupSheet';
 
 const SCENARIOS = ['low', 'medium', 'high'].map(key => ({
   key,
@@ -22,7 +25,7 @@ const SCENARIOS = ['low', 'medium', 'high'].map(key => ({
 export default function Step5_Dashboard({
   tiers, customers, settings, setSettings, config,
   missions, customMissions, rewards, burnRate,
-  lang, referralConfig, onPrev,
+  lang, referralConfig, clientName, author, onPrev,
 }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
@@ -145,6 +148,34 @@ export default function Step5_Dashboard({
     } catch (err) { console.error(err); }
   };
 
+  // ── Setup sheet: the program structure for Claude Cowork ──
+  const [printedSheet, setPrintedSheet] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const setupSheet = () => buildSetupSheet({
+    config, settings, tiers, rewards, missions, customMissions, referralConfig, clientName, author, lang,
+  });
+
+  // The sheet is mounted only while printing; the page title names the PDF.
+  const exportSetupPDF = () => {
+    const sheet = setupSheet();
+    const appTitle = document.title;
+    window.addEventListener('afterprint', () => {
+      document.title = appTitle;
+      setPrintedSheet(null);
+    }, { once: true });
+    flushSync(() => setPrintedSheet(sheet));
+    document.title = sheet.title;
+    window.print();
+  };
+
+  const copyForClaude = async () => {
+    try {
+      await navigator.clipboard.writeText(setupSheetMarkdown(setupSheet()));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) { console.error(err); }
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -153,10 +184,18 @@ export default function Step5_Dashboard({
           <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Dashboard' : 'Dashboard'}</h2>
           <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Vue financière essentielle, sans graphiques.' : 'Essential financial view, no charts.'}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button onClick={copyForClaude} className="btn-secondary">
+            {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+            {copied ? (t ? 'Copié' : 'Copied') : (t ? 'Copier pour Claude' : 'Copy for Claude')}
+          </button>
+          <button onClick={exportSetupPDF} className="btn-primary">
+            <FileText size={13} /> {t ? 'Exporter la fiche de setup (PDF)' : 'Export setup sheet (PDF)'}
+          </button>
           <button onClick={exportCSV} className="btn-secondary"><Download size={13} /> CSV</button>
           <button onClick={exportPNG} className="btn-secondary"><Image size={13} /> PNG</button>
         </div>
+        {printedSheet && <SetupSheet sheet={printedSheet} />}
       </div>
 
       {/* Scenario selector — drives every dashboard number below */}
