@@ -16,7 +16,9 @@ export function normalizeDomain(value) {
     .trim();
 }
 
+// Saved programs carry their key (folder_key); it is derived the same way.
 export function folderKeyOf(program) {
+  if (program.folder_key) return program.folder_key;
   if (program.hubspot_company_id) return `hs:${program.hubspot_company_id}`;
   const brand = normalizeDomain(program.client_domain) || (program.client_name || '').trim().toLowerCase();
   return `brand:${brand}`;

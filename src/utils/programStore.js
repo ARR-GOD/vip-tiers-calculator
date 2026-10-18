@@ -9,12 +9,12 @@
 
 import { supabase } from '../lib/supabase';
 import { defaultTierUtilization } from '../data/programDefaults';
-import { normalizeDomain } from './clientFolders';
+import { normalizeDomain, folderKeyOf } from './clientFolders';
 
 const TABLE = 'vip_programs';
 export const DEFAULT_PROGRAM_NAME = 'Programme principal';
 export const STATE_VERSION = 2;
-const LIST_COLUMNS = 'id, hubspot_company_id, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, created_by, updated_at, updated_by';
+const LIST_COLUMNS = 'id, hubspot_company_id, folder_key, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, shared_with_client, published_version, published_at, created_by, updated_at, updated_by';
 
 // ── Reads / deletes ──────────────────────────────────────────────────
 export async function listPrograms() {
@@ -53,10 +53,11 @@ export async function renameProgram(id, name) {
   if (error) throw error;
 }
 
-// A copy of a saved program, in the same client folder.
+// A copy of a saved program, in the same client folder (not published).
 export function copyProgramRow(source, name) {
   return {
     hubspot_company_id: source.hubspot_company_id ?? null,
+    folder_key: source.folder_key ?? folderKeyOf(source),
     client_name: source.client_name,
     client_domain: source.client_domain ?? null,
     client_plan: source.client_plan ?? null,
@@ -132,8 +133,10 @@ export function migrateProgramState(state = {}) {
 // `target` is the mutable handle of the open program: { id, hubspotCompanyId, name }.
 // id stays null until the first save inserts the row.
 export function buildProgramSnapshot(target, s) {
+  const client = programClientFields(s);
   const row = {
-    ...programClientFields(s),
+    ...client,
+    folder_key: folderKeyOf({ hubspot_company_id: target.hubspotCompanyId, ...client }),
     step: s.step ?? 1,
     state: {
       v: STATE_VERSION,

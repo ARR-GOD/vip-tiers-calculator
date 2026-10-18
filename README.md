@@ -33,6 +33,18 @@ A folder holds several named programs — create, open, rename, duplicate, delet
 client** opens the HubSpot client selection: a client that already has a folder opens it,
 otherwise its first program starts.
 
+## Client portal
+
+From a client folder, the CSM generates an access link (`/client/XXXX-XXXX-XXXX`) and
+publishes programs from the wizard (**Publier pour le client**). The client — no Google
+account — sees the published version only: Missions, Récompenses, Parrainage and Paliers
+VIP (the setup sheet content, `src/utils/clientView.js`), comments each page or one of its
+items, edits or deletes their own comments and approves pages. CSMs answer and resolve from
+the matching wizard steps (**Commentaires client**).
+
+Clients never read the tables: the `client_*` SQL functions check the access code on every
+call and return only what was published. Codes can be regenerated or revoked from the folder.
+
 ## Local development
 
 ```bash
@@ -47,8 +59,9 @@ npm test                     # unit tests (points model, calculations, migration
 
 1. Run the files of `supabase/migrations/` in the SQL editor, in order:
    `20261018000000_vip_programs.sql` (the `vip_programs` table, its trigger and the
-   `@loyoly.io` access rules), then `20261019000000_program_folders.sql` (several
-   named programs per client).
+   `@loyoly.io` access rules), `20261019000000_program_folders.sql` (several named
+   programs per client), then `20261020000000_client_portal.sql` (client portal:
+   access codes, publication, comments, approvals).
 2. **Authentication → Sign In / Providers → Google**: enable it and add the Google
    OAuth Web client ID (the same as `VITE_GOOGLE_CLIENT_ID`) to the authorized client IDs.
 3. Keep **Confirm email** enabled so nobody can claim an `@loyoly.io` address without owning it.

@@ -10,6 +10,18 @@ export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
+// The client portal always calls Supabase as an anonymous visitor, even in a
+// browser where a CSM is signed in: its own client, without a stored session.
+let anonClient = null;
+export function getAnonSupabase() {
+  if (!anonClient && SUPABASE_URL && SUPABASE_ANON_KEY) {
+    anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'loyoly-client-portal' },
+    });
+  }
+  return anonClient;
+}
+
 export function isLoyolyEmail(email) {
   return typeof email === 'string' && email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
 }

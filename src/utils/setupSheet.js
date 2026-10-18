@@ -55,8 +55,13 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
   const tierNames = idxs => (idxs.length === tiers.length ? l.allTiers : idxs.map(i => tiers[i]?.name).join(', '));
   const sections = [];
 
+  // Each section has a key and each row a ref (`mission:<id>`…): the client
+  // portal shows the sections by page and lets comments target one row.
   if (config.hasMissions) {
+    const shownMissions = [...missions, ...customMissions].filter(m => m.enabled);
+    const pointsRewards = rewards.filter(r => isBurnReward(r) && r.assignedTiers?.some(Boolean));
     sections.push({
+      key: 'points',
       title: l.points,
       facts: [
         [l.earnRate, `${pts(earnRate, lang)} ${l.perEuro}`],
@@ -68,18 +73,22 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
     });
 
     sections.push({
+      key: 'missions',
       title: l.missions,
       columns: [l.mission, l.pts],
-      rows: [...missions, ...customMissions].filter(m => m.enabled).map(m => [
+      refs: shownMissions.map(m => `mission:${m.id}`),
+      rows: shownMissions.map(m => [
         name(m, lang),
         m.isPurchaseMission ? `${pts(earnRate, lang)} ${l.perPurchase}` : pts(missionPoints(m, settings), lang),
       ]),
     });
 
     sections.push({
+      key: 'rewards',
       title: l.rewards,
       columns: [l.reward, l.pts, l.expiry, l.minPurchase, l.tiers],
-      rows: rewards.filter(r => isBurnReward(r) && r.assignedTiers?.some(Boolean)).map(r => [
+      refs: pointsRewards.map(r => `reward:${r.id}`),
+      rows: pointsRewards.map(r => [
         name(r, lang),
         pts(rewardPointsCost(r, settings), lang),
         `${r.expirationDays ?? 90} ${l.days}`,
@@ -88,14 +97,16 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
       ]),
     });
   } else {
-    sections.push({ title: l.points, note: l.noPoints });
+    sections.push({ key: 'points', title: l.points, note: l.noPoints });
   }
 
   if (referralConfig?.enabled) {
     const r = resolveReferral(referralConfig, settings.aov);
     sections.push({
+      key: 'referral',
       title: l.referral,
       columns: ['', l.reward, l.minPurchase, l.expiry],
+      refs: ['referral:referrer', 'referral:referee'],
       rows: [
         [l.referrer, formatReferralReward(r.referrerType, r.referrerValue), minimum(r.referrerMinPurchase), `${r.referrerExpirationDays} ${l.days}`],
         [l.referee, formatReferralReward(r.refereeType, r.refereeValue), minimum(r.refereeMinPurchase), `${r.refereeExpirationDays} ${l.days}`],
@@ -107,6 +118,7 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
     const basis = config.tierBasis;
     const unit = basis === 'orders' ? (lang === 'fr' ? ' commandes' : ' orders') : basis === 'points' ? ' pts' : ' €';
     sections.push({
+      key: 'vip',
       title: l.vip,
       facts: [
         [l.format, l.formats[basis] || l.formats.spend],
@@ -115,6 +127,7 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
           : l.noReassessment],
       ],
       columns: [l.tier, l.threshold, ...(config.hasMissions ? [l.multiplier] : []), l.tierRewards],
+      refs: tiers.map((_, i) => `tier:${i}`),
       rows: tiers.map((tier, i) => {
         const perks = rewards
           .filter(r => r.assignedTiers?.[i] && r.rewardUsage !== 'burn')

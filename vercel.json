@@ -23,5 +23,15 @@
       "memory": 512,
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/client",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/client/:code",
+      "destination": "/index.html"
+    }
+  ]
 }

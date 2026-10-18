@@ -107,7 +107,7 @@ describe('default rewards (Loyoly recommendations)', () => {
 });
 
 describe('program rows (client folders)', () => {
-  const snapshot = buildProgramSnapshot({ id: null }, {
+  const snapshot = buildProgramSnapshot({ id: null, hubspotCompanyId: '42' }, {
     ...buildProgramDefaults({ aov: 80 }),
     selectedClient: { id: '42', name: 'Brand A', domain: 'branda.com', plan: 'Premium' },
     customers: [],
@@ -115,7 +115,7 @@ describe('program rows (client folders)', () => {
 
   it('names a program on its first save', () => {
     expect(newProgramRow({ id: null, hubspotCompanyId: '42', name: 'Proposition B' }, snapshot.row, []))
-      .toMatchObject({ hubspot_company_id: '42', program_name: 'Proposition B', client_name: 'Brand A', customers: [] });
+      .toMatchObject({ hubspot_company_id: '42', folder_key: 'hs:42', program_name: 'Proposition B', client_name: 'Brand A', customers: [] });
     expect(newProgramRow({ id: null }, snapshot.row, []))
       .toMatchObject({ hubspot_company_id: null, program_name: DEFAULT_PROGRAM_NAME });
   });
@@ -130,7 +130,7 @@ describe('program rows (client folders)', () => {
     const source = { id: 'p1', ...newProgramRow({ hubspotCompanyId: '42' }, snapshot.row, [{ customer_id: 'c1' }]), created_by: 'ana@loyoly.io' };
     const copy = copyProgramRow(source, 'Programme principal (copie)');
     expect(copy).toEqual({
-      hubspot_company_id: '42', client_name: 'Brand A', client_domain: 'branda.com', client_plan: 'Premium',
+      hubspot_company_id: '42', folder_key: 'hs:42', client_name: 'Brand A', client_domain: 'branda.com', client_plan: 'Premium',
       program_name: 'Programme principal (copie)', step: snapshot.row.step,
       state: snapshot.row.state, customers: [{ customer_id: 'c1' }],
     });

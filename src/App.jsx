@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2 } from 'lucide-react';
+import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2, Send } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -25,6 +25,9 @@ import ClientSpace from './components/ClientSpace';
 import ClientFolder from './components/ClientFolder';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import SaveStatus from './components/SaveStatus';
+import CommentsPanel from './components/CommentsPanel';
+import { buildClientView, hasUnpublishedChanges, pageItems, PAGE_OF_STEP } from './utils/clientView';
+import { publishProgram } from './utils/clientPortalStore';
 import { Building2 } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -116,6 +119,9 @@ function App() {
   // programTarget is the handle of the open program: { id, hubspotCompanyId, name },
   // null while none is open. Its id is filled in by the first save.
   const [programTarget, setProgramTarget] = useState(null);
+  // What the client portal shows of the open program: { version, at, view }, null until published.
+  const [publication, setPublication] = useState(null);
+  const [publishing, setPublishing] = useState(false);
   const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
   const [saver] = useState(() => createProgramSaver({ onChange: setSaveState }));
 
@@ -123,6 +129,7 @@ function App() {
   // (imported customers, custom missions, referral) carries over.
   const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME) => {
     setProgramTarget({ id: null, hubspotCompanyId, name });
+    setPublication(null);
     setCustomers(parseSampleData());
     setCustomMissions([]);
     setReferralConfig(INITIAL_REFERRAL);
@@ -198,6 +205,9 @@ function App() {
     // This is what the database already holds: nothing to write back —
     // unless it was stored in an older format, which gets rewritten.
     if (savedVersion >= STATE_VERSION) saver.markSaved(buildProgramSnapshot(target, values));
+    setPublication(row.published_version > 0
+      ? { version: row.published_version, at: row.published_at, view: row.published_view }
+      : null);
   };
 
   const handleOpenProgram = async (programId) => {
@@ -268,6 +278,7 @@ function App() {
   const closeProgram = async () => {
     await saver.flush();
     setProgramTarget(null);
+    setPublication(null);
     applyProgram(BLANK_PROGRAM);
     setCustomers(parseSampleData());
     setOnboardingAnswers(null);
@@ -348,6 +359,31 @@ function App() {
     }
     setTimeout(() => setShareToast(null), 4000);
   }, [saver, tiers.length, customers]);
+
+  // ── Client portal: the program as the client sees it, and its publication ──
+  const clientView = phase === 'wizard' && programTarget
+    ? buildClientView({ config, settings, tiers, rewards, missions, customMissions, referralConfig }, {
+      clientName: programClientFields({ selectedClient, brandAnalysis }).client_name,
+      brandLogo: brandAnalysis?.brand_logo || null,
+    })
+    : null;
+  const unpublishedChanges = !!clientView && hasUnpublishedChanges(clientView, publication?.view);
+  const commentsPage = PAGE_OF_STEP[step];
+
+  const publishForClient = async () => {
+    setPublishing(true);
+    try {
+      await saver.flush(); // the first save creates the row that gets published
+      if (!programTarget.id) throw new Error(t ? 'programme pas encore enregistré' : 'program not saved yet');
+      const version = await publishProgram(programTarget.id, clientView);
+      setPublication({ version, at: new Date().toISOString(), view: clientView });
+      setShareToast({ ok: true, message: t ? `Version ${version} publiée pour le client` : `Version ${version} published for the client` });
+    } catch (err) {
+      setShareToast({ ok: false, message: `${t ? 'Échec de la publication' : 'Publication failed'} : ${err.message}` });
+    }
+    setPublishing(false);
+    setTimeout(() => setShareToast(null), 4000);
+  };
 
   const handleLogout = async () => {
     await saver.flush();
@@ -462,6 +498,23 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-1">
+            {phase === 'wizard' && programTarget && (
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-[12px] text-white/60 hidden lg:inline" data-testid="publication-status">
+                  {!publication
+                    ? (t ? 'Non publié' : 'Not published')
+                    : unpublishedChanges
+                      ? (t ? `v${publication.version} · modifications non publiées` : `v${publication.version} · unpublished changes`)
+                      : (t ? `v${publication.version} publiée` : `v${publication.version} published`)}
+                </span>
+                <button onClick={publishForClient} disabled={publishing || (publication && !unpublishedChanges)}
+                  className="h-8 px-3 rounded-lg text-[12px] font-medium text-white bg-white/10 hover:bg-white/20 transition-all inline-flex items-center gap-1.5 disabled:opacity-40"
+                  title={t ? 'Rendre cette version visible dans l\'espace client' : 'Make this version visible in the client portal'}>
+                  {publishing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                  {publication ? (t ? 'Publier la mise à jour' : 'Publish update') : (t ? 'Publier pour le client' : 'Publish for the client')}
+                </button>
+              </div>
+            )}
             {phase === 'wizard' && programTarget && <SaveStatus saveState={saveState} lang={lang} />}
             <button onClick={copyShareableLink}
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
@@ -619,7 +672,12 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-12">
+      {phase === 'wizard' && programTarget?.id && commentsPage && (
+        <CommentsPanel lang={lang} programId={programTarget.id} page={commentsPage}
+          items={pageItems(clientView, lang, commentsPage)} user={user} />
+      )}
+
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-24">
         {phase === 'clients' ? (
           <ClientSpace
             lang={lang}

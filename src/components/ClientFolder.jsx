@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Plus, Folder, Loader2, AlertCircle, Copy, Pencil, Trash2, ArrowRight, Check, X } from 'lucide-react';
 import { listPrograms, deleteProgram, renameProgram, duplicateProgram } from '../utils/programStore';
 import { groupProgramsIntoFolders, nextProgramName, copyName } from '../utils/clientFolders';
+import { listComments, listValidations, setProgramShared } from '../utils/clientPortalStore';
+import { CLIENT_PAGES } from '../utils/clientView';
+import ClientAccessCard from './ClientAccessCard';
 
 const FR = {
   space: 'Espace clients',
@@ -15,6 +18,11 @@ const FR = {
   updated: (date, by) => `modifié le ${date}${by ? ` par ${by}` : ''}`,
   rename: 'Renommer', duplicate: 'Dupliquer', remove: 'Supprimer',
   confirmDelete: name => `Supprimer le programme « ${name} » pour toute l'équipe ?`,
+  published: (v, date) => `Publié v${v} le ${date}`,
+  notPublished: 'Non publié',
+  shared: 'Visible par le client',
+  openComments: n => `${n} commentaire${n > 1 ? 's' : ''} ouvert${n > 1 ? 's' : ''}`,
+  validated: (n, total) => `${n}/${total} pages validées`,
 };
 
 const EN = {
@@ -29,6 +37,11 @@ const EN = {
   updated: (date, by) => `updated ${date}${by ? ` by ${by}` : ''}`,
   rename: 'Rename', duplicate: 'Duplicate', remove: 'Delete',
   confirmDelete: name => `Delete the "${name}" program for the whole team?`,
+  published: (v, date) => `Published v${v} on ${date}`,
+  notPublished: 'Not published',
+  shared: 'Visible to the client',
+  openComments: n => `${n} open comment${n > 1 ? 's' : ''}`,
+  validated: (n, total) => `${n}/${total} pages approved`,
 };
 
 export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, onNewProgram }) {
@@ -37,9 +50,22 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);           // id of the program being acted on, or 'new'
   const [editing, setEditing] = useState(null);     // { id, name } while renaming
+  const [activity, setActivity] = useState({});     // programId → { open, validated } (client portal)
 
   const refresh = useCallback(() => listPrograms()
-    .then(list => setFolder(groupProgramsIntoFolders(list).find(f => f.key === folderKey) || null))
+    .then(async list => {
+      const found = groupProgramsIntoFolders(list).find(f => f.key === folderKey) || null;
+      setFolder(found);
+      if (!found) return;
+      const ids = found.programs.map(p => p.id);
+      const [comments, validations] = await Promise.all([listComments(ids), listValidations(ids)]);
+      setActivity(Object.fromEntries(found.programs.map(p => [p.id, {
+        open: comments.filter(c => c.programId === p.id && !c.resolved).length,
+        validated: new Set(validations
+          .filter(v => v.program_id === p.id && v.published_version === p.published_version)
+          .map(v => v.page)).size,
+      }])));
+    })
     .catch(err => { setError(err.message); setFolder(f => f ?? null); }), [folderKey]);
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -68,6 +94,10 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
       await refresh();
     });
   };
+  const toggleShared = p => run(p.id, async () => {
+    await setProgramShared(p.id, !p.shared_with_client);
+    await refresh();
+  });
   const saveName = () => {
     const { id, name } = editing;
     setEditing(null);
@@ -120,6 +150,8 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
             </button>
           </div>
 
+          <ClientAccessCard lang={lang} folderKey={folder.key} />
+
           {error && (
             <div className="card text-[12px] text-red-600 flex items-center gap-2">
               <AlertCircle size={14} className="shrink-0" /> {error}
@@ -139,12 +171,32 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                     <button onClick={() => setEditing(null)} className={iconButton}><X size={14} /></button>
                   </div>
                 ) : (
-                  <button onClick={() => open(p.id)} disabled={busy !== null} className="flex-1 min-w-0 text-left disabled:opacity-60">
-                    <div className="text-[14px] font-semibold text-[#2B251F] truncate">{p.program_name}</div>
-                    <div className="text-[12px] text-[#8A7D6B] truncate">
-                      {t.tiers(p.tier_count ?? 0)} · {t.customers(p.customers_count ?? 0)} · {t.updated(formatDate(p.updated_at), p.updated_by?.split('@')[0])}
+                  <div className="flex-1 min-w-0">
+                    <button onClick={() => open(p.id)} disabled={busy !== null} className="program-open block w-full text-left disabled:opacity-60">
+                      <div className="text-[14px] font-semibold text-[#2B251F] truncate">{p.program_name}</div>
+                      <div className="text-[12px] text-[#8A7D6B] truncate">
+                        {t.tiers(p.tier_count ?? 0)} · {t.customers(p.customers_count ?? 0)} · {t.updated(formatDate(p.updated_at), p.updated_by?.split('@')[0])}
+                      </div>
+                    </button>
+                    {/* Client portal: publication, visibility, comments, approvals */}
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                      {p.published_version > 0 ? (
+                        <>
+                          <span className="pill text-[10px] bg-[#ECFDF5] text-[#047857]">
+                            {t.published(p.published_version, new Date(p.published_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US'))}
+                          </span>
+                          <label className="inline-flex items-center gap-1 text-[#645648] cursor-pointer">
+                            <input type="checkbox" checked={!!p.shared_with_client} onChange={() => toggleShared(p)} disabled={busy !== null} />
+                            {t.shared}
+                          </label>
+                          <span className="text-[#047857]">✓ {t.validated(activity[p.id]?.validated ?? 0, CLIENT_PAGES.length)}</span>
+                        </>
+                      ) : (
+                        <span className="pill text-[10px] bg-[#F5F4F0] text-[#8A7D6B]">{t.notPublished}</span>
+                      )}
+                      {activity[p.id]?.open > 0 && <span className="text-primary">💬 {t.openComments(activity[p.id].open)}</span>}
                     </div>
-                  </button>
+                  </div>
                 )}
                 {editing?.id !== p.id && (
                   <>
