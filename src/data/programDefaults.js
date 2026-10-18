@@ -48,6 +48,9 @@ export const INITIAL_TIERS = [
 // Share of a tier's members who use each of its rewards in a year.
 export const defaultTierUtilization = tierIndex => 5 + tierIndex * 5;
 
+// Share of emitted points that get redeemed (5–7% observed at Loyoly).
+export const DEFAULT_BURN_RATE = 6;
+
 // Cashback suggestion from the gross margin:
 // margin < 40 → 5%; < 60 → 10%; < 80 → 15%; else → 20%.
 export function suggestedCashback(margin) {
@@ -58,8 +61,6 @@ export function suggestedCashback(margin) {
 }
 
 // ── Builder ──────────────────────────────────────────────────────────
-// rewardTemplates: rewards without tier assignment — burn rewards go to every
-// tier, perks to every tier but the first.
 export function buildProgramDefaults({
   lang = 'fr',
   aov = 60,
@@ -67,8 +68,6 @@ export function buildProgramDefaults({
   programType = 'mid',
   tierNames,
   multipliers = [1, 1.5, 2],
-  rewardTemplates = DEFAULT_REWARDS,
-  burnRate = 40,
 }) {
   const luxury = programType === 'luxury';
   const names = tierNames?.length === 3
@@ -86,10 +85,8 @@ export function buildProgramDefaults({
     pointsMultiplier: multipliers[i] ?? 1,
   }));
 
-  const rewards = rewardTemplates.map(r => ({
-    ...r,
-    assignedTiers: tiers.map((_, i) => r.rewardUsage === 'perk' ? i >= 1 : true),
-  }));
+  // Without points, only the tier perks make sense.
+  const rewards = DEFAULT_REWARDS.filter(r => !luxury || r.rewardUsage === 'perk');
 
   return normalizeProgram({
     config: {
@@ -108,7 +105,7 @@ export function buildProgramDefaults({
     // Luxury programs have no points: only the purchase mission is kept.
     missions: recommendedMissions().filter(m => !luxury || m.isPurchaseMission),
     customMissions: [],
-    burnRate: luxury ? 0 : burnRate,
+    burnRate: luxury ? 0 : DEFAULT_BURN_RATE,
     referralConfig: INITIAL_REFERRAL,
   });
 }
@@ -185,7 +182,7 @@ export function normalizeProgram(program = {}) {
     rewards: (program.rewards ?? DEFAULT_REWARDS).map(r => normalizeReward(r, tiers.length)),
     missions: (program.missions ?? recommendedMissions()).map(normalizeMission),
     customMissions: (program.customMissions ?? []).map(normalizeMission),
-    burnRate: program.burnRate ?? 40,
+    burnRate: program.burnRate ?? DEFAULT_BURN_RATE,
     referralConfig: { ...INITIAL_REFERRAL, ...(program.referralConfig || {}) },
     onboardingAnswers: program.onboardingAnswers ?? null,
     brandAnalysis: program.brandAnalysis ?? null,

@@ -625,14 +625,13 @@ function App() {
             {step === 5 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
                 tiers={tiers} settings={settings} lang={lang}
+                burnRate={burnRate} setBurnRate={setBurnRate}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 6 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
                 rewards={rewards} setRewards={setRewards}
-                burnRate={burnRate} setBurnRate={setBurnRate}
-                customers={customers} settings={settings} config={config}
-                missions={missions} customMissions={customMissions} lang={lang}
+                customers={customers} settings={settings} config={config} lang={lang}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 7 && (

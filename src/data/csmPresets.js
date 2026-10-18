@@ -80,8 +80,6 @@ export function applyCsmDefaults(company, lang) {
     programType,
     tierNames: lang === 'fr' ? preset.tierNamesFr : preset.tierNamesEn,
     multipliers: preset.multipliers,
-    rewardTemplates: preset.rewards,
-    burnRate: programType === 'mass' ? Math.min(preset.burnRate + 10, 60) : preset.burnRate,
   });
 }
 

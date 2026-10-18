@@ -82,7 +82,11 @@ export const REWARD_CATALOG = {
     { type: 'free_delivery', nameFr: 'Livraison offerte', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
     { type: 'free_product', nameFr: 'Échantillon gratuit', nameEn: 'Free sample', rewardUsage: 'perk', pointsCost: 0, realCost: 3, minPurchase: 0 },
     { type: 'free_product', nameFr: 'Produit mystère', nameEn: 'Mystery product', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
-    { type: 'early_access', nameFr: 'Accès anticipé ventes', nameEn: 'Early access to sales', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'early_access', nameFr: 'Accès ventes privées', nameEn: 'Private sales access', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'early_access', nameFr: 'Accès collection en avant-première', nameEn: 'Early access to new collections', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 5 €', nameEn: '€5 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 10 €', nameEn: '€10 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 10, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 15 €', nameEn: '€15 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
     { type: 'experience', nameFr: 'Invitation événement VIP', nameEn: 'VIP event invitation', rewardUsage: 'perk', pointsCost: 0, realCost: 50, minPurchase: 0 },
     { type: 'experience', nameFr: 'Personal shopper', nameEn: 'Personal shopper', rewardUsage: 'perk', pointsCost: 0, realCost: 30, minPurchase: 0 },
   ],
@@ -124,6 +128,7 @@ export const REWARD_TYPES = [
   { id: 'free_product', icon: '🎁', nameFr: 'Produit offert', nameEn: 'Free product' },
   { id: 'experience', icon: '✨', nameFr: 'Expérience', nameEn: 'Experience' },
   { id: 'early_access', icon: '🔑', nameFr: 'Accès anticipé', nameEn: 'Early access' },
+  { id: 'birthday', icon: '🎂', nameFr: 'Anniversaire', nameEn: 'Birthday' },
   { id: 'bonus_points', icon: '⭐', nameFr: 'Bonus points', nameEn: 'Bonus points' },
   { id: 'custom', icon: '⚙️', nameFr: 'Personnalisé', nameEn: 'Custom' },
 ];
@@ -134,45 +139,32 @@ export const REWARD_USAGE_OPTIONS = [
   { value: 'both', labelFr: 'Les deux', labelEn: 'Both' },
 ];
 
-// ── Default rewards catalog ──
-// Step 3 = catalog only (no tier assignment). Tier assignment happens in Step 4.
+// ── Default rewards ──
+// Points rewards bought with points in every tier, and tier perks following
+// the Loyoly recommendations (cumulative: a tier keeps the perks below it; the
+// voucher and birthday gift of a higher tier replace the lower ones).
+// assignedTiers are written for 3 tiers. Minimum purchase follows the AOV.
+const points = (id, type, nameFr, nameEn, value) => ({
+  id, type, nameFr, nameEn, rewardUsage: 'burn', pointsValueEur: value, realCost: value,
+  assignedTiers: [true, true, true], minPurchaseAuto: true, expirationDays: 90,
+});
+const perk = (id, type, nameFr, nameEn, realCost, assignedTiers, minPurchaseAuto = true) => ({
+  id, type, nameFr, nameEn, rewardUsage: 'perk', pointsValueEur: 0, realCost,
+  assignedTiers, minPurchaseAuto, minPurchase: 0, expirationDays: 90,
+});
+
 export const DEFAULT_REWARDS = [
-  {
-    id: 'r1', type: 'free_delivery',
-    nameFr: 'Livraison gratuite', nameEn: 'Free delivery',
-    rewardUsage: 'burn',
-    pointsCost: 200, realCost: 5,
-    minPurchase: 0,
-    assignedTiers: [true, true, true],
-    utilizationByTier: [30, 40, 50],
-  },
-  {
-    id: 'r2', type: 'promo_percent',
-    nameFr: '-10% sur la commande', nameEn: '-10% off order',
-    rewardUsage: 'burn',
-    pointsCost: 500, realCost: 8,
-    minPurchase: 90,
-    assignedTiers: [true, true, true],
-    utilizationByTier: [20, 35, 50],
-  },
-  {
-    id: 'r3', type: 'gift_voucher',
-    nameFr: 'Bon de 10€', nameEn: '10€ voucher',
-    rewardUsage: 'burn',
-    pointsCost: 1000, realCost: 10,
-    minPurchase: 90,
-    assignedTiers: [false, true, true],
-    utilizationByTier: [0, 25, 40],
-  },
-  {
-    id: 'r4', type: 'free_product',
-    nameFr: 'Produit mystère', nameEn: 'Mystery product',
-    rewardUsage: 'perk',
-    pointsCost: 0, realCost: 15,
-    minPurchase: 0,
-    assignedTiers: [false, false, true],
-    utilizationByTier: [0, 0, 60],
-  },
+  points('pts_delivery', 'free_delivery', 'Livraison offerte (points)', 'Free delivery (points)', 5),
+  points('pts_voucher_5', 'gift_voucher', 'Bon de 5 € (points)', '€5 voucher (points)', 5),
+  points('pts_voucher_10', 'gift_voucher', 'Bon de 10 € (points)', '€10 voucher (points)', 10),
+  perk('perk_delivery', 'free_delivery', 'Livraison gratuite', 'Free delivery', 5, [true, true, true]),
+  perk('perk_birthday_5', 'birthday', 'Anniversaire 5 €', '€5 birthday gift', 5, [true, false, false]),
+  perk('perk_voucher_10', 'gift_voucher', 'Bon 10 €', '€10 voucher', 10, [false, true, false]),
+  perk('perk_birthday_10', 'birthday', 'Anniversaire 10 €', '€10 birthday gift', 10, [false, true, false]),
+  perk('perk_voucher_15', 'gift_voucher', 'Bon 15 €', '€15 voucher', 15, [false, false, true]),
+  perk('perk_birthday_15', 'birthday', 'Anniversaire 15 €', '€15 birthday gift', 15, [false, false, true]),
+  perk('perk_private_sales', 'early_access', 'Accès ventes privées', 'Private sales access', 0, [false, true, true], false),
+  perk('perk_early_collection', 'early_access', 'Accès collection en avant-première', 'Early access to new collections', 0, [false, true, true], false),
 ];
 
 // ── Onboarding industries ──

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Plus, Minus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
-import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, computePointsEconomy, rewardCostByTier, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
+import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, rewardCostByTier, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
 import { pointsModel } from '../utils/pointsModel';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN } from '../data/defaults';
 import { defaultTierUtilization } from '../data/programDefaults';
@@ -28,7 +28,7 @@ function getPillColor(value, max) {
   return { bg: 'rgba(239,68,68,0.12)', text: '#DC2626', bar: '#EF4444' };
 }
 
-export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, burnRate, setBurnRate, customers, settings, config, missions, customMissions, lang, onPrev, onNext }) {
+export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards, customers, settings, config, lang, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const { earnRate } = pointsModel(settings);
@@ -64,9 +64,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
     return tiers.map((_, i) => computeTierFinancials(costs[i], tierStats[i], settings.grossMargin));
   }, [tiers, tierStats, rewards, settings]);
 
-  const pointsEconomy = useMemo(() => {
-    return computePointsEconomy(tierStats, tiers, missions, customMissions, settings, burnRate);
-  }, [tierStats, tiers, missions, customMissions, settings, burnRate]);
 
   const addTier = () => {
     const idx = tiers.length;
@@ -165,17 +162,6 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
         </div>
       </div>
 
-      {/* Burn rate */}
-      <div className="card flex items-center gap-4" style={{ padding: 16 }}>
-        <label className="text-[13px] font-medium text-[#645648]">{t ? 'Taux de burn global' : 'Global burn rate'}</label>
-        <Tooltip text={t ? '% des clients qui utilisent leurs points pour des récompenses burn.' : '% of customers who redeem points for burn rewards.'} />
-        <input type="range" min={10} max={80} step={5} value={burnRate}
-          onChange={e => setBurnRate(parseInt(e.target.value))}
-          className="flex-1" />
-        <span className="text-[15px] font-bold text-primary w-12 text-right">{burnRate}%</span>
-        <BenchmarkBadge benchmarkKey="burnRate" value={burnRate} lang={lang} />
-      </div>
-
       {/* Tier cards — horizontal scrollable row */}
       <div>
         <div className="section-header">{t ? 'PALIERS VIP' : 'VIP TIERS'}</div>
@@ -271,14 +257,9 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       </div>
                     </div>
 
-                    {/* Tier config inputs — bidirectional threshold ↔ % ; spend ↔ orders via AOV */}
+                    {/* Entry threshold on the basis chosen in Configuration ↔ % of customers */}
                     {(() => {
                       const basis = config.tierBasis;
-                      const aov = settings.aov || 60;
-                      const spendVal = tier.spendThreshold ?? 0;
-                      const ordersVal = tier.orderThreshold ?? 0;
-                      // Points thresholds are the € threshold expressed in points.
-                      const pointsVal = Math.round(spendVal * earnRate);
                       const activeValue = thresholdForBasis(tier, basis, earnRate);
                       const qualifying = (() => {
                         if (!customers || customers.length === 0) return 0;
@@ -289,69 +270,33 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                         return count;
                       })();
                       const pctValue = stat?.percentage || 0;
+                      // Points thresholds are stored as the € threshold (points = € × earn rate).
+                      const field = basis === 'orders'
+                        ? { label: t ? 'Seuil (commandes)' : 'Threshold (orders)', unit: t ? 'cmd' : 'orders', key: 'orderThreshold', toStored: v => Math.round(v) }
+                        : basis === 'points'
+                          ? { label: t ? 'Seuil (points)' : 'Threshold (points)', unit: 'pts', key: 'spendThreshold', toStored: v => Math.round(v / earnRate) }
+                          : { label: t ? 'Seuil (€)' : 'Threshold (€)', unit: '€', key: 'spendThreshold', toStored: v => v };
 
-                      // Sync helpers — editing one threshold updates the other via the AOV
-                      const setAllThresholds = ({ spend, orders }) => {
-                        setTiers(prev => prev.map((tt, i) => i === tierIdx ? { ...tt, spendThreshold: spend, orderThreshold: orders } : tt));
-                      };
-                      const handleSpendChange = (val) => {
-                        const s = Math.max(0, parseFloat(val) || 0);
-                        const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
-                        setAllThresholds({ spend: s, orders: o });
-                      };
-                      const handleOrdersChange = (val) => {
-                        const o = Math.max(0, parseInt(val) || 0);
-                        const s = aov > 0 ? Math.max(0, Math.round(o * aov)) : spendVal;
-                        setAllThresholds({ spend: s, orders: o });
-                      };
-                      const handlePointsChange = (val) => {
-                        const s = Math.max(0, Math.round((parseFloat(val) || 0) / earnRate));
-                        const o = aov > 0 ? Math.max(0, Math.round(s / aov)) : ordersVal;
-                        setAllThresholds({ spend: s, orders: o });
-                      };
-
-                      // Inline threshold field — sub-component would remount on every
-                      // keystroke (defined inside parent render) and steal focus.
-                      // Use type="text" + inputMode to avoid React's known cursor-
-                      // jumping bug with type="number" controlled inputs.
-                      const renderThresholdField = ({ label, value, onChange, unit, isActive }) => (
-                        <div>
-                          <label className={`text-[11px] mb-1 block ${isActive ? 'font-semibold text-primary' : 'text-[#8A7D6B]'}`}>
-                            {label}{isActive && <span className="ml-1 text-[9px] uppercase">{t ? 'actif' : 'active'}</span>}
-                          </label>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text" inputMode="numeric" pattern="[0-9]*"
-                              value={value}
-                              onChange={e => {
-                                const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                onChange(cleaned);
-                              }}
-                              className={`w-20 px-2 py-1 text-[13px] text-center ${isActive ? 'ring-1 ring-primary' : ''}`}
-                            />
-                            <span className="text-[11px] text-[#8A7D6B]">{unit}</span>
-                          </div>
-                        </div>
-                      );
-
+                      // type="text" + inputMode: avoids React's cursor-jumping bug with
+                      // controlled type="number" inputs.
                       return (
-                        <div className="mt-4 pt-4 border-t border-[#D9D5CB] space-y-3">
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-                            {renderThresholdField({
-                              label: t ? 'Seuil (€)' : 'Spend (€)',
-                              value: spendVal, onChange: handleSpendChange, unit: '€',
-                              isActive: basis === 'spend',
-                            })}
-                            {renderThresholdField({
-                              label: t ? 'Seuil (cmd)' : 'Orders (#)',
-                              value: ordersVal, onChange: handleOrdersChange, unit: t ? 'cmd' : 'orders',
-                              isActive: basis === 'orders',
-                            })}
-                            {config.hasMissions && renderThresholdField({
-                              label: t ? 'Seuil (pts)' : 'Points',
-                              value: pointsVal, onChange: handlePointsChange, unit: 'pts',
-                              isActive: basis === 'points',
-                            })}
+                        <div className="mt-4 pt-4 border-t border-[#D9D5CB] space-y-2">
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <div>
+                              <label className="text-[11px] mb-1 block font-semibold text-primary">{field.label}</label>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text" inputMode="numeric" pattern="[0-9]*"
+                                  value={Math.round(activeValue)}
+                                  onChange={e => {
+                                    const v = parseFloat(e.target.value.replace(/[^0-9]/g, '')) || 0;
+                                    updateTier(tierIdx, field.key, Math.max(0, field.toStored(v)));
+                                  }}
+                                  className="w-20 px-2 py-1 text-[13px] text-center ring-1 ring-primary"
+                                />
+                                <span className="text-[11px] text-[#8A7D6B]">{field.unit}</span>
+                              </div>
+                            </div>
                             <div>
                               <label className="text-[11px] text-[#8A7D6B] mb-1 block">{t ? '% de clients' : '% of customers'}</label>
                               <div className="flex items-center gap-1">
@@ -365,11 +310,10 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                                   className="w-16 px-2 py-1 text-[13px] text-center" />
                                 <span className="text-[11px] text-[#8A7D6B]">%</span>
                               </div>
-                              <div className="text-[10px] text-[#8A7D6B] mt-1">{t ? '↔ seuil actif' : '↔ active threshold'}</div>
                             </div>
                           </div>
                           <div className="text-[10px] text-[#8A7D6B]">
-                            {t ? `${formatNumber(qualifying)} clients qualifiés (sur la métrique active "${basis === 'orders' ? 'commandes' : basis === 'points' ? 'points' : 'dépenses'}"). Les seuils sont synchronisés via l'AOV (${aov}€).` : `${formatNumber(qualifying)} qualifying customers (on active metric "${basis}"). Thresholds are synced via AOV (${aov}€).`}
+                            {t ? `${formatNumber(qualifying)} clients atteignent ce seuil.` : `${formatNumber(qualifying)} customers reach this threshold.`}
                           </div>
                         </div>
                       );
@@ -392,43 +336,29 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                     </div>
                   </div>
 
-                    {/* Per-tier points economy */}
-                    {(() => {
-                      const pte = pointsEconomy.perTier[tierIdx];
-                      if (!pte) return null;
-                      return (
-                        <div className="mt-2 pt-2 border-t border-[#D9D5CB] grid grid-cols-3 gap-2 text-center">
-                          <div>
-                            <div className="text-[13px] font-bold text-blue-700">{formatCompact(pte.emitted)}</div>
-                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Pts émis' : 'Emitted'}</div>
-                          </div>
-                          <div>
-                            <div className="text-[13px] font-bold text-green-700">{formatCompact(pte.burned)}</div>
-                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Brûlés' : 'Burned'}</div>
-                          </div>
-                          <div>
-                            <div className="text-[13px] font-bold text-orange-600">{formatCompact(pte.dormant)}</div>
-                            <div className="text-[10px] text-[#8A7D6B]">{t ? 'Dormants' : 'Dormant'}</div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
                   {/* Rewards assignment — toggle pill list */}
                   <div style={{ padding: '12px 16px', backgroundColor: '#FBFAF6', borderTop: '1px solid #E5E1D8', margin: '14px -16px -16px -16px' }}>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="section-header" style={{ marginBottom: 0, fontSize: 11 }}>
-                        {t ? 'RÉCOMPENSES' : 'REWARDS'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <label className="text-[10px] text-[#8A7D6B]">{t ? 'Util. moyenne' : 'Avg util.'}</label>
-                        <input type="text" inputMode="decimal"
-                          value={tier.avgUtilization ?? defaultTierUtilization(tierIdx)}
-                          onChange={e => setTierAvgUtilization(tierIdx, e.target.value.replace(/[^0-9.]/g, ''))}
-                          className="w-12 px-1 py-0.5 text-[10px] text-center"
-                          title={t ? '% des membres du palier qui utilisent chaque récompense du palier dans l\'année' : '% of the tier members who use each of its rewards in a year'}
-                        />
-                        <span className="text-[9px] text-[#8A7D6B]">%</span>
+                    <div className="section-header mb-2.5" style={{ fontSize: 11 }}>
+                      {t ? 'RÉCOMPENSES' : 'REWARDS'}
+                    </div>
+                    {/* Average utilization — drives the reward cost of the tier */}
+                    <div className="mb-2.5 px-2.5 py-2 rounded-lg border border-primary/40" style={{ backgroundColor: '#E8EFFE' }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1 text-[12px] font-semibold text-[#2B251F]">
+                            {t ? 'Utilisation moyenne' : 'Average utilization'}
+                            <Tooltip text={t ? '% des membres du palier qui utilisent chaque récompense du palier dans l\'année. Recommandé : 5 % / 10 % / 15 %. Détermine le coût des récompenses du palier.' : '% of the tier members who use each of its rewards in a year. Recommended: 5% / 10% / 15%. Drives the reward cost of the tier.'} />
+                          </div>
+                          <div className="text-[10px] text-[#645648]">{t ? 'des membres / récompense / an' : 'of members / reward / yr'}</div>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input type="number" min={0} max={100} step={0.5}
+                            value={tier.avgUtilization ?? defaultTierUtilization(tierIdx)}
+                            onChange={e => setTierAvgUtilization(tierIdx, e.target.value)}
+                            className="w-16 px-1.5 py-1 text-[16px] font-bold text-primary text-center"
+                          />
+                          <span className="text-[14px] font-bold text-primary">%</span>
+                        </div>
                       </div>
                     </div>
                     {/* Points multiplier — a tier-level perk that boosts points earning */}

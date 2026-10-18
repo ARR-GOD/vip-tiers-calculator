@@ -88,3 +88,20 @@ describe('program defaults', () => {
     expect(p.config.tierBasis).toBe('spend');
   });
 });
+
+describe('default rewards (Loyoly recommendations)', () => {
+  const p = buildProgramDefaults({ aov: 80, grossMargin: 55 });
+  const perksOf = i => p.rewards.filter(r => r.rewardUsage === 'perk' && r.assignedTiers[i]).map(r => r.nameFr);
+
+  it('gives cumulative perks per tier', () => {
+    expect(perksOf(0)).toEqual(['Livraison gratuite', 'Anniversaire 5 €']);
+    expect(perksOf(1)).toEqual(['Livraison gratuite', 'Bon 10 €', 'Anniversaire 10 €', 'Accès ventes privées', 'Accès collection en avant-première']);
+    expect(perksOf(2)).toEqual(['Livraison gratuite', 'Bon 15 €', 'Anniversaire 15 €', 'Accès ventes privées', 'Accès collection en avant-première']);
+  });
+
+  it('defaults to a 90-day expiration, the AOV as minimum purchase and a 6% points utilization', () => {
+    expect(p.rewards.every(r => r.expirationDays === 90)).toBe(true);
+    expect(p.rewards.find(r => r.id === 'perk_voucher_10').minPurchaseAuto).toBe(true);
+    expect(p.burnRate).toBe(6);
+  });
+});

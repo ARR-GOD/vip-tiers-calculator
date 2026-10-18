@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
 import Tooltip from './Tooltip';
+import BenchmarkBadge from './BenchmarkBadge';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defaults';
 import { formatCurrency } from '../utils/calculations';
 import {
@@ -8,7 +9,7 @@ import {
   rewardValueFromPoints, isRealCostDerived, isBurnReward,
 } from '../utils/rewardModel';
 
-export default function Step3_Rewards({ rewards, setRewards, tiers, settings, lang, onPrev, onNext }) {
+export default function Step3_Rewards({ rewards, setRewards, tiers, settings, burnRate, setBurnRate, lang, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const [showCatalog, setShowCatalog] = useState(false);
@@ -24,7 +25,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
       realCost: 5,
       realCostAuto: false,
       minPurchase: 0,
-      minPurchaseAuto: false,
+      minPurchaseAuto: true,
       expirationDays: 90,
       assignedTiers: tiers.map(() => true),
     }]);
@@ -44,7 +45,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
       realCost: item.realCost,
       realCostAuto: item.type === 'promo_percent' || item.type === 'bonus_points',
       minPurchase: item.minPurchase,
-      minPurchaseAuto: false,
+      minPurchaseAuto: item.type !== 'early_access',
       expirationDays: 90,
       assignedTiers: tiers.map((_, i) => item.rewardUsage === 'perk' ? i >= 1 : true),
     }]);
@@ -113,6 +114,24 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
         </div>
       </div>
 
+      {/* Points utilization rate — share of emitted points that get redeemed */}
+      <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
+        <div className="flex items-center gap-1.5">
+          <label className="text-[13px] font-medium text-[#645648]">{t ? 'Taux d\'utilisation des points' : 'Points utilization rate'}</label>
+          <Tooltip text={t ? 'Part des points émis qui sont échangés contre une récompense dans l\'année. Observé chez Loyoly : 5 à 7 %. Pilote les points utilisés et dormants (vue CFO du Dashboard).' : 'Share of emitted points redeemed for a reward within a year. Observed at Loyoly: 5 to 7%. Drives redeemed and dormant points (Dashboard CFO view).'} />
+        </div>
+        <input type="range" min={0} max={50} step={0.5} value={burnRate}
+          onChange={e => setBurnRate(parseFloat(e.target.value))}
+          className="flex-1 min-w-[160px]" />
+        <div className="flex items-center gap-1">
+          <input type="number" min={0} max={100} step={0.5} value={burnRate}
+            onChange={e => setBurnRate(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+            className="w-16 px-1.5 py-1 text-[14px] font-bold text-primary text-center" />
+          <span className="text-[13px] font-bold text-primary">%</span>
+        </div>
+        <BenchmarkBadge benchmarkKey="burnRate" value={burnRate} lang={lang} />
+      </div>
+
       {/* Rewards table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -141,7 +160,13 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
                   <div className="flex items-center gap-1 justify-center">
                     {t ? 'Achat min.' : 'Min purchase'}
-                    <Tooltip text={t ? 'Montant minimum d\'achat pour déclencher cette récompense. Génère du revenu incrémental.' : 'Minimum purchase to trigger this reward. Drives incremental revenue.'} />
+                    <Tooltip text={t ? 'Montant minimum d\'achat pour utiliser la récompense. Par défaut : le panier moyen (suit sa valeur tant qu\'il n\'est pas modifié).' : 'Minimum purchase to use the reward. Default: the AOV (follows it until edited).'} />
+                  </div>
+                </th>
+                <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
+                  <div className="flex items-center gap-1 justify-center">
+                    {t ? 'Expiration' : 'Expiry'}
+                    <Tooltip text={t ? 'Durée de validité de la récompense une fois obtenue (90 jours par défaut).' : 'How long the reward stays valid once obtained (90 days by default).'} />
                   </div>
                 </th>
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
@@ -224,6 +249,23 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
                           onChange={e => updateReward(reward.id, { minPurchase: parseFloat(e.target.value) || 0, minPurchaseAuto: false })}
                           className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
                         <span className="text-[10px] text-[#8A7D6B]">€</span>
+                        {reward.minPurchaseAuto ? (
+                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Panier moyen' : 'Average order value'}>AOV</span>
+                        ) : (
+                          <button onClick={() => updateReward(reward.id, { minPurchaseAuto: true })}
+                            className="text-[#8A7D6B] hover:text-primary ml-0.5"
+                            title={t ? 'Revenir au panier moyen' : 'Back to the AOV'}>
+                            <RotateCcw size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <input type="number" value={reward.expirationDays ?? 90} min={0} step={1}
+                          onChange={e => updateReward(reward.id, { expirationDays: parseInt(e.target.value) || 0 })}
+                          className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
+                        <span className="text-[10px] text-[#8A7D6B]">{t ? 'j' : 'd'}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center text-[#645648]">
@@ -248,6 +290,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, la
               <tr className="bg-[#EEEDE6] border-t border-[#D9D5CB]">
                 <td colSpan={3} className="px-4 py-2.5 text-[12px] font-semibold text-[#645648]">{t ? 'Total catalogue' : 'Catalog total'}</td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-[#52473C]">{formatCurrency(totalRealCost)}</td>
+                <td></td>
                 <td></td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-[#52473C]">{formatCurrency(totalIncrementalRevenue)}</td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-primary">
