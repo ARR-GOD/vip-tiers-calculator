@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { Plus, Minus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { Plus, Minus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight, GripVertical } from 'lucide-react';
 import Tooltip from './Tooltip';
 import BenchmarkBadge from './BenchmarkBadge';
 import { computeCustomerScores, assignTiers, computeTierStats, computeTierFinancials, rewardCostByTier, formatCurrency, formatNumber, formatPercent, formatCompact, getSortedByMetric, metricForBasis, thresholdForBasis, thresholdForTierPct, thresholdKeyForBasis } from '../utils/calculations';
 import { pointsModel } from '../utils/pointsModel';
+import { isPerkReward, moveRewardWithin } from '../utils/rewardModel';
 import { DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN } from '../data/defaults';
 import { defaultTierUtilization } from '../data/programDefaults';
 
@@ -95,6 +96,12 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
   const updateTier = (idx, field, value) => {
     setTiers(prev => prev.map((tier, i) => i === idx ? { ...tier, [field]: value } : tier));
   };
+
+  // Tier cards list the perks only (points rewards are spent, not given by a
+  // tier); each card shows its active perks first, in the program's order.
+  const perkRewards = rewards.filter(isPerkReward);
+  const [dragging, setDragging] = useState(null); // { id, tierIdx } of the perk being dragged
+  const moveReward = (ids, fromId, toId) => setRewards(prev => moveRewardWithin(prev, ids, fromId, toId));
 
   const toggleRewardForTier = (rewardId, tierIdx) => {
     setRewards(prev => prev.map(r => {
@@ -381,36 +388,70 @@ export default function Step4_TierBuilder({ tiers, setTiers, rewards, setRewards
                       </div>
                     )}
                     <div className="space-y-1">
-                      {rewards.map(reward => {
-                        const isAssigned = reward.assignedTiers?.[tierIdx] || false;
-                        return (
-                          <button
-                            key={reward.id}
-                            type="button"
-                            onClick={() => toggleRewardForTier(reward.id, tierIdx)}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
-                              isAssigned ? 'bg-white border border-primary/30 shadow-[0_1px_2px_rgba(15,15,15,0.04)]' : 'bg-transparent border border-transparent hover:bg-white'
-                            }`}
-                          >
-                            <span
-                              role="switch"
-                              aria-checked={isAssigned}
-                              className={`relative inline-block w-7 h-4 rounded-full transition-colors shrink-0 ${
-                                isAssigned ? 'bg-primary' : 'bg-[#D9D5CB]'
-                              }`}
+                      {(() => {
+                        const active = perkRewards.filter(r => r.assignedTiers?.[tierIdx]);
+                        const activeIds = active.map(r => r.id);
+                        const inactive = perkRewards.filter(r => !r.assignedTiers?.[tierIdx]);
+                        const canDropOn = id => dragging && dragging.tierIdx === tierIdx && dragging.id !== id && activeIds.includes(id);
+                        return [...active, ...inactive].map(reward => {
+                          const isAssigned = activeIds.includes(reward.id);
+                          const pos = activeIds.indexOf(reward.id);
+                          const label = t ? reward.nameFr : reward.nameEn;
+                          return (
+                            <div
+                              key={reward.id}
+                              data-reward={reward.id}
+                              draggable={isAssigned}
+                              onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', reward.id); setDragging({ id: reward.id, tierIdx }); }}
+                              onDragOver={e => { if (canDropOn(reward.id)) e.preventDefault(); }}
+                              onDrop={e => { e.preventDefault(); if (canDropOn(reward.id)) moveReward(activeIds, dragging.id, reward.id); setDragging(null); }}
+                              onDragEnd={() => setDragging(null)}
+                              className={`group flex items-center gap-1 pl-1 pr-1 py-1 rounded-lg transition-colors ${
+                                isAssigned ? 'bg-white border border-primary/30 shadow-[0_1px_2px_rgba(15,15,15,0.04)]' : 'bg-transparent border border-transparent hover:bg-white'
+                              } ${dragging?.id === reward.id ? 'opacity-50' : ''}`}
                             >
-                              <span
-                                className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform"
-                                style={{ transform: isAssigned ? 'translateX(14px)' : 'translateX(2px)' }}
-                              />
-                            </span>
-                            <span className={`text-[11px] flex-1 truncate ${isAssigned ? 'text-[#2B251F] font-medium' : 'text-[#645648]'}`}
-                              title={t ? reward.nameFr : reward.nameEn}>
-                              {t ? reward.nameFr : reward.nameEn}
-                            </span>
-                          </button>
-                        );
-                      })}
+                              {isAssigned
+                                ? <GripVertical size={12} className="text-[#B0A595] cursor-grab shrink-0" aria-hidden="true" />
+                                : <span className="w-3 shrink-0" />}
+                              <button
+                                type="button"
+                                onClick={() => toggleRewardForTier(reward.id, tierIdx)}
+                                className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                              >
+                                <span
+                                  role="switch"
+                                  aria-checked={isAssigned}
+                                  className={`relative inline-block w-7 h-4 rounded-full transition-colors shrink-0 ${
+                                    isAssigned ? 'bg-primary' : 'bg-[#D9D5CB]'
+                                  }`}
+                                >
+                                  <span
+                                    className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform"
+                                    style={{ transform: isAssigned ? 'translateX(14px)' : 'translateX(2px)' }}
+                                  />
+                                </span>
+                                <span className={`text-[11px] flex-1 truncate ${isAssigned ? 'text-[#2B251F] font-medium' : 'text-[#645648]'}`} title={label}>
+                                  {label}
+                                </span>
+                              </button>
+                              {isAssigned && (
+                                <span className="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                  <button type="button" disabled={pos === 0} onClick={() => moveReward(activeIds, reward.id, activeIds[pos - 1])}
+                                    className="w-5 h-5 flex items-center justify-center rounded text-[#8A7D6B] hover:text-[#2B251F] hover:bg-[#F5F4F0] disabled:opacity-30"
+                                    aria-label={`${t ? 'Monter' : 'Move up'} ${label}`}>
+                                    <ChevronUp size={12} />
+                                  </button>
+                                  <button type="button" disabled={pos === activeIds.length - 1} onClick={() => moveReward(activeIds, reward.id, activeIds[pos + 1])}
+                                    className="w-5 h-5 flex items-center justify-center rounded text-[#8A7D6B] hover:text-[#2B251F] hover:bg-[#F5F4F0] disabled:opacity-30"
+                                    aria-label={`${t ? 'Descendre' : 'Move down'} ${label}`}>
+                                    <ChevronDown size={12} />
+                                  </button>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
 
                     {/* Per-tier financials */}

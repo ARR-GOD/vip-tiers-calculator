@@ -70,3 +70,23 @@ export function isRealCostDerived(reward) {
 }
 
 export const isBurnReward = reward => reward.rewardUsage === 'burn' || reward.rewardUsage === 'both';
+
+// VIP tier perks: rewards given by a tier (points-only rewards are spent, not given).
+export const isPerkReward = reward => reward.rewardUsage !== 'burn';
+
+// Moves `fromId` to the place of `toId` among `ids` (a subset of the rewards,
+// in display order) and writes that order back into the subset's slots of
+// the full list. The rewards' order is the one shown everywhere (tier cards,
+// setup sheet, client portal).
+export function moveRewardWithin(rewards, ids, fromId, toId) {
+  const order = [...ids];
+  const from = order.indexOf(fromId);
+  const to = order.indexOf(toId);
+  if (from < 0 || to < 0 || from === to) return rewards;
+  order.splice(to, 0, order.splice(from, 1)[0]);
+  const byId = Object.fromEntries(rewards.map(r => [r.id, r]));
+  const slots = rewards.map((r, i) => (ids.includes(r.id) ? i : -1)).filter(i => i >= 0);
+  const next = [...rewards];
+  slots.forEach((slot, k) => { next[slot] = byId[order[k]]; });
+  return next;
+}
