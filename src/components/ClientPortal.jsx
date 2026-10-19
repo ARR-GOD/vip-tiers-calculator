@@ -5,6 +5,7 @@ import { clientApi, normalizeComment } from '../utils/clientPortalStore';
 import { CLIENT_PAGES, pageSections, pageItems, pageLabel } from '../utils/clientView';
 import { normalizeAccessCode, isValidAccessCode, formatAccessCode } from '../utils/accessCode';
 import { getAnonSupabase } from '../lib/supabase';
+import { DEFAULT_TIER_COLORS } from '../data/defaults';
 
 // ════════════════════════════════════════════════════════════════════
 // Client portal — /client/<code>: the client's side of their program
@@ -35,6 +36,8 @@ const FR = {
   validate: 'Je valide cette page',
   validated: (by, date) => `Validé par ${by} le ${date}`,
   comment: 'Commenter',
+  newPerk: 'Nouveau',
+  points: 'Points',
   emptyPage: {
     missions: 'Ce programme n\'a pas de points.',
     rewards: 'Pas de récompense en points dans ce programme.',
@@ -63,6 +66,8 @@ const EN = {
   validate: 'I approve this page',
   validated: (by, date) => `Approved by ${by} on ${date}`,
   comment: 'Comment',
+  newPerk: 'New',
+  points: 'Points',
   emptyPage: {
     missions: 'This program has no points.',
     rewards: 'No points reward in this program.',
@@ -100,16 +105,21 @@ export default function ClientPortal() {
   const [page, setPage] = useState('missions');
   const [target, setTarget] = useState('');
   const textareaRef = useRef(null);
+  // A background refresh answering after a newer one must not bring back old data.
+  const lastRequest = useRef(0);
 
   const load = useCallback(() => {
     if (!code) return Promise.resolve();
+    const request = ++lastRequest.current;
     return clientApi.portal(code, author?.key || '')
       .then(portal => {
+        if (request !== lastRequest.current) return;
         setData(portal);
         setStatus('ready');
         writeStored(CODE_STORAGE, code);
       })
       .catch(err => {
+        if (request !== lastRequest.current) return;
         if (isInvalidCode(err)) {
           writeStored(CODE_STORAGE, null);
           setStatus('invalid');
@@ -333,7 +343,10 @@ function SectionCard({ section, t, onComment, openCountOf }) {
           ))}
         </dl>
       )}
-      {section.rows?.length > 0 && (
+      {section.key === 'vip' && section.rows?.length > 0 && (
+        <TierColumns section={section} t={t} onComment={onComment} openCountOf={openCountOf} />
+      )}
+      {section.key !== 'vip' && section.rows?.length > 0 && (
         <div className="overflow-x-auto -mx-1 mt-2">
           <table className="w-full text-[13px]">
             <thead>
@@ -371,6 +384,64 @@ function SectionCard({ section, t, onComment, openCountOf }) {
         </div>
       )}
     </section>
+  );
+}
+
+// VIP tiers side by side, one column each. Perks are cumulative: the ones a
+// tier adds over the previous one are flagged. Rows are
+// [name, threshold, (multiplier), perks[]] as in the setup sheet.
+function TierColumns({ section, t, onComment, openCountOf }) {
+  const perksOf = row => row[row.length - 1];
+  const splitPerk = perk => {
+    const match = perk.match(/^(.*?) \((.*)\)$/);
+    return match ? { name: match[1], detail: match[2].replace(/, /g, ' · ') } : { name: perk, detail: null };
+  };
+  return (
+    <div className="flex gap-3 overflow-x-auto mt-3 tier-row" data-testid="tier-columns">
+      {section.rows.map((row, i) => {
+        const ref = section.refs?.[i];
+        const open = ref ? openCountOf(ref) : 0;
+        const [name, threshold] = row;
+        const multiplier = row.length > 3 ? row[2] : null;
+        const previous = new Set(i > 0 ? perksOf(section.rows[i - 1]) : []);
+        return (
+          <div key={ref || i} className="rounded-[12px] border border-[#E5E1D8] bg-white flex flex-col overflow-hidden"
+            style={{ flex: '1 0 220px', borderTop: `4px solid ${DEFAULT_TIER_COLORS[i % DEFAULT_TIER_COLORS.length]}` }}>
+            <div className="px-4 pt-3 pb-3 border-b border-[#E5E1D8]">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-[17px] font-bold text-[#2B251F]">{name}</h3>
+                {ref && (
+                  <button onClick={() => onComment(ref)} title={t.comment} aria-label={`${t.comment} ${name}`}
+                    className="inline-flex items-center gap-1 text-[12px] text-[#8A7D6B] hover:text-primary pt-1">
+                    <MessageSquare size={14} /> {open > 0 && <span className="text-primary font-semibold">{open}</span>}
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 text-[11px] uppercase tracking-wide text-[#8A7D6B]">{section.columns[1]}</div>
+              <div className="text-[24px] font-bold text-[#2B251F] leading-tight whitespace-nowrap">{threshold}</div>
+              {multiplier && (
+                <span className="pill pill-purple text-[11px] mt-2 inline-block" title={section.columns[2]}>{t.points} {multiplier}</span>
+              )}
+            </div>
+            <ul className="px-4 py-3 space-y-2.5">
+              {perksOf(row).map(perk => {
+                const { name: perkName, detail } = splitPerk(perk);
+                const isNew = i > 0 && detail && !previous.has(perk);
+                return (
+                  <li key={perk} className="text-[13px] leading-snug">
+                    <div className="flex items-start gap-2">
+                      <span className="font-semibold text-[#2B251F]">{perkName}</span>
+                      {isNew && <span className="pill text-[10px] bg-[#ECFDF5] text-[#047857] shrink-0">{t.newPerk}</span>}
+                    </div>
+                    {detail && <div className="text-[12px] text-[#8A7D6B]">{detail}</div>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

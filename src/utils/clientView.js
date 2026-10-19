@@ -20,6 +20,7 @@ export const CLIENT_PAGES = [
 
 // Wizard step → client page, for the CSM comments panel.
 export const PAGE_OF_STEP = { 3: 'missions', 4: 'referral', 5: 'rewards', 6: 'tiers' };
+export const STEP_OF_PAGE = Object.fromEntries(Object.entries(PAGE_OF_STEP).map(([step, page]) => [page, Number(step)]));
 
 export const pageLabel = (pageKey, lang) => {
   const page = CLIENT_PAGES.find(p => p.key === pageKey);

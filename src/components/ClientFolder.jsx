@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Plus, Folder, Loader2, AlertCircle, Copy, Pencil, Trash2, ArrowRight, Check, X } from 'lucide-react';
 import { listPrograms, deleteProgram, renameProgram, duplicateProgram } from '../utils/programStore';
 import { groupProgramsIntoFolders, nextProgramName, copyName } from '../utils/clientFolders';
-import { listComments, listValidations, setProgramShared } from '../utils/clientPortalStore';
+import { listComments, listValidations, setProgramShared, isToHandle } from '../utils/clientPortalStore';
 import { CLIENT_PAGES } from '../utils/clientView';
 import ClientAccessCard from './ClientAccessCard';
 
@@ -21,7 +21,7 @@ const FR = {
   published: (v, date) => `Publié v${v} le ${date}`,
   notPublished: 'Non publié',
   shared: 'Visible par le client',
-  openComments: n => `${n} commentaire${n > 1 ? 's' : ''} ouvert${n > 1 ? 's' : ''}`,
+  openComments: n => `${n} commentaire${n > 1 ? 's' : ''} client à traiter`,
   validated: (n, total) => `${n}/${total} pages validées`,
 };
 
@@ -40,7 +40,7 @@ const EN = {
   published: (v, date) => `Published v${v} on ${date}`,
   notPublished: 'Not published',
   shared: 'Visible to the client',
-  openComments: n => `${n} open comment${n > 1 ? 's' : ''}`,
+  openComments: n => `${n} client comment${n > 1 ? 's' : ''} to handle`,
   validated: (n, total) => `${n}/${total} pages approved`,
 };
 
@@ -50,7 +50,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);           // id of the program being acted on, or 'new'
   const [editing, setEditing] = useState(null);     // { id, name } while renaming
-  const [activity, setActivity] = useState({});     // programId → { open, validated } (client portal)
+  const [activity, setActivity] = useState({});     // programId → { open, openPage, validated } (client portal)
 
   const refresh = useCallback(() => listPrograms()
     .then(async list => {
@@ -59,12 +59,16 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
       if (!found) return;
       const ids = found.programs.map(p => p.id);
       const [comments, validations] = await Promise.all([listComments(ids), listValidations(ids)]);
-      setActivity(Object.fromEntries(found.programs.map(p => [p.id, {
-        open: comments.filter(c => c.programId === p.id && !c.resolved).length,
+      setActivity(Object.fromEntries(found.programs.map(p => {
+        const toHandle = comments.filter(c => c.programId === p.id && isToHandle(c));
+        return [p.id, {
+        open: toHandle.length,
+        openPage: toHandle[0]?.page ?? null,
         validated: new Set(validations
           .filter(v => v.program_id === p.id && v.published_version === p.published_version)
           .map(v => v.page)).size,
-      }])));
+      }];
+      })));
     })
     .catch(err => { setError(err.message); setFolder(f => f ?? null); }), [folderKey]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -81,7 +85,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
     setBusy(null);
   };
 
-  const open = id => run(id, () => onOpenProgram(id));
+  const open = (id, options) => run(id, () => onOpenProgram(id, options));
   const create = () => run('new', () => onNewProgram(folder, nextProgramName(folder, lang)));
   const duplicate = p => run(p.id, async () => {
     await duplicateProgram(p.id, copyName(p.program_name, folder, lang));
@@ -194,7 +198,12 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                       ) : (
                         <span className="pill text-[10px] bg-[#F5F4F0] text-[#8A7D6B]">{t.notPublished}</span>
                       )}
-                      {activity[p.id]?.open > 0 && <span className="text-primary">💬 {t.openComments(activity[p.id].open)}</span>}
+                      {activity[p.id]?.open > 0 && (
+                        <button onClick={() => open(p.id, { commentsPage: activity[p.id].openPage })} disabled={busy !== null}
+                          className="text-primary font-medium hover:underline">
+                          💬 {t.openComments(activity[p.id].open)}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

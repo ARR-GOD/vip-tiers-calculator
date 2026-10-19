@@ -34,6 +34,28 @@ export function normalizeComment(row, { viewerEmail } = {}) {
 
 export const isEdited = c => new Date(c.updatedAt) - new Date(c.createdAt) > 1000;
 
+// Client comments the CSM still has to handle: unresolved, written by the client.
+export const isToHandle = c => c.authorType === 'client' && !c.resolved;
+
+export function countToHandleByPage(comments) {
+  const counts = {};
+  comments.filter(isToHandle).forEach(c => { counts[c.page] = (counts[c.page] || 0) + 1; });
+  return counts;
+}
+
+// Unresolved client comments of every program: { programId: { count, page } }
+// where page is the page of the oldest one.
+export async function listCommentsToHandle() {
+  const rows = unwrap(await supabase.from('program_comments').select('program_id, page, created_at')
+    .eq('author_type', 'client').is('resolved_at', null).order('created_at', { ascending: true }));
+  const byProgram = {};
+  rows.forEach(r => {
+    byProgram[r.program_id] ??= { count: 0, page: r.page };
+    byProgram[r.program_id].count++;
+  });
+  return byProgram;
+}
+
 // ── CSM: access code of a folder ─────────────────────────────────────
 export async function getActiveAccess(folderKey) {
   return unwrap(await supabase.from('client_access').select('*')

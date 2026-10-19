@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Folder, Loader2, AlertCircle, ArrowRight, FolderOpen } from 'lucide-react';
 import { listPrograms } from '../utils/programStore';
+import { listCommentsToHandle } from '../utils/clientPortalStore';
 import { groupProgramsIntoFolders, isMyFolder, matchesFolderSearch } from '../utils/clientFolders';
 
 const FR = {
@@ -17,6 +18,7 @@ const FR = {
   noMatch: 'Aucun dossier ne correspond',
   outsideHubspot: 'Hors HubSpot',
   programs: n => `${n} programme${n > 1 ? 's' : ''}`,
+  toHandle: n => `💬 ${n} à traiter`,
   updated: (date, by) => `Modifié le ${date}${by ? ` par ${by}` : ''}`,
   dbError: 'Base de données : ',
 };
@@ -35,6 +37,7 @@ const EN = {
   noMatch: 'No matching folder',
   outsideHubspot: 'Outside HubSpot',
   programs: n => `${n} program${n > 1 ? 's' : ''}`,
+  toHandle: n => `💬 ${n} to handle`,
   updated: (date, by) => `Updated ${date}${by ? ` by ${by}` : ''}`,
   dbError: 'Database: ',
 };
@@ -45,14 +48,19 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
+  const [toHandle, setToHandle] = useState({}); // programId → { count, page } of client comments
 
   useEffect(() => {
     let cancelled = false;
     listPrograms()
       .then(list => { if (!cancelled) setFolders(groupProgramsIntoFolders(list)); })
       .catch(err => { if (!cancelled) { setError(err.message); setFolders([]); } });
+    listCommentsToHandle()
+      .then(counts => { if (!cancelled) setToHandle(counts); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+  const toHandleIn = folder => folder.programs.reduce((n, p) => n + (toHandle[p.id]?.count || 0), 0);
 
   const shown = useMemo(() => (folders || [])
     .filter(f => !onlyMine || isMyFolder(f, userEmail))
@@ -133,7 +141,10 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
                   : <span className="pill text-[10px] shrink-0 bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
               </div>
               <div className="mt-3 pt-3 border-t border-[#E5E1D8] flex items-center justify-between gap-2 text-[12px]">
-                <span className="font-medium text-[#52473C]">{t.programs(folder.programs.length)}</span>
+                <span className="font-medium text-[#52473C] whitespace-nowrap">{t.programs(folder.programs.length)}</span>
+                {toHandleIn(folder) > 0 && (
+                  <span className="pill text-[10px] bg-primary/10 text-primary whitespace-nowrap">{t.toHandle(toHandleIn(folder))}</span>
+                )}
                 <span className="text-[#8A7D6B] truncate">
                   {t.updated(formatDate(folder.updated_at), folder.updatedBy?.split('@')[0])}
                 </span>

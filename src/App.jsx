@@ -25,9 +25,10 @@ import ClientSpace from './components/ClientSpace';
 import ClientFolder from './components/ClientFolder';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import SaveStatus from './components/SaveStatus';
-import CommentsPanel from './components/CommentsPanel';
-import { buildClientView, hasUnpublishedChanges, pageItems, PAGE_OF_STEP } from './utils/clientView';
-import { publishProgram } from './utils/clientPortalStore';
+import CommentsPanel, { CommentsButton } from './components/CommentsPanel';
+import { buildClientView, hasUnpublishedChanges, PAGE_OF_STEP, STEP_OF_PAGE } from './utils/clientView';
+import { publishProgram, countToHandleByPage } from './utils/clientPortalStore';
+import { useProgramComments } from './utils/useProgramComments';
 import { Building2 } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -122,6 +123,13 @@ function App() {
   // What the client portal shows of the open program: { version, at, view }, null until published.
   const [publication, setPublication] = useState(null);
   const [publishing, setPublishing] = useState(false);
+  // Client comments of the open program (CSM side panel).
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsPage, setCommentsPage] = useState('missions');
+  const { comments: programComments, error: commentsError, reload: reloadComments } =
+    useProgramComments(phase === 'wizard' ? programTarget?.id : null, user?.email);
+  const toHandleByPage = countToHandleByPage(programComments);
+  const toHandleTotal = Object.values(toHandleByPage).reduce((s, n) => s + n, 0);
   const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
   const [saver] = useState(() => createProgramSaver({ onChange: setSaveState }));
 
@@ -210,8 +218,14 @@ function App() {
       : null);
   };
 
-  const handleOpenProgram = async (programId) => {
+  // `commentsPage` opens the program on that page's step, comments panel open.
+  const handleOpenProgram = async (programId, { commentsPage: page } = {}) => {
     openProgram(await loadProgram(programId));
+    if (page) {
+      setStep(STEP_OF_PAGE[page]);
+      setCommentsPage(page);
+      setCommentsOpen(true);
+    }
   };
 
   // A client that already has a folder opens it; otherwise its first program
@@ -279,6 +293,7 @@ function App() {
     await saver.flush();
     setProgramTarget(null);
     setPublication(null);
+    setCommentsOpen(false);
     applyProgram(BLANK_PROGRAM);
     setCustomers(parseSampleData());
     setOnboardingAnswers(null);
@@ -368,7 +383,11 @@ function App() {
     })
     : null;
   const unpublishedChanges = !!clientView && hasUnpublishedChanges(clientView, publication?.view);
-  const commentsPage = PAGE_OF_STEP[step];
+  // The panel opens on the current step's page, else where the client wrote.
+  const openComments = () => {
+    setCommentsPage(PAGE_OF_STEP[step] || Object.keys(toHandleByPage)[0] || 'missions');
+    setCommentsOpen(true);
+  };
 
   const publishForClient = async () => {
     setPublishing(true);
@@ -656,6 +675,12 @@ function App() {
                   {isVisited && !isActive && <Check size={12} />}
                   <span className="text-[11px] font-normal opacity-60">{s.id + 1}.</span>
                   {t ? s.labelFr : s.labelEn}
+                  {toHandleByPage[PAGE_OF_STEP[s.id]] > 0 && (
+                    <span className="px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold"
+                      title={t ? 'Commentaires client à traiter' : 'Client comments to handle'}>
+                      {toHandleByPage[PAGE_OF_STEP[s.id]]}
+                    </span>
+                  )}
                   {isActive && (
                     <span className="absolute left-3.5 right-3.5 -bottom-px h-[2px] bg-primary rounded-sm" />
                   )}
@@ -672,9 +697,15 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      {phase === 'wizard' && programTarget?.id && commentsPage && (
-        <CommentsPanel lang={lang} programId={programTarget.id} page={commentsPage}
-          items={pageItems(clientView, lang, commentsPage)} user={user} />
+      {phase === 'wizard' && programTarget?.id && (
+        <>
+          <CommentsButton lang={lang} count={toHandleTotal} onClick={openComments} />
+          {commentsOpen && (
+            <CommentsPanel lang={lang} programId={programTarget.id} comments={programComments}
+              error={commentsError} reload={reloadComments} page={commentsPage} onPageChange={setCommentsPage}
+              view={clientView} user={user} onClose={() => setCommentsOpen(false)} />
+          )}
+        </>
       )}
 
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-24">
