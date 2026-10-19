@@ -55,120 +55,81 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
       </div>
 
-      {/* ─── Program structure questions ─── */}
+      {/* ─── Program structure: each answer holds its own settings ─── */}
+      {/* The reward types follow from the structure: a points program spends
+          points on rewards, VIP tiers give perks. */}
       <div>
         <div className="section-header">{t.structureHeader}</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
           <YesNoCard
             title={t.qPoints}
             tooltip={t.qPointsTip}
             value={config.hasMissions}
             onChange={setHasMissions}
             lang={lang}
-          />
+          >
+            <Setting label={t.expirationLabel} tooltip={t.expirationTip}>
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="number" min={1} max={60} value={config.expirationMonths}
+                  onChange={e => update('expirationMonths', parseInt(e.target.value) || 12)}
+                  className="w-20 px-2 py-1.5 text-[13px] text-center" aria-label={t.expirationLabel} />
+                <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
+                <div className="flex gap-1.5">
+                  {['rolling', 'fixed'].map(type => (
+                    <PillOption key={type} label={type === 'rolling' ? t.rolling : t.fixed}
+                      active={config.expirationType === type} onClick={() => update('expirationType', type)} />
+                  ))}
+                </div>
+              </div>
+              <div className="text-[11px] text-[#8A7D6B] mt-1">{t.expirationDefault}</div>
+            </Setting>
+          </YesNoCard>
+
           <YesNoCard
             title={t.qTiers}
             tooltip={t.qTiersTip}
             value={config.hasTiers}
             onChange={v => update('hasTiers', v)}
             lang={lang}
-          />
+          >
+            <Setting label={t.tierBasis} tooltip={t.tierBasisTip}>
+              <div className="flex flex-wrap gap-1.5">
+                <PillOption label={t.spend} active={config.tierBasis === 'spend'} onClick={() => update('tierBasis', 'spend')} />
+                <PillOption label={t.orders} active={config.tierBasis === 'orders'} onClick={() => update('tierBasis', 'orders')} />
+                {config.hasMissions && (
+                  <PillOption label={t.points} active={config.tierBasis === 'points'} onClick={() => update('tierBasis', 'points')} />
+                )}
+              </div>
+            </Setting>
+            <Setting label={t.tierExpireLabel} tooltip={t.tierExpireTip}>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1.5">
+                  <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.tiersExpire === true} onClick={() => update('tiersExpire', true)} />
+                  <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.tiersExpire === false} onClick={() => update('tiersExpire', false)} />
+                </div>
+                {config.tiersExpire && (
+                  <>
+                    <span className="text-[12px] text-[#8A7D6B]">{t.tierEvery}</span>
+                    <input type="number" min={1} max={60} value={config.tierExpirationMonths}
+                      onChange={e => update('tierExpirationMonths', parseInt(e.target.value) || 12)}
+                      className="w-20 px-2 py-1.5 text-[13px] text-center" aria-label={t.tierExpireLabel} />
+                    <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
+                    <div className="flex gap-1.5">
+                      {['rolling', 'fixed'].map(type => (
+                        <PillOption key={type} label={type === 'rolling' ? t.rolling : t.fixed}
+                          active={config.tierExpirationType === type} onClick={() => update('tierExpirationType', type)} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="text-[11px] text-[#8A7D6B] mt-1">
+                {config.tiersExpire && `${t.tierExpireDefault} `}{t.tierExpireExplanation}
+              </div>
+            </Setting>
+          </YesNoCard>
         </div>
       </div>
-
-      {/* ─── Points expiration (only if points program) ─── */}
-      {config.hasMissions && (
-        <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.expirationLabel}</label>
-            <Tooltip text={t.expirationTip} />
-          </div>
-          <input type="number" min={1} max={60} value={config.expirationMonths}
-            onChange={e => update('expirationMonths', parseInt(e.target.value) || 12)}
-            className="w-20 px-2 py-1.5 text-[13px] text-center" />
-          <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
-          <div className="flex gap-1.5 ml-2">
-            {['rolling', 'fixed'].map(type => (
-              <button key={type} onClick={() => update('expirationType', type)}
-                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
-                  ${config.expirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
-                {type === 'rolling' ? t.rolling : t.fixed}
-              </button>
-            ))}
-          </div>
-          <span className="text-[11px] text-[#8A7D6B] ml-2">{t.expirationDefault}</span>
-        </div>
-      )}
-
-      {/* ─── Tier basis (only if tiers enabled) ─── */}
-      {config.hasTiers && (
-        <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.tierBasis}</label>
-            <Tooltip text={t.tierBasisTip} />
-          </div>
-          <div className="flex gap-1.5">
-            <PillOption label={t.spend} active={config.tierBasis === 'spend'} onClick={() => update('tierBasis', 'spend')} />
-            <PillOption label={t.orders} active={config.tierBasis === 'orders'} onClick={() => update('tierBasis', 'orders')} />
-            {config.hasMissions && (
-              <PillOption label={t.points} active={config.tierBasis === 'points'} onClick={() => update('tierBasis', 'points')} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Tier reassessment / expiration (only if tiers enabled) ─── */}
-      {config.hasTiers && (
-        <div className="card" style={{ padding: 16 }}>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <label className="text-[13px] font-medium text-[#645648]">{t.tierExpireLabel}</label>
-              <Tooltip text={t.tierExpireTip} />
-            </div>
-            <div className="flex gap-1.5">
-              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.tiersExpire === true} onClick={() => update('tiersExpire', true)} />
-              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.tiersExpire === false} onClick={() => update('tiersExpire', false)} />
-            </div>
-            {config.tiersExpire && (
-              <>
-                <span className="text-[12px] text-[#8A7D6B] ml-2">{t.tierEvery}</span>
-                <input type="number" min={1} max={60} value={config.tierExpirationMonths}
-                  onChange={e => update('tierExpirationMonths', parseInt(e.target.value) || 12)}
-                  className="w-20 px-2 py-1.5 text-[13px] text-center" />
-                <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
-                <div className="flex gap-1.5 ml-2">
-                  {['rolling', 'fixed'].map(type => (
-                    <button key={type} onClick={() => update('tierExpirationType', type)}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
-                        ${config.tierExpirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
-                      {type === 'rolling' ? t.rolling : t.fixed}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[11px] text-[#8A7D6B] ml-2">{t.tierExpireDefault}</span>
-              </>
-            )}
-          </div>
-          <div className="text-[11px] text-[#8A7D6B] mt-2">
-            {t.tierExpireExplanation}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Reward type (only if points program) ─── */}
-      {config.hasMissions && (
-        <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.rewards}</label>
-            <Tooltip text={t.rewardsTip} />
-          </div>
-          <div className="flex gap-1.5">
-            <PillOption label={t.burn} active={config.rewardType === 'burn'} onClick={() => update('rewardType', 'burn')} />
-            <PillOption label={t.perks} active={config.rewardType === 'perks'} onClick={() => update('rewardType', 'perks')} />
-            <PillOption label={t.both} active={config.rewardType === 'both'} onClick={() => update('rewardType', 'both')} />
-          </div>
-        </div>
-      )}
 
       {/* ─── Program parameters ─── */}
       <div>
@@ -332,7 +293,8 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
   );
 }
 
-function YesNoCard({ title, tooltip, value, onChange, lang }) {
+// A structure question; its settings show inside the card when the answer is yes.
+function YesNoCard({ title, tooltip, value, onChange, lang, children }) {
   return (
     <div className="card" style={{ padding: '16px 20px' }}>
       <div className="flex items-center gap-1.5 mb-2">
@@ -357,6 +319,21 @@ function YesNoCard({ title, tooltip, value, onChange, lang }) {
           {lang === 'fr' ? 'Non' : 'No'}
         </button>
       </div>
+      {value && children && (
+        <div className="mt-4 pt-4 border-t border-[#E5E1D8] space-y-4">{children}</div>
+      )}
+    </div>
+  );
+}
+
+function Setting({ label, tooltip, children }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-[12px] font-medium text-[#645648]">{label}</label>
+        {tooltip && <Tooltip text={tooltip} />}
+      </div>
+      {children}
     </div>
   );
 }
@@ -394,9 +371,6 @@ const FR = {
   tierBasis: 'Base des paliers',
   tierBasisTip: 'Sur quelle métrique segmenter les clients.',
   spend: 'Dépenses (€)', orders: 'Commandes', points: 'Points',
-  rewards: 'Type de récompenses',
-  rewardsTip: 'Burn : réductions/cadeaux échangés contre des points. Perks : avantages par palier.',
-  burn: 'Points brûlés', perks: 'Avantages VIP', both: 'Les deux',
   expirationLabel: "Délai d'expiration des points",
   expirationTip: 'Au bout de combien de temps les points expirent.',
   months: 'mois', rolling: 'Glissant', fixed: 'Fixe',
@@ -431,9 +405,6 @@ const EN = {
   tierBasis: 'Tier basis',
   tierBasisTip: 'Which metric segments customers.',
   spend: 'Total spend (€)', orders: 'Orders', points: 'Points',
-  rewards: 'Reward type',
-  rewardsTip: 'Burn: redeem points for discounts/gifts. Perks: tier-based benefits.',
-  burn: 'Points burned', perks: 'VIP perks', both: 'Both',
   expirationLabel: 'Points expiration delay',
   expirationTip: 'How long until points expire.',
   months: 'months', rolling: 'Rolling', fixed: 'Fixed',

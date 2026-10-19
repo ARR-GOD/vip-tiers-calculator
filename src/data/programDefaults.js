@@ -16,7 +16,7 @@ export const INITIAL_CONFIG = {
   tierBasis: 'spend',
   hasMissions: true,    // "Programme à points" — Oui/Non
   hasTiers: true,       // "Paliers VIP" — Oui/Non
-  rewardType: 'both',
+  // Reward types follow from these two: points → points rewards, tiers → VIP perks.
   // Points expiration (only meaningful when hasMissions)
   pointsExpire: true,
   expirationMonths: 12,
@@ -92,7 +92,6 @@ export function buildProgramDefaults({
     config: {
       ...INITIAL_CONFIG,
       hasMissions: !luxury,
-      rewardType: luxury ? 'perks' : 'both',
     },
     settings: {
       ...INITIAL_SETTINGS,
