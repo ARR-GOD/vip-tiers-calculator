@@ -9,11 +9,12 @@
 
 import { supabase } from '../lib/supabase';
 import { defaultTierUtilization } from '../data/programDefaults';
+import { pointsModel } from './pointsModel';
 import { normalizeDomain, folderKeyOf } from './clientFolders';
 
 const TABLE = 'vip_programs';
 export const DEFAULT_PROGRAM_NAME = 'Programme principal';
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 const LIST_COLUMNS = 'id, hubspot_company_id, folder_key, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, shared_with_client, published_version, published_at, created_by, updated_at, updated_by';
 
 // ── Reads / deletes ──────────────────────────────────────────────────
@@ -84,8 +85,13 @@ export async function duplicateProgram(id, name) {
 const EARN_RATE_STEPS = [1, 5, 10];
 
 export function migrateProgramState(state = {}) {
-  if ((state.v ?? 1) >= STATE_VERSION) return state;
+  let migrated = state;
+  if ((migrated.v ?? 1) < 2) migrated = migrateV1(migrated);
+  if (migrated.v < 3) migrated = migrateV2(migrated);
+  return migrated;
+}
 
+function migrateV1(state) {
   const settings = { ...(state.settings || {}) };
   const cashback = Number(settings.cashbackRate) || 0;
   const oldPtsPerRewardEur = Number(settings.pointsPerEuro) || 100;
@@ -120,13 +126,35 @@ export function migrateProgramState(state = {}) {
 
   return {
     ...state,
-    v: STATE_VERSION,
+    v: 2,
     settings: { ...settings, earnRate, earnRateManual: true },
     missions: (state.missions || []).map(toMission),
     customMissions: (state.customMissions || []).map(toMission),
     rewards,
     tiers,
   };
+}
+
+// v2 → v3: the points price of a reward is the one typed on it (pointsBase, on
+// the 1 pt/€ grid) instead of a € value converted with the cashback rate,
+// which is gone. Prices stay the ones displayed; the cost of bonus-points
+// rewards, derived from the cashback, is kept as a typed cost.
+function migrateV2(state) {
+  const { cashbackRate, ...settings } = state.settings || {};
+  const { earnRate } = pointsModel(settings);
+  const cashback = Number(cashbackRate) || 0;
+  const ptsPerRewardEur = cashback > 0 ? earnRate * 100 / cashback : 100;
+
+  const rewards = (state.rewards || []).map(({ pointsValueEur, ...reward }) => {
+    const next = { ...reward, pointsBase: reward.pointsBase ?? (pointsValueEur ?? 0) * ptsPerRewardEur / earnRate };
+    if (reward.type === 'bonus_points' && reward.realCostAuto !== false && cashback > 0) {
+      next.realCost = Math.round((reward.bonusBasePoints ?? 0) * earnRate / ptsPerRewardEur * 100) / 100;
+      next.realCostAuto = false;
+    }
+    return next;
+  });
+
+  return { ...state, v: 3, settings, rewards };
 }
 
 // ── Snapshot of the wizard state ─────────────────────────────────────

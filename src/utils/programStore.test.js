@@ -50,7 +50,27 @@ describe('migrateProgramState', () => {
   it('handles a luxury program without cashback', () => {
     const p = load(v1({ settings: { aov: 300, cashbackRate: 0, pointsPerEuro: 100 } }));
     expect(p.settings.earnRate).toBe(1);
-    expect(p.rewards[0].pointsValueEur).toBe(5);
+    expect(rewardPointsCost(p.rewards[0], p.settings)).toBe(500);
+  });
+
+  it('v2 → v3: reward prices are typed in points, the cashback is gone, prices unchanged', () => {
+    const v2 = {
+      v: 2,
+      settings: { aov: 80, grossMargin: 60, cashbackRate: 15, earnRate: 5, earnRateManual: true },
+      rewards: [
+        { id: 'voucher', type: 'gift_voucher', rewardUsage: 'burn', pointsValueEur: 10, realCost: 10 },
+        { id: 'bonus', type: 'bonus_points', rewardUsage: 'perk', pointsValueEur: 0, bonusBasePoints: 100, realCost: 0 },
+        { id: 'perk', type: 'free_delivery', rewardUsage: 'perk', pointsValueEur: 0, realCost: 5, realCostAuto: false },
+      ],
+    };
+    // Before: 15 % cashback at 5 pts/€ → 33.3 pts per € → a 10 € voucher cost 333 pts;
+    // 500 bonus points were worth 15 €.
+    const p = load(v2);
+    expect(p.settings.cashbackRate).toBeUndefined();
+    expect(p.rewards.some(r => 'pointsValueEur' in r)).toBe(false);
+    expect(rewardPointsCost(p.rewards[0], p.settings)).toBe(333);
+    expect(p.rewards[1]).toMatchObject({ realCost: 15, realCostAuto: false });
+    expect(p.rewards[2].realCost).toBe(5);
   });
 
   it('gives a 4th tier without rewards its default utilization', () => {
@@ -72,7 +92,7 @@ describe('program defaults', () => {
   it('builds a luxury program without points', () => {
     const p = buildProgramDefaults({ programType: 'luxury', aov: 300, grossMargin: 65 });
     expect(p.config.hasMissions).toBe(false);
-    expect(p.settings.cashbackRate).toBe(0);
+    expect(p.settings.cashbackRate).toBeUndefined();
     expect(p.missions.every(m => m.isPurchaseMission)).toBe(true);
     expect(p.burnRate).toBe(0);
   });

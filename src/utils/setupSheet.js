@@ -16,7 +16,7 @@ const L = {
   fr: {
     title: 'Fiche de setup', points: 'Programme de points', missions: 'Missions',
     rewards: 'Récompenses en points', referral: 'Parrainage', vip: 'Programme VIP',
-    earnRate: 'Points gagnés', perEuro: 'par € dépensé', pointsValue: 'Valeur des points',
+    earnRate: 'Points gagnés', perEuro: 'par € dépensé',
     pointsExpiry: 'Expiration des points', none: 'aucune', months: 'mois', rolling: 'glissants', fixed: 'fixes',
     mission: 'Mission', pts: 'Points', reward: 'Récompense', expiry: 'Expiration', minPurchase: 'Achat minimum',
     tiers: 'Paliers', allTiers: 'tous', days: 'jours', referrer: 'Parrain', referee: 'Filleul',
@@ -29,7 +29,7 @@ const L = {
   en: {
     title: 'Setup sheet', points: 'Points program', missions: 'Missions',
     rewards: 'Points rewards', referral: 'Referral', vip: 'VIP program',
-    earnRate: 'Points earned', perEuro: 'per € spent', pointsValue: 'Points value',
+    earnRate: 'Points earned', perEuro: 'per € spent',
     pointsExpiry: 'Points expiration', none: 'none', months: 'months', rolling: 'rolling', fixed: 'fixed',
     mission: 'Mission', pts: 'Points', reward: 'Reward', expiry: 'Expiry', minPurchase: 'Min purchase',
     tiers: 'Tiers', allTiers: 'all', days: 'days', referrer: 'Referrer', referee: 'Referee',
@@ -48,7 +48,7 @@ const pts = (n, lang) => `${fmt(n, lang)} ${n > 1 ? 'pts' : 'pt'}`;
 
 export function buildSetupSheet({ config, settings, tiers, rewards, missions, customMissions, referralConfig, clientName, author, lang = 'fr', date = new Date() }) {
   const l = L[lang] || L.fr;
-  const { earnRate, ptsPerRewardEur } = pointsModel(settings);
+  const { earnRate } = pointsModel(settings);
   const colon = lang === 'fr' ? ' :' : ':';
   const minimum = value => (value > 0 ? euro(value, lang) : l.noMinimum);
   const minPurchase = r => minimum(rewardMinPurchase(r, settings));
@@ -65,7 +65,6 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
       title: l.points,
       facts: [
         [l.earnRate, `${pts(earnRate, lang)} ${l.perEuro}`],
-        [l.pointsValue, ptsPerRewardEur ? `${fmt(ptsPerRewardEur, lang)} pts = 1 €` : '—'],
         [l.pointsExpiry, config.pointsExpire
           ? `${config.expirationMonths} ${l.months} ${config.expirationType === 'fixed' ? l.fixed : l.rolling}`
           : l.none],

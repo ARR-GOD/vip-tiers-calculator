@@ -13,8 +13,7 @@ missions, rewards, referral) from its customer export and estimate its economics
 Points are never stored, only derived (`src/utils/pointsModel.js`):
 
 - `settings.earnRate` — points per € spent (1, 5 or 10; follows the AOV rule — ≥ 50€ → 1, below → 10 — until chosen)
-- `settings.cashbackRate` — % of spend given back; points value = earn rate × 100 ÷ cashback (pts for 1€)
-- missions store `basePoints` (1 pt/€ grid), points rewards store `pointsValueEur`, tiers store € / order thresholds
+- missions store `basePoints` and points rewards their price `pointsBase`, both on the 1 pt/€ grid (displayed = base × earn rate); tiers store € / order thresholds
 
 Saved programs carry a format version; `migrateProgramState` (`src/utils/programStore.js`) upgrades older ones without changing their figures.
 

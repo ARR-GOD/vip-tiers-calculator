@@ -155,12 +155,13 @@ export const REWARD_USAGE_OPTIONS = [
 // the Loyoly recommendations (cumulative: a tier keeps the perks below it; the
 // voucher and birthday gift of a higher tier replace the lower ones).
 // assignedTiers are written for 3 tiers. Minimum purchase follows the AOV.
+// Points rewards cost 10 pts per € of value at 1 pt/€ (DEFAULT_POINTS_PER_REWARD_EUR).
 const points = (id, type, nameFr, nameEn, value) => ({
-  id, type, nameFr, nameEn, rewardUsage: 'burn', pointsValueEur: value, realCost: value,
+  id, type, nameFr, nameEn, rewardUsage: 'burn', pointsBase: value * 10, realCost: value,
   assignedTiers: [true, true, true], minPurchaseAuto: true, expirationDays: 90,
 });
 const perk = (id, type, nameFr, nameEn, realCost, assignedTiers, minPurchaseAuto = true) => ({
-  id, type, nameFr, nameEn, rewardUsage: 'perk', pointsValueEur: 0, realCost,
+  id, type, nameFr, nameEn, rewardUsage: 'perk', pointsBase: 0, realCost,
   assignedTiers, minPurchaseAuto, minPurchase: 0, expirationDays: 90,
 });
 

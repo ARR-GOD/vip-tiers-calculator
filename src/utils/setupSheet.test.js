@@ -20,10 +20,9 @@ describe('setup sheet', () => {
     ]);
   });
 
-  it('gives the points ratio, the points value and their expiration', () => {
+  it('gives the points ratio and their expiration (no points value)', () => {
     expect(section(sheet, 'Programme de points').facts).toEqual([
       ['Points gagnés', '1 pt par € dépensé'],
-      ['Valeur des points', '6,67 pts = 1 €'],
       ['Expiration des points', '12 mois glissants'],
     ]);
   });
@@ -41,10 +40,10 @@ describe('setup sheet', () => {
 
   it('lists the points rewards with points, expiration, minimum purchase and tiers', () => {
     const rows = section(sheet, 'Récompenses en points').rows;
-    expect(rows).toContainEqual(['Bon de 10 € (points)', '67 pts', '90 jours', '80 €', 'tous']);
+    expect(rows).toContainEqual(['Bon de 10 € (points)', '100 pts', '90 jours', '80 €', 'tous']);
     const rewards = program.rewards.map(r => (r.id === 'pts_voucher_5' ? { ...r, assignedTiers: [false, true, true] } : r));
     expect(section(sheetFor({ ...program, rewards }), 'Récompenses en points').rows)
-      .toContainEqual(['Bon de 5 € (points)', '33 pts', '90 jours', '80 €', 'Argent, Or']);
+      .toContainEqual(['Bon de 5 € (points)', '50 pts', '90 jours', '80 €', 'Argent, Or']);
   });
 
   it('gives the referral rewards resolved from the AOV', () => {

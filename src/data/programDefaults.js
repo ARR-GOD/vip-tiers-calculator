@@ -32,7 +32,6 @@ export const INITIAL_SETTINGS = {
   caWeight: 0.5,
   aov: 60,
   grossMargin: 60,
-  cashbackRate: 5,
   earnRate: 1,            // pts per € spent — follows the AOV rule until earnRateManual
   earnRateManual: false,
   scenario: 'medium',     // engagement scenario shared by Missions and Dashboard
@@ -50,15 +49,6 @@ export const defaultTierUtilization = tierIndex => 5 + tierIndex * 5;
 
 // Share of emitted points that get redeemed (5–7% observed at Loyoly).
 export const DEFAULT_BURN_RATE = 6;
-
-// Cashback suggestion from the gross margin:
-// margin < 40 → 5%; < 60 → 10%; < 80 → 15%; else → 20%.
-export function suggestedCashback(margin) {
-  if (!margin || margin < 40) return 5;
-  if (margin < 60) return 10;
-  if (margin < 80) return 15;
-  return 20;
-}
 
 // ── Builder ──────────────────────────────────────────────────────────
 export function buildProgramDefaults({
@@ -97,7 +87,6 @@ export function buildProgramDefaults({
       ...INITIAL_SETTINGS,
       aov: roundedAov,
       grossMargin,
-      cashbackRate: luxury ? 0 : suggestedCashback(grossMargin),
     },
     tiers,
     rewards,
@@ -153,11 +142,11 @@ export function normalizeReward(reward, tierCount) {
   const assignedTiers = reward.assignedTiers
     ? resize(reward.assignedTiers, tierCount, false)
     : Array.from({ length: tierCount }, (_, i) => i >= (reward.minTier || 0));
-  const derivable = reward.type === 'promo_percent' || reward.type === 'bonus_points';
+  const derivable = reward.type === 'promo_percent';
   return {
-    ...without(reward, ['pointsCost', 'pointsBonus', 'utilizationByTier', 'minTier']),
+    ...without(reward, ['pointsCost', 'pointsValueEur', 'pointsBonus', 'utilizationByTier', 'minTier']),
     rewardUsage: reward.rewardUsage || 'burn',
-    pointsValueEur: reward.pointsValueEur ?? (reward.pointsCost ?? 0) / 100,
+    pointsBase: reward.pointsBase ?? 0,
     bonusBasePoints: reward.bonusBasePoints ?? reward.pointsBonus ?? 0,
     realCost: reward.realCost ?? 0,
     realCostAuto: reward.realCostAuto ?? derivable,

@@ -2,17 +2,6 @@
 // Sources: Bond Brand Loyalty, Antavo, Open Loyalty, Loyoly internal data
 
 export const BENCHMARKS = {
-  cashbackRate: {
-    low: 1,
-    median: 3,
-    high: 5,
-    max: 10,
-    unit: '%',
-    labelFr: 'Taux de cashback',
-    labelEn: 'Cashback rate',
-    recoFr: (v) => v < 1 ? 'Très bas — peu incitatif' : v <= 3 ? 'Standard e-commerce' : v <= 5 ? 'Généreux — fort engagement' : 'Très élevé — vérifiez vos marges',
-    recoEn: (v) => v < 1 ? 'Very low — weak incentive' : v <= 3 ? 'E-commerce standard' : v <= 5 ? 'Generous — high engagement' : 'Very high — check your margins',
-  },
   burnRate: {
     low: 3,
     median: 6,

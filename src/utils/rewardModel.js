@@ -3,13 +3,14 @@
 // ════════════════════════════════════════════════════════════════════
 //
 // Rewards keep the values the CSM typed; anything that depends on another
-// setting (margin, AOV, points value) is computed here when read, unless the
+// setting (margin, AOV, earn rate) is computed here when read, unless the
 // CSM overrode it (realCostAuto / minPurchaseAuto set to false).
 
 import { pointsModel } from './pointsModel';
 
-// Points value used when the program gives nothing back (no cashback).
-const FALLBACK_PTS_PER_EUR = 100;
+// Default points price of a reward on the 1 pt/€ grid: 10 pts per € of value
+// (a 10 € voucher costs 100 pts at 1 pt/€, 1 000 pts at 10 pts/€).
+export const DEFAULT_POINTS_PER_REWARD_EUR = 10;
 
 // Parse the discount percentage out of a promo name, e.g. "-20% sur la commande" → 20.
 export function parseDiscountPct(name) {
@@ -39,15 +40,14 @@ export function rewardBonusPoints(reward, settings) {
   return Math.round((reward.bonusBasePoints ?? 0) * pointsModel(settings).earnRate);
 }
 
-// Price of a reward in points.
+// Price of a reward in points: the price typed on the reward, stored on the
+// 1 pt/€ grid (pointsBase) so that it follows the earn rate like missions.
 export function rewardPointsCost(reward, settings) {
-  const ptsPerEur = pointsModel(settings).ptsPerRewardEur ?? FALLBACK_PTS_PER_EUR;
-  return Math.round((reward.pointsValueEur ?? 0) * ptsPerEur);
+  return Math.round((reward.pointsBase ?? 0) * pointsModel(settings).earnRate);
 }
 
-export function rewardValueFromPoints(points, settings) {
-  const ptsPerEur = pointsModel(settings).ptsPerRewardEur ?? FALLBACK_PTS_PER_EUR;
-  return points / ptsPerEur;
+export function rewardBaseFromPoints(points, settings) {
+  return points / pointsModel(settings).earnRate;
 }
 
 // What the brand pays each time the reward is used.
@@ -57,16 +57,12 @@ export function rewardRealCost(reward, settings) {
       const derived = derivePromoRealCost(reward, settings);
       if (derived !== null) return derived;
     }
-    if (reward.type === 'bonus_points') {
-      const ptsPerEur = pointsModel(settings).ptsPerRewardEur;
-      if (ptsPerEur) return Math.round(rewardBonusPoints(reward, settings) / ptsPerEur * 100) / 100;
-    }
   }
   return reward.realCost || 0;
 }
 
 export function isRealCostDerived(reward) {
-  return reward.realCostAuto !== false && (reward.type === 'promo_percent' || reward.type === 'bonus_points');
+  return reward.realCostAuto !== false && reward.type === 'promo_percent';
 }
 
 export const isBurnReward = reward => reward.rewardUsage === 'burn' || reward.rewardUsage === 'both';

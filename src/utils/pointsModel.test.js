@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { defaultEarnRate, pointsModel, missionPoints, basePointsFromPoints } from './pointsModel';
-import { rewardPointsCost, rewardValueFromPoints, rewardRealCost, rewardMinPurchase } from './rewardModel';
+import { rewardPointsCost, rewardBaseFromPoints, rewardRealCost, rewardMinPurchase } from './rewardModel';
 
 describe('earn rate', () => {
   it('follows the AOV rule: ≥ 50€ → 1 pt/€, below → 10 pts/€', () => {
@@ -14,23 +14,15 @@ describe('earn rate', () => {
     expect(pointsModel({ aov: 80, earnRate: 5, earnRateManual: true }).earnRate).toBe(5);
   });
 
-  it('derives the points value from the earn rate and the cashback', () => {
-    expect(pointsModel({ aov: 80, cashbackRate: 5 }).ptsPerRewardEur).toBe(20);
-    expect(pointsModel({ aov: 30, cashbackRate: 5 }).ptsPerRewardEur).toBe(200);
-    expect(pointsModel({ aov: 80, cashbackRate: 10, earnRate: 5, earnRateManual: true }).ptsPerRewardEur).toBe(50);
-  });
-
-  it('has no points value without cashback (instead of assuming 3%)', () => {
-    const model = pointsModel({ aov: 80, cashbackRate: 0 });
-    expect(model.cashback).toBe(0);
-    expect(model.ptsPerRewardEur).toBeNull();
+  it('no longer depends on a cashback rate', () => {
+    expect(pointsModel({ aov: 80, cashbackRate: 5 })).toEqual({ earnRate: 1 });
   });
 });
 
 describe('derived points', () => {
   const mission = { basePoints: 20 };
-  const reward = { pointsValueEur: 10 };
-  const at = earnRate => ({ aov: 80, cashbackRate: 5, earnRate, earnRateManual: true });
+  const reward = { pointsBase: 200 };
+  const at = earnRate => ({ aov: 80, earnRate, earnRateManual: true });
 
   it('scales mission points and reward prices with the earn rate', () => {
     expect(missionPoints(mission, at(1))).toBe(20);
@@ -52,12 +44,12 @@ describe('derived points', () => {
 
   it('converts typed points back to reference values', () => {
     expect(basePointsFromPoints(350, at(5))).toBe(70);
-    expect(rewardValueFromPoints(2000, at(10))).toBe(10);
+    expect(rewardBaseFromPoints(2000, at(10))).toBe(200);
   });
 });
 
 describe('reward values', () => {
-  const settings = { aov: 90, grossMargin: 60, cashbackRate: 5 };
+  const settings = { aov: 90, grossMargin: 60 };
 
   it('derives the cost of a % promo from the margin while auto', () => {
     const promo = { type: 'promo_percent', nameFr: '-10% sur la commande', minPurchase: 100, realCost: 99 };

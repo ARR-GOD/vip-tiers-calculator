@@ -58,7 +58,7 @@ describe('points economy', () => {
   });
 
   it('values a redeemed point at the catalog real cost', () => {
-    const rewards = [{ rewardUsage: 'burn', pointsValueEur: 10, realCost: 10, assignedTiers: [true, true] }];
+    const rewards = [{ rewardUsage: 'burn', pointsBase: 200, realCost: 10, assignedTiers: [true, true] }];
     // 10€ reward priced 10 × 200 pts/€ = 2000 pts → 0.005 €/pt
     expect(realCostPerPoint(rewards, settings)).toBeCloseTo(0.005);
     expect(realCostPerPoint([], settings)).toBeNull();

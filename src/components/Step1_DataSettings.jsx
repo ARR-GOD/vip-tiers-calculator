@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Lightbulb } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { EARN_RATE_OPTIONS, defaultEarnRate, pointsModel } from '../utils/pointsModel';
-import { suggestedCashback } from '../data/programDefaults';
 
 export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
@@ -40,11 +39,9 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         : `Industry estimate (${industry}) — adjustable`)
     : (lang === 'fr' ? 'Saisi manuellement' : 'Manually entered');
 
-  // ── Points: earn rate (follows the AOV rule until chosen) + cashback ──
-  // Suggestions are applied on click only: values the CSM set are never
-  // overwritten when coming back to this step.
-  const suggested = suggestedCashback(settings.grossMargin);
-  const { earnRate, ptsPerRewardEur } = pointsModel(settings);
+  // ── Points: earn rate (follows the AOV rule until chosen) ──
+  // A rate the CSM picked is never overwritten when coming back to this step.
+  const { earnRate } = pointsModel(settings);
   const autoEarnRate = defaultEarnRate(settings.aov);
 
   return (
@@ -204,75 +201,6 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             </div>
           )}
 
-          {/* Cashback rate — number input + suggested hint */}
-          {config.hasMissions && (
-            <div className="pt-3 border-t border-[#D9D5CB]">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <label className="text-[12px] font-medium text-[#645648]">{t.cashbackRate}</label>
-                <Tooltip text={t.cashbackTip} />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative" style={{ width: 140 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    value={settings.cashbackRate || ''}
-                    onChange={e => setSettings(p => ({ ...p, cashbackRate: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 pr-8 text-[15px]"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">%</span>
-                </div>
-                <div className="flex items-center gap-2 text-[12px] text-[#8A7D6B]">
-                  <Lightbulb size={13} className="text-[#D97706]" />
-                  <span>
-                    {lang === 'fr'
-                      ? `Suggéré pour ${settings.grossMargin || 0}% de marge : ${suggested}%`
-                      : `Suggested for ${settings.grossMargin || 0}% margin: ${suggested}%`}
-                  </span>
-                  {settings.cashbackRate !== suggested && (
-                    <button
-                      onClick={() => setSettings(p => ({ ...p, cashbackRate: suggested }))}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      {lang === 'fr' ? 'Appliquer la suggestion' : 'Apply suggestion'}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {settings.grossMargin > 0 && (
-                <div className="mt-2 text-[11px] text-[#8A7D6B]">
-                  = {((settings.cashbackRate / settings.grossMargin) * 100).toFixed(1)}% {t.ofMargin}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Points value — derived from the earn rate and the cashback */}
-          {config.hasMissions && (
-            <div className="pt-3 border-t border-[#D9D5CB]">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <label className="text-[12px] font-medium text-[#645648]">{t.pointsPerEuro}</label>
-                <Tooltip text={t.pointsPerEuroTip} />
-              </div>
-              {ptsPerRewardEur ? (
-                <div className="text-[15px] font-semibold text-[#52473C]">
-                  {formatNumber(ptsPerRewardEur)} pts = 1 €
-                  <span className="ml-2 text-[12px] font-normal text-[#8A7D6B]">
-                    (1 pt = {(1 / ptsPerRewardEur).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { maximumFractionDigits: 4 })} €)
-                  </span>
-                </div>
-              ) : (
-                <div className="text-[13px] text-[#8A7D6B]">{t.noCashback}</div>
-              )}
-              <div className="mt-1 text-[11px] text-[#8A7D6B]">
-                {lang === 'fr'
-                  ? `→ ${earnRate} pt${earnRate > 1 ? 's' : ''} par € dépensé × ${settings.cashbackRate || 0}% de cashback. Change le ratio ou le cashback pour ajuster la valeur des points.`
-                  : `→ ${earnRate} pt${earnRate > 1 ? 's' : ''} per € spent × ${settings.cashbackRate || 0}% cashback. Change the earn rate or the cashback to adjust the points value.`}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -383,15 +311,9 @@ const FR = {
   keyParams: 'Paramètres clés',
   aov: 'Panier moyen (AOV)',
   margin: 'Marge brute',
-  cashbackRate: 'Taux de cashback',
-  cashbackTip: '% de la valeur d\'achat retourné au client en valeur de récompense.',
-  ofMargin: 'de la marge',
-  pointsPerEuro: 'Valeur des points',
-  pointsPerEuroTip: 'Combien de points valent 1€ à la conversion en récompense. Calculé : ratio de points × 100 ÷ cashback.',
   earnRate: 'Points gagnés par € dépensé',
   earnRateTip: 'Règle Loyoly : panier moyen ≥ 50 € → 1 pt/€, sous 50 € → 10 pts/€. Les points des missions et le prix des récompenses suivent ce ratio.',
   earnRateAuto: 'Automatique selon le panier moyen (≥ 50 € → 1 pt/€, < 50 € → 10 pts/€)',
-  noCashback: 'Pas de cashback : les points ne donnent pas de valeur en récompense.',
 };
 
 const EN = {
@@ -417,13 +339,7 @@ const EN = {
   keyParams: 'Key parameters',
   aov: 'Avg order value (AOV)',
   margin: 'Gross margin',
-  cashbackRate: 'Cashback rate',
-  cashbackTip: '% of purchase value returned to the customer as reward value.',
-  ofMargin: 'of margin',
-  pointsPerEuro: 'Points value',
-  pointsPerEuroTip: 'How many points equal 1€ at redemption. Computed: earn rate × 100 ÷ cashback.',
   earnRate: 'Points earned per € spent',
   earnRateTip: 'Loyoly rule: AOV ≥ 50€ → 1 pt/€, below 50€ → 10 pts/€. Mission points and reward prices follow this rate.',
   earnRateAuto: 'Automatic from the AOV (≥ 50€ → 1 pt/€, < 50€ → 10 pts/€)',
-  noCashback: 'No cashback: points carry no reward value.',
 };

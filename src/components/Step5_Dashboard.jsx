@@ -38,7 +38,6 @@ export default function Step5_Dashboard({
   const activeScenario = SCENARIOS.find(s => s.key === activeKey);
   const activeMult = activeScenario.mult;
   const resetParticipation = () => setGlobalParticipation(INITIAL_SETTINGS.participationRate);
-  const { ptsPerRewardEur } = pointsModel(settings);
 
   const { tierStats, nonMembers } = useMemo(() => {
     const scored = computeCustomerScores(customers, settings.segmentationType, settings.caWeight);
@@ -92,18 +91,11 @@ export default function Step5_Dashboard({
     [tierStats, tiers, missions, customMissions, settings, burnRate, activeMult]
   );
 
-  // Two ways to value the dormant points (the outstanding liability):
-  //   - faceValue: 1 pt = 1 / ptsPerRewardEur € (what the customer can redeem)
-  //   - realCost:  real cost ÷ points price of the points rewards offered
-  //     (what the brand actually pays per point redeemed)
-  // Fallback: without points rewards the real cost per point is undefined, so
-  // the column falls back to face value instead of a misleading 0€.
-  const pointFaceValue = 1 / (ptsPerRewardEur || 100);
-  const catalogCostPerPoint = realCostPerPoint(rewards, settings);
-  const realCostPerBurnedPoint = catalogCostPerPoint ?? pointFaceValue;
-  const realCostIsFallback = catalogCostPerPoint === null;
-  const provisionFace = pointsEconomy.totalDormant * pointFaceValue;
-  const provisionReal = pointsEconomy.totalDormant * realCostPerBurnedPoint;
+  // What a point costs the brand when redeemed: real cost ÷ points price of
+  // the points rewards offered. Unknown (null) without points rewards.
+  const costPerPoint = realCostPerPoint(rewards, settings);
+  const costOf = points => (costPerPoint === null ? null : points * costPerPoint);
+  const provision = costOf(pointsEconomy.totalDormant);
 
   // Tier breakdown totals — totals include non-members so percentages reflect
   // the imported base, not just the program members.
@@ -428,20 +420,14 @@ export default function Step5_Dashboard({
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">{t ? 'Volume (pts)' : 'Volume (pts)'}</th>
                     <th className="text-right px-4 py-3 font-medium text-[#645648]">
                       <div className="flex items-center gap-1 justify-end">
-                        {t ? 'Valeur faciale €' : 'Face value €'}
-                        <Tooltip text={`1 pt = ${pointFaceValue.toLocaleString(t ? 'fr-FR' : 'en-US', { maximumFractionDigits: 4 })} € (${formatNumber(ptsPerRewardEur || 100)} pts = 1 €)`} />
-                      </div>
-                    </th>
-                    <th className="text-right px-4 py-3 font-medium text-[#645648]">
-                      <div className="flex items-center gap-1 justify-end">
                         {t ? 'Coût réel €' : 'Real cost €'}
                         <Tooltip text={t
-                          ? (realCostIsFallback
-                              ? `Aucune récompense en points n'est proposée — coût réel non calculable. Valeur faciale utilisée : ${pointFaceValue.toFixed(4)} €/pt.`
-                              : `Coût réel par point utilisé = coût réel ÷ prix en points des récompenses en points proposées = ${realCostPerBurnedPoint.toFixed(4)} €/pt.`)
-                          : (realCostIsFallback
-                              ? `No points reward offered — real cost not derivable. Face value used: ${pointFaceValue.toFixed(4)} €/pt.`
-                              : `Real cost per redeemed point = real cost ÷ points price of the points rewards offered = ${realCostPerBurnedPoint.toFixed(4)} €/pt.`)
+                          ? (costPerPoint === null
+                              ? 'Aucune récompense en points n\'est proposée : le coût d\'un point n\'est pas calculable.'
+                              : `Coût d'un point utilisé = coût réel ÷ prix en points des récompenses en points proposées = ${costPerPoint.toFixed(4)} €/pt.`)
+                          : (costPerPoint === null
+                              ? 'No points reward offered: the cost of a point cannot be derived.'
+                              : `Cost of a redeemed point = real cost ÷ points price of the points rewards offered = ${costPerPoint.toFixed(4)} €/pt.`)
                         } />
                       </div>
                     </th>
@@ -452,23 +438,20 @@ export default function Step5_Dashboard({
                   <PointsRow
                     label={t ? 'Points émis / an' : 'Points emitted / yr'}
                     volume={pointsEconomy.totalEmitted}
-                    face={pointsEconomy.totalEmitted * pointFaceValue}
-                    real={pointsEconomy.totalEmitted * realCostPerBurnedPoint}
+                    cost={costOf(pointsEconomy.totalEmitted)}
                     comment={t ? 'Émission brute (achats + missions)' : 'Gross emission (purchases + missions)'}
                   />
                   <PointsRow
                     label={t ? 'Points brûlés / an' : 'Points burned / yr'}
                     volume={pointsEconomy.totalBurned}
-                    face={pointsEconomy.totalBurned * pointFaceValue}
-                    real={pointsEconomy.totalBurned * realCostPerBurnedPoint}
+                    cost={costOf(pointsEconomy.totalBurned)}
                     comment={`${t ? 'Taux d\'utilisation des points' : 'Points utilization rate'} : ${burnRate}%`}
                     color="green"
                   />
                   <PointsRow
                     label={t ? 'Points dormants (en circulation)' : 'Dormant points (in circulation)'}
                     volume={pointsEconomy.totalDormant}
-                    face={provisionFace}
-                    real={provisionReal}
+                    cost={provision}
                     comment={t ? 'Non encore utilisés — passif latent' : 'Not yet redeemed — outstanding liability'}
                     color="orange"
                   />
@@ -477,8 +460,7 @@ export default function Step5_Dashboard({
                   <tr className="bg-[#EEEDE6] border-t border-[#D9D5CB] font-semibold">
                     <td className="px-4 py-3 text-[#645648]">{t ? 'Provision recommandée' : 'Recommended provision'}</td>
                     <td className="text-right px-4 py-3 text-[#52473C] tabular-nums">—</td>
-                    <td className="text-right px-4 py-3 text-[#DC2626] font-bold tabular-nums">{formatCurrency(provisionFace)}</td>
-                    <td className="text-right px-4 py-3 text-[#059669] font-bold tabular-nums">{formatCurrency(provisionReal)}</td>
+                    <td className="text-right px-4 py-3 text-[#059669] font-bold tabular-nums">{provision === null ? '—' : formatCurrency(provision)}</td>
                     <td className="px-4 py-3 text-[11px] text-[#8A7D6B]">
                       {t ? 'Le coût réel est plus représentatif (utilisation modélisée)' : 'Real cost is more representative (modeled utilization)'}
                     </td>
@@ -507,18 +489,19 @@ export default function Step5_Dashboard({
                 </li>
                 <li>
                   <strong>{t ? 'Cash flow effectif' : 'Effective cash impact'} :</strong>{' '}
-                  {formatCurrency(pointsEconomy.totalBurned * realCostPerBurnedPoint)} {t ? 'de coût réel par an' : 'in real cost per year'}{' '}
-                  ({formatCompact(pointsEconomy.totalBurned)} pts × {realCostPerBurnedPoint.toFixed(4)} €/pt).
+                  {costPerPoint === null
+                    ? (t ? 'non calculable sans récompense en points.' : 'not derivable without points rewards.')
+                    : <>{formatCurrency(costOf(pointsEconomy.totalBurned))} {t ? 'de coût réel par an' : 'in real cost per year'}{' '}
+                      ({formatCompact(pointsEconomy.totalBurned)} pts × {costPerPoint.toFixed(4)} €/pt).</>}
                 </li>
                 <li>
                   <strong>{t ? 'Provision recommandée' : 'Recommended provision'} :</strong>{' '}
-                  <span className="text-[#059669] font-semibold">{formatCurrency(provisionReal)}</span> {t ? '(coût réel)' : '(real cost)'}
-                  {' '}vs <span className="text-[#DC2626] font-semibold">{formatCurrency(provisionFace)}</span> {t ? '(valeur faciale, vue prudente)' : '(face value, prudent view)'}.
+                  <span className="text-[#059669] font-semibold">{provision === null ? '—' : formatCurrency(provision)}</span> {t ? '(coût réel)' : '(real cost)'}.
                 </li>
                 <li>
                   <strong>{t ? 'Risque marge' : 'Margin risk'} :</strong>{' '}
                   {t ? 'si 100% des points dormants sont brûlés simultanément (coût réel)' : 'if 100% of dormant points were burned at once (real cost)'} →{' '}
-                  <span className="text-[#DC2626] font-semibold">−{formatCurrency(provisionReal)}</span>{' '}
+                  <span className="text-[#DC2626] font-semibold">{provision === null ? '—' : `−${formatCurrency(provision)}`}</span>{' '}
                   {t ? 'de coût additionnel ponctuel' : 'one-off additional cost'}.
                 </li>
                 <li>
@@ -581,14 +564,13 @@ function PnlRow({ label, values, bold, negative, profit, hint, activeIdx }) {
   );
 }
 
-function PointsRow({ label, volume, face, real, comment, color }) {
+function PointsRow({ label, volume, cost, comment, color }) {
   const volColor = color === 'green' ? 'text-[#059669]' : color === 'orange' ? 'text-[#D97706]' : 'text-[#52473C]';
   return (
     <tr className="border-b border-[#E5E1D8] hover:bg-[#EEEDE6]">
       <td className="px-4 py-2.5 text-[#645648]">{label}</td>
       <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{formatCompact(volume)}</td>
-      <td className="text-right px-4 py-2.5 tabular-nums text-[#645648]">{formatCurrency(face)}</td>
-      <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{formatCurrency(real)}</td>
+      <td className={`text-right px-4 py-2.5 font-medium tabular-nums ${volColor}`}>{cost === null ? '—' : formatCurrency(cost)}</td>
       <td className="px-4 py-2.5 text-[12px] text-[#8A7D6B]">{comment}</td>
     </tr>
   );

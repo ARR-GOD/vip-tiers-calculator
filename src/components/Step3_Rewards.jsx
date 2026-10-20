@@ -6,8 +6,12 @@ import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defa
 import { formatCurrency } from '../utils/calculations';
 import {
   parseDiscountPct, rewardMinPurchase, rewardRealCost, rewardPointsCost,
-  rewardValueFromPoints, isRealCostDerived, isBurnReward,
+  rewardBaseFromPoints, isRealCostDerived, isBurnReward, DEFAULT_POINTS_PER_REWARD_EUR,
 } from '../utils/rewardModel';
+
+// Catalog prices are expressed for 100 pts = 1 €: the € value, at the default
+// points price on the 1 pt/€ grid.
+const catalogPointsBase = item => (item.pointsCost || 0) / 100 * DEFAULT_POINTS_PER_REWARD_EUR;
 
 export default function Step3_Rewards({ rewards, setRewards, tiers, settings, burnRate, setBurnRate, lang, onPrev, onNext }) {
   const t = lang === 'fr';
@@ -21,7 +25,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
       nameFr: t ? 'Nouvelle récompense' : 'New reward',
       nameEn: t ? 'New reward' : 'New reward',
       rewardUsage: 'burn',
-      pointsValueEur: 3,
+      pointsBase: 5 * DEFAULT_POINTS_PER_REWARD_EUR,
       realCost: 5,
       realCostAuto: false,
       minPurchase: 0,
@@ -32,7 +36,6 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
     setShowCatalog(false);
   };
 
-  // Catalog prices are expressed for 100 pts = 1€.
   const addFromCatalog = (item) => {
     setRewards(prev => [...prev, {
       id: `r_${Date.now()}`,
@@ -40,10 +43,10 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
       nameFr: item.nameFr,
       nameEn: item.nameEn,
       rewardUsage: item.rewardUsage,
-      pointsValueEur: (item.pointsCost || 0) / 100,
+      pointsBase: catalogPointsBase(item),
       bonusBasePoints: item.pointsBonus || 0,
       realCost: item.realCost,
-      realCostAuto: item.type === 'promo_percent' || item.type === 'bonus_points',
+      realCostAuto: item.type === 'promo_percent',
       minPurchase: item.minPurchase,
       minPurchaseAuto: item.type !== 'early_access',
       expirationDays: 90,
@@ -95,7 +98,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
                           className="w-full text-left px-3 py-2 flex items-center gap-2 text-[13px] hover:bg-[#EEEDE6] transition-colors">
                           <span className="text-[#645648]">{t ? item.nameFr : item.nameEn}</span>
                           <span className="ml-auto text-[11px] text-[#8A7D6B]">
-                            {item.rewardUsage === 'perk' ? 'Perk' : `${rewardPointsCost({ pointsValueEur: (item.pointsCost || 0) / 100 }, settings)} pts`}
+                            {item.rewardUsage === 'perk' ? 'Perk' : `${rewardPointsCost({ pointsBase: catalogPointsBase(item) }, settings)} pts`}
                           </span>
                         </button>
                       ))}
@@ -190,7 +193,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
                 const realCost = rewardRealCost(reward, settings);
                 const incrRevenue = rewardMinPurchase(reward, settings);
                 const marginOnIncr = incrRevenue * (settings.grossMargin / 100);
-                const canDeriveCost = reward.type === 'promo_percent' || reward.type === 'bonus_points';
+                const canDeriveCost = reward.type === 'promo_percent';
 
                 return (
                   <tr key={reward.id} className="border-b border-[#E5E1D8] hover:bg-[#EEEDE6]" style={{ transition: 'all 0.15s ease' }}>
@@ -215,7 +218,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
                     <td className="px-3 py-2.5 text-center">
                       {isBurnReward(reward) ? (
                         <input type="number" value={rewardPointsCost(reward, settings)} min={0}
-                          onChange={e => updateReward(reward.id, { pointsValueEur: rewardValueFromPoints(parseInt(e.target.value) || 0, settings) })}
+                          onChange={e => updateReward(reward.id, { pointsBase: rewardBaseFromPoints(parseInt(e.target.value) || 0, settings) })}
                           className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
                       ) : (
                         <span className="text-[#8A7D6B]">&mdash;</span>
@@ -232,7 +235,7 @@ export default function Step3_Rewards({ rewards, setRewards, tiers, settings, bu
                         />
                         <span className="text-[10px] text-[#8A7D6B]">€</span>
                         {isRealCostDerived(reward) && (
-                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Recalculé depuis la marge brute, l\'achat minimum ou la valeur des points' : 'Recomputed from gross margin, min purchase or points value'}>auto</span>
+                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Recalculé depuis la marge brute et l\'achat minimum' : 'Recomputed from gross margin and min purchase'}>auto</span>
                         )}
                         {canDeriveCost && !isRealCostDerived(reward) && (
                           <button onClick={() => updateReward(reward.id, { realCostAuto: true })}
