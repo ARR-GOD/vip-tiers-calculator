@@ -16,6 +16,9 @@ export function normalizeDomain(value) {
     .trim();
 }
 
+// Self-serve brands (/kit) have a folder of their own: 'self:<user id>'.
+export const isSelfServeFolder = key => typeof key === 'string' && key.startsWith('self:');
+
 // Saved programs carry their key (folder_key); it is derived the same way.
 export function folderKeyOf(program) {
   if (program.folder_key) return program.folder_key;

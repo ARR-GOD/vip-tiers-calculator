@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { requireLoyolyUser } from './_auth.js';
+import { requireAnalysisUser } from './_auth.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -76,6 +76,18 @@ function cleanHtml(html, url) {
   return parts.join('\n');
 }
 
+// Open to self-serve brands: only public websites (no IP address, no local
+// or internal host name) are fetched.
+function isPublicWebsite(value) {
+  let parsed;
+  try { parsed = new URL(value); } catch { return false; }
+  const host = parsed.hostname.toLowerCase();
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return false;
+  if (!host.includes('.') || host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.localhost')) return false;
+  if (/^[\d.]+$/.test(host) || host.includes(':') || host.startsWith('[')) return false; // IP addresses
+  return true;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -83,7 +95,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  if (!(await requireLoyolyUser(req, res))) return;
+  if (!(await requireAnalysisUser(req, res))) return;
 
   const { url } = req.body || {};
   if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -91,15 +103,29 @@ export default async function handler(req, res) {
   try {
     // Fetch homepage HTML
     const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
-    const fetchRes = await fetch(normalizedUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(10000),
-    });
+    if (!isPublicWebsite(normalizedUrl)) {
+      return res.status(400).json({ error: 'Enter the address of a public website' });
+    }
+    // Redirects are followed by hand: each target must be a public website too.
+    let fetchRes;
+    let target = normalizedUrl;
+    for (let hop = 0; hop <= 4; hop++) {
+      fetchRes = await fetch(target, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml',
+          'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+        },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10000),
+      });
+      const location = fetchRes.status >= 300 && fetchRes.status < 400 && fetchRes.headers.get('location');
+      if (!location) break;
+      target = new URL(location, target).href;
+      if (!isPublicWebsite(target) || hop === 4) {
+        return res.status(422).json({ error: 'Could not fetch website (redirect)' });
+      }
+    }
 
     if (!fetchRes.ok) {
       return res.status(422).json({ error: `Could not fetch website (HTTP ${fetchRes.status})` });

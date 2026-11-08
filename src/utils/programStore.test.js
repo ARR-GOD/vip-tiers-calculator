@@ -170,3 +170,13 @@ describe('program rows (client folders)', () => {
     });
   });
 });
+
+describe('self-serve brands (/kit)', () => {
+  it('keeps the folder of the brand account when the CSM saves its program', () => {
+    const values = { ...buildProgramDefaults({ aov: 60 }), brandAnalysis: { brand_name: 'Maison Lune', brand_url: 'https://maisonlune.fr' }, customers: [] };
+    const own = buildProgramSnapshot({ id: 'p1', hubspotCompanyId: null, folderKey: 'self:42' }, values);
+    expect(own.row.folder_key).toBe('self:42');
+    expect(own.row.client_name).toBe('Maison Lune');
+    expect(buildProgramSnapshot({ id: 'p2', hubspotCompanyId: null, folderKey: 'brand:maisonlune.fr' }, values).row.folder_key).toBe('brand:maisonlune.fr');
+  });
+});

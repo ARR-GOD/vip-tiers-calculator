@@ -184,8 +184,8 @@ export default function ChecklistBoard({ lang, audience, title, subtitle, checkl
         {checklist.pending > 0 && (
           <div className="mt-3 rounded-[10px] bg-[#FFFBEB] border border-[#FDE68A] px-3 py-2 text-[12px] text-[#92400E] flex flex-wrap items-center gap-2">
             <AlertCircle size={14} className="shrink-0" />
-            <span>{audience === 'csm' ? t.missingCsm(missingList, checklist.pending) : t.missingClient(checklist.pending)}</span>
-            {audience === 'csm' && onGoToSetup && (
+            <span>{audience !== 'client' ? t.missingCsm(missingList, checklist.pending) : t.missingClient(checklist.pending)}</span>
+            {audience !== 'client' && onGoToSetup && (
               <button type="button" onClick={onGoToSetup} className="font-semibold underline">{t.goToSetup}</button>
             )}
           </div>

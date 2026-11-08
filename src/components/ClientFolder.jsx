@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Plus, Folder, Loader2, AlertCircle, Copy, Pencil, Trash2, ArrowRight, Check, X } from 'lucide-react';
 import { listPrograms, deleteProgram, renameProgram, duplicateProgram } from '../utils/programStore';
-import { groupProgramsIntoFolders, nextProgramName, copyName } from '../utils/clientFolders';
+import { groupProgramsIntoFolders, nextProgramName, copyName, isSelfServeFolder } from '../utils/clientFolders';
 import { listComments, listValidations, setProgramShared, isToHandle } from '../utils/clientPortalStore';
 import { CLIENT_PAGES } from '../utils/clientView';
 import ClientAccessCard from './ClientAccessCard';
@@ -12,6 +12,7 @@ const FR = {
   loading: 'Chargement du dossier…',
   empty: 'Ce dossier est vide.',
   outsideHubspot: 'Hors HubSpot',
+  selfServe: 'Autonome',
   programs: n => `${n} programme${n > 1 ? 's' : ''}`,
   tiers: n => `${n} paliers`,
   customers: n => (n > 0 ? `${n.toLocaleString('fr-FR')} clients importés` : 'Données client à importer'),
@@ -31,6 +32,7 @@ const EN = {
   loading: 'Loading folder…',
   empty: 'This folder is empty.',
   outsideHubspot: 'Outside HubSpot',
+  selfServe: 'Self-serve',
   programs: n => `${n} program${n > 1 ? 's' : ''}`,
   tiers: n => `${n} tiers`,
   customers: n => (n > 0 ? `${n.toLocaleString('en-US')} customers imported` : 'Customer data to import'),
@@ -142,9 +144,11 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                 <h1 className="text-[24px] font-bold text-[#52473C] leading-tight">{folder.name}</h1>
                 <div className="flex items-center gap-2 text-[12px] text-[#8A7D6B] mt-0.5">
                   {folder.domain && <span>{folder.domain}</span>}
-                  {folder.hubspotCompanyId
-                    ? folder.plan && <span className="pill pill-purple text-[10px]">{folder.plan}</span>
-                    : <span className="pill text-[10px] bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
+                  {isSelfServeFolder(folder.key)
+                    ? <span className="pill text-[10px] bg-[#ECFDF5] text-[#047857]">{t.selfServe}</span>
+                    : folder.hubspotCompanyId
+                      ? folder.plan && <span className="pill pill-purple text-[10px]">{folder.plan}</span>
+                      : <span className="pill text-[10px] bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
                   <span>· {t.programs(folder.programs.length)}</span>
                 </div>
               </div>

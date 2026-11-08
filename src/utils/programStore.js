@@ -10,7 +10,7 @@
 import { supabase } from '../lib/supabase';
 import { defaultTierUtilization } from '../data/programDefaults';
 import { pointsModel } from './pointsModel';
-import { normalizeDomain, folderKeyOf } from './clientFolders';
+import { normalizeDomain, folderKeyOf, isSelfServeFolder } from './clientFolders';
 
 const TABLE = 'vip_programs';
 export const DEFAULT_PROGRAM_NAME = 'Programme principal';
@@ -164,7 +164,8 @@ export function buildProgramSnapshot(target, s) {
   const client = programClientFields(s);
   const row = {
     ...client,
-    folder_key: folderKeyOf({ hubspot_company_id: target.hubspotCompanyId, ...client }),
+    // A self-serve brand's folder is its account's: never derived again.
+    folder_key: isSelfServeFolder(target.folderKey) ? target.folderKey : folderKeyOf({ hubspot_company_id: target.hubspotCompanyId, ...client }),
     step: s.step ?? 1,
     state: {
       v: STATE_VERSION,

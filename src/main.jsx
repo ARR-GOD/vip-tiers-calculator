@@ -4,13 +4,19 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 import ClientPortal from './components/ClientPortal.jsx'
+import BrandKit from './components/BrandKit.jsx'
 
 // /client/<code> is the client's side: no Google sign-in, only the access code.
-const isClientPortal = /^\/client(\/|$)/.test(window.location.pathname)
+// /kit is the self-serve brands' side: their own account (email + password).
+const path = window.location.pathname
+const isClientPortal = /^\/client(\/|$)/.test(path)
+const isBrandKit = /^\/kit(\/|$)/.test(path)
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {isClientPortal ? (
+    {isBrandKit ? (
+      <BrandKit />
+    ) : isClientPortal ? (
       <ClientPortal />
     ) : (
       <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>

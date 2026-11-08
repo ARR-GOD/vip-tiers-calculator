@@ -27,6 +27,7 @@ const FR = {
   perk: 'Avantage', newPerk: 'Nouveau', on: 'Activé', off: 'Désactivé', yes: 'Oui', no: 'Non',
   perPurchase: 'par € dépensé', orders: 'commandes', comment: 'Commenter',
   hint: 'Modifiez les valeurs, ajoutez ou supprimez des éléments : tout est enregistré aussitôt (un chiffre, dès que vous quittez le champ) et votre CSM Loyoly en est informé.',
+  hintSelf: 'Votre programme proposé par Loyoly, à ajuster librement : tout est enregistré aussitôt (un chiffre, dès que vous quittez le champ).',
   add: 'Ajouter', cancel: 'Annuler', remove: 'Supprimer', name: 'Nom',
   addMission: 'Ajouter une mission', pickMission: 'Choisir une mission…', customMission: 'Mission personnalisée…',
   missionAdded: 'Mission ajoutée', missionRemoved: 'Mission supprimée',
@@ -55,6 +56,7 @@ const EN = {
   perk: 'Perk', newPerk: 'New', on: 'On', off: 'Off', yes: 'Yes', no: 'No',
   perPurchase: 'per € spent', orders: 'orders', comment: 'Comment',
   hint: 'Edit the values, add or remove items: everything is saved at once (a number, as soon as you leave the field) and your Loyoly CSM is notified.',
+  hintSelf: 'The program Loyoly suggests for you, to adjust freely: everything is saved at once (a number, as soon as you leave the field).',
   add: 'Add', cancel: 'Cancel', remove: 'Remove', name: 'Name',
   addMission: 'Add a mission', pickMission: 'Choose a mission…', customMission: 'Custom mission…',
   missionAdded: 'Mission added', missionRemoved: 'Mission removed',
@@ -87,13 +89,13 @@ const typeLabel = (id, lang) => {
   return type ? `${type.icon} ${lang === 'fr' ? type.nameFr : type.nameEn}` : id;
 };
 
-export default function ClientProgramEditor({ lang, page, program, setup, sections, onEdit, onComment, openCountOf, emptyText }) {
+export default function ClientProgramEditor({ lang, page, program, setup, sections, onEdit, onComment, openCountOf, emptyText, selfServe = false }) {
   const t = lang === 'fr' ? FR : EN;
   const ctx = { t, lang, program, onEdit, onComment, openCountOf, emptyText };
   const facts = key => sections.find(s => s.key === key)?.facts;
   return (
     <div className="space-y-3">
-      <p className="text-[12px] text-[#8A7D6B]">{t.hint}</p>
+      <p className="text-[12px] text-[#8A7D6B]">{selfServe ? t.hintSelf : t.hint}</p>
       {page === 'config' && <ConfigEditor {...ctx} setup={setup} />}
       {page === 'missions' && <MissionsEditor {...ctx} pointsFacts={facts('points')} note={sections.find(s => s.note)?.note} />}
       {page === 'rewards' && <RewardsEditor {...ctx} />}

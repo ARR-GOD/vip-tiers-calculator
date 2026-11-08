@@ -16,7 +16,7 @@ import { normalizeProgram, normalizeMission, normalizeReward, normalizeTier } fr
 import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
 import { createProgramSaver, buildProgramSnapshot, programClientFields, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
-import { folderKeyOf } from './utils/clientFolders';
+import { folderKeyOf, isSelfServeFolder } from './utils/clientFolders';
 import { supabase, apiFetch, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
@@ -161,8 +161,8 @@ function App() {
 
   // A new program starts clean: nothing from the previously opened brand
   // (imported customers, custom missions, referral) carries over.
-  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME) => {
-    const target = { id: null, hubspotCompanyId, name };
+  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME, folderKey = null) => {
+    const target = { id: null, hubspotCompanyId, name, folderKey };
     setProgramTarget(target);
     resetClientEdits(target);
     setPublication(null);
@@ -226,7 +226,7 @@ function App() {
         : null,
       step: row.step ?? 1,
     };
-    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name };
+    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name, folderKey: row.folder_key || null };
 
     applyProgram(values);
     setOnboardingAnswers(values.onboardingAnswers);
@@ -299,7 +299,7 @@ function App() {
     const latest = await loadProgram(folder.programs[0].id);
     const analysis = latest.state?.brandAnalysis || null;
     const firstStep = analysis ? 1 : 0;
-    startNewProgram(null, name);
+    startNewProgram(null, name, isSelfServeFolder(folder.key) ? folder.key : null);
     setSelectedClient(null);
     setCsmMode(false);
     setOnboardingAnswers(null);
@@ -346,7 +346,7 @@ function App() {
 
   // Back from the wizard to the folder of the open program.
   const leaveProgram = async () => {
-    const key = folderKeyOf({
+    const key = isSelfServeFolder(programTarget?.folderKey) ? programTarget.folderKey : folderKeyOf({
       hubspot_company_id: programTarget?.hubspotCompanyId,
       ...programClientFields({ selectedClient, brandAnalysis }),
     });

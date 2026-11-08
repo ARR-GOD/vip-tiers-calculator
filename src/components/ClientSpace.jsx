@@ -4,7 +4,7 @@ import { listPrograms } from '../utils/programStore';
 import { listCommentsToHandle } from '../utils/clientPortalStore';
 import { listChecklistProgress } from '../utils/checklistStore';
 import { folderChecklist } from '../utils/checklist';
-import { groupProgramsIntoFolders, isMyFolder, matchesFolderSearch } from '../utils/clientFolders';
+import { groupProgramsIntoFolders, isMyFolder, matchesFolderSearch, isSelfServeFolder } from '../utils/clientFolders';
 
 const FR = {
   title: 'Espace clients',
@@ -19,6 +19,7 @@ const FR = {
   emptyHint: 'Choisissez un client HubSpot pour créer son dossier et son premier programme.',
   noMatch: 'Aucun dossier ne correspond',
   outsideHubspot: 'Hors HubSpot',
+  selfServe: 'Autonome',
   programs: n => `${n} programme${n > 1 ? 's' : ''}`,
   toHandle: n => `💬 ${n} à traiter`,
   updated: (date, by) => `Modifié le ${date}${by ? ` par ${by}` : ''}`,
@@ -43,6 +44,7 @@ const EN = {
   emptyHint: 'Pick a HubSpot client to create its folder and first program.',
   noMatch: 'No matching folder',
   outsideHubspot: 'Outside HubSpot',
+  selfServe: 'Self-serve',
   programs: n => `${n} program${n > 1 ? 's' : ''}`,
   toHandle: n => `💬 ${n} to handle`,
   updated: (date, by) => `Updated ${date}${by ? ` by ${by}` : ''}`,
@@ -173,9 +175,11 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
                   <div className="text-[15px] font-semibold text-[#2B251F] truncate">{folder.name}</div>
                   <div className="text-[12px] text-[#8A7D6B] truncate">{folder.domain || '—'}</div>
                 </div>
-                {folder.hubspotCompanyId
-                  ? folder.plan && <span className="pill pill-purple text-[10px] shrink-0">{folder.plan}</span>
-                  : <span className="pill text-[10px] shrink-0 bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
+                {isSelfServeFolder(folder.key)
+                  ? <span className="pill text-[10px] shrink-0 bg-[#ECFDF5] text-[#047857]" title="Kit d'onboarding (/kit)">{t.selfServe}</span>
+                  : folder.hubspotCompanyId
+                    ? folder.plan && <span className="pill pill-purple text-[10px] shrink-0">{folder.plan}</span>
+                    : <span className="pill text-[10px] shrink-0 bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
               </div>
               <FolderChecklist t={t} checklist={folderChecklist(folder, checklists)} several={folder.programs.length > 1} shortDate={shortDate} />
               <div className="mt-3 pt-3 border-t border-[#E5E1D8] flex items-center justify-between gap-2 text-[12px]">

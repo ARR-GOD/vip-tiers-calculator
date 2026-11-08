@@ -13,6 +13,8 @@ import { DEFAULT_TIER_COLORS } from '../data/defaults';
 
 // ════════════════════════════════════════════════════════════════════
 // Client portal — /client/<code>: the client's side of their program
+// (also the self-serve brands' space, /kit: code and author come from their
+// account, nothing is validated for a CSM)
 // ════════════════════════════════════════════════════════════════════
 // No Google sign-in: the access code shared by the CSM opens the published
 // programs of the client folder. The first name and a random author key stay
@@ -50,6 +52,9 @@ const FR = {
     tiers: 'Pas de paliers VIP dans ce programme.',
   },
   signedAs: name => `Connecté·e en tant que ${name}`,
+  kit: 'Kit d\'onboarding',
+  savedSelf: 'Modification enregistrée.',
+  checklistSubtitleSelf: 'Les étapes pour lancer votre programme Loyoly : cochez-les au fur et à mesure, notez qui s\'en charge et pour quand.',
   leave: 'Quitter',
   saved: 'Modification enregistrée : votre CSM Loyoly en est informé.',
   saveError: 'La modification n\'a pas pu être enregistrée. Réessayez ou laissez un commentaire.',
@@ -87,6 +92,9 @@ const EN = {
     tiers: 'No VIP tiers in this program.',
   },
   signedAs: name => `Signed in as ${name}`,
+  kit: 'Onboarding kit',
+  savedSelf: 'Change saved.',
+  checklistSubtitleSelf: 'The steps to launch your Loyoly program: tick them as you go, note who handles them and by when.',
   leave: 'Leave',
   saved: 'Change saved: your Loyoly CSM is notified.',
   saveError: 'The change could not be saved. Try again or leave a comment.',
@@ -112,11 +120,12 @@ const newAuthorKey = () => Array.from(crypto.getRandomValues(new Uint8Array(24))
 const codeFromUrl = () => normalizeAccessCode(decodeURIComponent(window.location.pathname.replace(/^\/client\/?/, '')));
 const isInvalidCode = err => /invalid_code/.test(err?.message || '');
 
-export default function ClientPortal() {
+export default function ClientPortal({ fixedCode = null, fixedAuthor = null, selfServe = false, onLeave = null } = {}) {
   const [lang, setLang] = useState(() => (navigator.language?.startsWith('fr') === false ? 'en' : 'fr'));
   const t = lang === 'fr' ? FR : EN;
-  const [code, setCode] = useState(() => codeFromUrl() || readStored(CODE_STORAGE) || '');
-  const [author, setAuthor] = useState(() => readStored(AUTHOR_STORAGE));
+  const [code, setCode] = useState(() => fixedCode || codeFromUrl() || readStored(CODE_STORAGE) || '');
+  const [author, setAuthor] = useState(() => fixedAuthor || readStored(AUTHOR_STORAGE));
+  const portalName = selfServe ? t.kit : t.portal;
   const [data, setData] = useState(null);
   const [status, setStatus] = useState(() => (code ? 'loading' : 'code')); // code | loading | ready | invalid | error
   const [programId, setProgramId] = useState(null);
@@ -135,7 +144,7 @@ export default function ClientPortal() {
         if (request !== lastRequest.current) return;
         setData(portal);
         setStatus('ready');
-        writeStored(CODE_STORAGE, code);
+        if (!fixedCode) writeStored(CODE_STORAGE, code);
       })
       .catch(err => {
         if (request !== lastRequest.current) return;
@@ -146,7 +155,7 @@ export default function ClientPortal() {
           setStatus(s => (s === 'ready' ? s : 'error'));
         }
       });
-  }, [code, author?.key]);
+  }, [code, author?.key, fixedCode]);
 
   useEffect(() => {
     if (!getAnonSupabase()) return undefined;
@@ -167,8 +176,8 @@ export default function ClientPortal() {
   }, [toast]);
 
   useEffect(() => {
-    document.title = data?.client_name ? `${data.client_name} — ${t.portal}` : `Loyoly — ${t.portal}`;
-  }, [data?.client_name, t.portal]);
+    document.title = data?.client_name ? `${data.client_name} — ${portalName}` : `Loyoly — ${portalName}`;
+  }, [data?.client_name, portalName]);
 
   const submitCode = (value) => {
     const normalized = normalizeAccessCode(value);
@@ -188,6 +197,10 @@ export default function ClientPortal() {
   };
 
   const leave = () => {
+    if (onLeave) {
+      onLeave();
+      return;
+    }
     writeStored(CODE_STORAGE, null);
     window.history.replaceState(null, '', '/client');
     setData(null);
@@ -234,7 +247,7 @@ export default function ClientPortal() {
     }));
     try {
       await clientApi.edit(code, author, { programId: id, page, op, ...labels });
-      setToast({ ok: true, text: t.saved });
+      setToast({ ok: true, text: selfServe ? t.savedSelf : t.saved });
     } catch {
       setToast({ ok: false, text: t.saveError });
     }
@@ -271,7 +284,7 @@ export default function ClientPortal() {
           <div className="flex items-center gap-3 min-w-0">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 26, filter: 'brightness(0) invert(1)' }} />
             <span className="text-[14px] font-semibold text-white/90 truncate">
-              {data?.client_name ? `${data.client_name} · ${t.portal}` : t.portal}
+              {data?.client_name ? `${data.client_name} · ${portalName}` : portalName}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -372,13 +385,14 @@ export default function ClientPortal() {
       </nav>
 
       {page === 'checklist' && (
-        <ChecklistBoard lang={lang} audience="client" title={t.checklistTitle} subtitle={t.checklistSubtitle}
+        <ChecklistBoard lang={lang} audience={selfServe ? 'self' : 'client'} title={t.checklistTitle}
+          subtitle={selfServe ? t.checklistSubtitleSelf : t.checklistSubtitle} onGoToSetup={() => setPage('config')}
           checklist={checklist} onPatch={checklistPatch} onAdd={checklistAdd} onDelete={checklistDelete} />
       )}
 
       {page !== 'checklist' && <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
         <div className="space-y-3 min-w-0">
-          <div className="card flex items-center justify-between gap-3 flex-wrap" style={{ padding: 14 }}>
+          {!selfServe && <div className="card flex items-center justify-between gap-3 flex-wrap" style={{ padding: 14 }}>
             {validation ? (
               <span className="text-[13px] font-medium text-[#059669] inline-flex items-center gap-1.5">
                 <CheckCircle2 size={15} /> {t.validated(validation.by, formatDate(validation.at))}
@@ -391,10 +405,10 @@ export default function ClientPortal() {
                 </button>
               </>
             )}
-          </div>
+          </div>}
 
           {editable ? (
-            <ClientProgramEditor lang={lang} page={page} program={view.program} setup={program.setup?.config} sections={sections}
+            <ClientProgramEditor lang={lang} page={page} program={view.program} setup={program.setup?.config} sections={sections} selfServe={selfServe}
               onEdit={saveEdit} onComment={commentOn} openCountOf={openCountOf} emptyText={t.emptyPage[page]} />
           ) : (
             <>
