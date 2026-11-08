@@ -14,7 +14,9 @@
 //   { kind: 'tier',    index, field: 'add', value: { …TIER_ADD_FIELDS } }   (index = current tier count)
 //   { kind: 'tier',    index, name, field: 'remove' }
 //   { kind: 'referral', field: 'patch', value: { …referral fields } }
-// The client_edit SQL function (supabase/migrations/20261109000000_client_edits_add_remove.sql)
+//   { kind: 'config', field: <CONFIG_FIELDS key>, value }        (setup, points and tier settings)
+//   { kind: 'settings', field: 'earnRate', value: 1 | 5 | 10 | null }   (null: follows the AOV)
+// The client_edit SQL function (supabase/migrations/20261111000000_client_config.sql)
 // applies the same ops, with the same checks, to the saved program and to its
 // published view; the CSM's open wizard replays them from the activity feed.
 // Values are stored like the program stores them (points on the 1 pt/€ grid).
@@ -53,6 +55,26 @@ export const TIER_ADD_FIELDS = {
   name: 'text:1:60', color: 'text:0:20', spendThreshold: 'number:0:1000000000',
   orderThreshold: 'number:0:1000000000', pointsMultiplier: 'number:1:10',
 };
+// Configuration the brand edits: its setup answers, points and tier settings
+// (never the AOV nor the margin).
+export const CONFIG_FIELDS = {
+  cms: 'enum:shopify|shopify_plus|prestashop',
+  crm: 'enum:klaviyo|brevo|omnisend|braze|splio|hubspot|insider|connectif|activecampaign|none|other',
+  international: 'boolean',
+  multiLanguage: 'boolean',
+  multiCurrency: 'boolean',
+  physicalStore: 'boolean',
+  posSystem: 'enum:shopify_pos|cegid|other',
+  pointsExpire: 'boolean',
+  expirationMonths: 'integer:1:120',
+  expirationType: 'enum:rolling|fixed',
+  tiersExpire: 'boolean',
+  tierExpirationMonths: 'integer:1:120',
+  tierExpirationType: 'enum:rolling|fixed',
+  tierBasis: 'enum:spend|orders|points',
+};
+export const EARN_RATES = [1, 5, 10];
+
 const REQUIRED = {
   mission: ['id', 'nameFr', 'basePoints', 'enabled'],
   reward: ['id', 'type', 'nameFr', 'rewardUsage', 'pointsBase', 'assignedTiers'],
@@ -103,6 +125,9 @@ function checkValue(spec, value) {
     if (length < Number(a) || length > Number(b)) fail('invalid_value');
   } else if (type === 'number') {
     requireNumberIn(value, Number(a), Number(b));
+  } else if (type === 'integer') {
+    requireNumberIn(value, Number(a), Number(b));
+    if (!Number.isInteger(value)) fail('invalid_value');
   } else if (type === 'boolean') {
     requireBoolean(value);
   } else if (type === 'enum') {
@@ -244,6 +269,22 @@ function tierOp(program, op) {
   return { ...program, tiers: applyTierOp(tiers, op) };
 }
 
+function configOp(program, op) {
+  if (!Object.hasOwn(CONFIG_FIELDS, op.field)) fail('invalid_op');
+  checkValue(CONFIG_FIELDS[op.field], op.value);
+  // Points tiers need a points program.
+  if (op.field === 'tierBasis' && op.value === 'points' && program.config?.hasMissions !== true) fail('invalid_value');
+  return { ...program, config: { ...(program.config || {}), [op.field]: op.value } };
+}
+
+function settingsOp(program, op) {
+  if (op.field !== 'earnRate') fail('invalid_op');
+  const settings = program.settings || {};
+  if (op.value === null || op.value === undefined) return { ...program, settings: { ...settings, earnRateManual: false } };
+  if (!EARN_RATES.includes(op.value)) fail('invalid_value');
+  return { ...program, settings: { ...settings, earnRate: op.value, earnRateManual: true } };
+}
+
 export function applyProgramOp(program, op) {
   switch (op?.kind) {
     case 'mission':
@@ -259,6 +300,10 @@ export function applyProgramOp(program, op) {
       return tierOp(program, op);
     case 'referral':
       return { ...program, referralConfig: applyReferralOp(program.referralConfig, op) };
+    case 'config':
+      return configOp(program, op);
+    case 'settings':
+      return settingsOp(program, op);
     default:
       return fail('invalid_op');
   }

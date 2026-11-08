@@ -7,8 +7,9 @@ const program = { ...buildProgramDefaults({ aov: 80, grossMargin: 61.7 }), custo
 const view = buildClientView(program, { clientName: 'Brand A', brandLogo: 'https://cdn/logo.png' });
 
 describe('client view', () => {
-  it('splits the setup sheet into the four client pages, in both languages', () => {
-    expect(CLIENT_PAGES.map(p => p.key)).toEqual(['missions', 'rewards', 'referral', 'tiers']);
+  it('splits the setup sheet into the client pages, Configuration first, in both languages', () => {
+    expect(CLIENT_PAGES.map(p => p.key)).toEqual(['config', 'missions', 'rewards', 'referral', 'tiers']);
+    expect(pageSections(view, 'fr', 'config')).toEqual([]);
     expect(pageSections(view, 'fr', 'missions').map(s => s.key)).toEqual(['points', 'missions']);
     expect(pageSections(view, 'fr', 'rewards').map(s => s.key)).toEqual(['rewards']);
     expect(pageSections(view, 'en', 'referral').map(s => s.title)).toEqual(['Referral']);
@@ -48,6 +49,14 @@ describe('client view', () => {
     const raised = { ...program, tiers: program.tiers.map((t, i) => (i === 2 ? { ...t, spendThreshold: t.spendThreshold + 100 } : t)) };
     expect(hasUnpublishedChanges(buildClientView(raised, { clientName: 'Brand A', brandLogo: 'https://cdn/logo.png' }), view)).toBe(true);
     expect(hasUnpublishedChanges(view, null)).toBe(true);
+  });
+
+  it('ignores the setup answers a brand edit leaves in the published view', () => {
+    const edited = { ...view, program: applyProgramOp(view.program, { kind: 'config', field: 'cms', value: 'shopify_plus' }) };
+    expect(edited.program.config.cms).toBe('shopify_plus');
+    expect(hasUnpublishedChanges(view, edited)).toBe(false);
+    const expiry = { ...view, program: applyProgramOp(view.program, { kind: 'config', field: 'expirationMonths', value: 24 }) };
+    expect(hasUnpublishedChanges(view, expiry)).toBe(true);
   });
 
   it('leaves pages empty when the program has no referral or tiers', () => {

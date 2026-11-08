@@ -43,6 +43,7 @@ const FR = {
   newPerk: 'Nouveau',
   points: 'Points',
   emptyPage: {
+    config: 'La configuration sera modifiable dans la prochaine version publiée par votre CSM.',
     missions: 'Ce programme n\'a pas de points.',
     rewards: 'Pas de récompense en points dans ce programme.',
     referral: 'Pas de parrainage dans ce programme.',
@@ -79,6 +80,7 @@ const EN = {
   newPerk: 'New',
   points: 'Points',
   emptyPage: {
+    config: 'The configuration will be editable in the next version your CSM publishes.',
     missions: 'This program has no points.',
     rewards: 'No points reward in this program.',
     referral: 'No referral in this program.',
@@ -118,7 +120,7 @@ export default function ClientPortal() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState(() => (code ? 'loading' : 'code')); // code | loading | ready | invalid | error
   const [programId, setProgramId] = useState(null);
-  const [page, setPage] = useState('missions');
+  const [page, setPage] = useState(CLIENT_PAGES[0].key);
   const [target, setTarget] = useState('');
   const [toast, setToast] = useState(null); // { ok, text }
   const textareaRef = useRef(null);
@@ -220,7 +222,14 @@ export default function ClientPortal() {
       ...d,
       programs: d.programs.map(p => {
         if (p.id !== id) return p;
-        try { return { ...p, view: { ...p.view, program: applyProgramOp(p.view.program, op) } }; } catch { return p; }
+        try {
+          const program = applyProgramOp(p.view.program, op);
+          // The setup answers are read live (`setup`): they follow at once too.
+          const setup = op.kind === 'config' && p.setup
+            ? { ...p.setup, config: { ...p.setup.config, [op.field]: op.value } }
+            : p.setup;
+          return { ...p, view: { ...p.view, program }, setup };
+        } catch { return p; }
       }),
     }));
     try {
@@ -385,7 +394,7 @@ export default function ClientPortal() {
           </div>
 
           {editable ? (
-            <ClientProgramEditor lang={lang} page={page} program={view.program} sections={sections}
+            <ClientProgramEditor lang={lang} page={page} program={view.program} setup={program.setup?.config} sections={sections}
               onEdit={saveEdit} onComment={commentOn} openCountOf={openCountOf} emptyText={t.emptyPage[page]} />
           ) : (
             <>

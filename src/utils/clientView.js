@@ -14,6 +14,7 @@ import { stableStringify } from './programStore';
 export const CLIENT_VIEW_VERSION = 2;
 
 export const CLIENT_PAGES = [
+  { key: 'config', sections: [], labelFr: 'Configuration', labelEn: 'Configuration' },
   { key: 'missions', sections: ['points', 'missions'], labelFr: 'Missions', labelEn: 'Missions' },
   { key: 'rewards', sections: ['rewards'], labelFr: 'Récompenses', labelEn: 'Rewards' },
   { key: 'referral', sections: ['referral'], labelFr: 'Parrainage', labelEn: 'Referral' },
@@ -21,7 +22,7 @@ export const CLIENT_PAGES = [
 ];
 
 // Wizard step → client page, for the CSM comments panel.
-export const PAGE_OF_STEP = { 3: 'missions', 4: 'referral', 5: 'rewards', 6: 'tiers' };
+export const PAGE_OF_STEP = { 2: 'config', 3: 'missions', 4: 'referral', 5: 'rewards', 6: 'tiers' };
 export const STEP_OF_PAGE = Object.fromEntries(Object.entries(PAGE_OF_STEP).map(([step, page]) => [page, Number(step)]));
 
 export const pageLabel = (pageKey, lang) => {
@@ -56,8 +57,11 @@ export function buildClientView(program, { clientName = null, brandLogo = null }
 // Views published before v2 hold ready-made sheets and cannot be edited.
 export const isEditableView = view => !!view?.program;
 
+// Compared as published: the brand's edits may leave in the view fields the
+// app does not publish (its setup answers, which the portal reads live).
+const comparable = view => (view?.program ? { ...view, program: sanitizeProgram(view.program) } : view);
 export const hasUnpublishedChanges = (view, published) =>
-  !published || stableStringify(view) !== stableStringify(published);
+  !published || stableStringify(comparable(view)) !== stableStringify(comparable(published));
 
 export function viewSections(view, lang) {
   if (view?.program) {

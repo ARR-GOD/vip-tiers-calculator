@@ -7,6 +7,9 @@ import { thresholdForBasis } from '../utils/calculations';
 import { MIN_TIERS, MAX_TIERS } from '../utils/programOps';
 import { MISSION_CATALOG, MISSION_CATEGORIES } from '../data/missionCatalog';
 import { DEFAULT_TIER_COLORS, DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN, REWARD_TYPES } from '../data/defaults';
+import { CMS_OPTIONS, CRM_OPTIONS, CRM_NONE, CRM_OTHER, POS_OPTIONS, cmsLabel, crmLabel, posLabel } from '../data/setupOptions';
+import { EARN_RATES } from '../utils/programOps';
+import { defaultEarnRate } from '../utils/pointsModel';
 
 // ════════════════════════════════════════════════════════════════════
 // Client program editor — the brand edits its published program
@@ -35,6 +38,13 @@ const FR = {
   addTier: 'Ajouter un palier', tierAdded: 'Palier ajouté', tierRemoved: 'Palier supprimé',
   confirmTier: n => `Supprimer le palier « ${n} » ?`, thresholdAbove: n => `Le seuil doit dépasser celui de ${n}.`,
   tierLimits: `De ${MIN_TIERS} à ${MAX_TIERS} paliers.`,
+  setup: 'Informations de setup', setupHint: 'Ces réponses adaptent votre checklist de lancement.',
+  international: 'International', languages: 'Plusieurs langues ?', currencies: 'Plusieurs devises ?',
+  store: 'Boutique physique', pos: 'Caisse', choose: '— Choisir —', noCrm: 'Aucun', otherCrm: 'Autre',
+  earnRate: 'Points gagnés par € dépensé', auto: rate => `Automatique (${rate} pt${rate > 1 ? 's' : ''}/€)`,
+  pointsExpire: 'Expiration des points', expiryDelay: 'Délai', months: 'mois', rolling: 'Glissant', fixed: 'Fixe',
+  tierBasis: 'Base des paliers', basis: { spend: 'Dépenses (€)', orders: 'Commandes', points: 'Points' },
+  tiersExpire: 'Réévaluation des paliers', every: 'Tous les',
 };
 const EN = {
   points: 'Points program', missions: 'Missions', mission: 'Mission', active: 'Active', pts: 'Points',
@@ -56,6 +66,13 @@ const EN = {
   addTier: 'Add a tier', tierAdded: 'Tier added', tierRemoved: 'Tier removed',
   confirmTier: n => `Remove the tier "${n}"?`, thresholdAbove: n => `The threshold must be above ${n}'s.`,
   tierLimits: `${MIN_TIERS} to ${MAX_TIERS} tiers.`,
+  setup: 'Setup information', setupHint: 'These answers shape your launch checklist.',
+  international: 'International', languages: 'Several languages?', currencies: 'Several currencies?',
+  store: 'Physical store', pos: 'POS system', choose: '— Choose —', noCrm: 'None', otherCrm: 'Other',
+  earnRate: 'Points earned per € spent', auto: rate => `Automatic (${rate} pt${rate > 1 ? 's' : ''}/€)`,
+  pointsExpire: 'Points expiration', expiryDelay: 'Delay', months: 'months', rolling: 'Rolling', fixed: 'Fixed',
+  tierBasis: 'Tier basis', basis: { spend: 'Spend (€)', orders: 'Orders', points: 'Points' },
+  tiersExpire: 'Tier reassessment', every: 'Every',
 };
 
 const BURN_TYPES = ['gift_voucher', 'promo_percent', 'free_delivery', 'free_product', 'custom'];
@@ -70,13 +87,14 @@ const typeLabel = (id, lang) => {
   return type ? `${type.icon} ${lang === 'fr' ? type.nameFr : type.nameEn}` : id;
 };
 
-export default function ClientProgramEditor({ lang, page, program, sections, onEdit, onComment, openCountOf, emptyText }) {
+export default function ClientProgramEditor({ lang, page, program, setup, sections, onEdit, onComment, openCountOf, emptyText }) {
   const t = lang === 'fr' ? FR : EN;
   const ctx = { t, lang, program, onEdit, onComment, openCountOf, emptyText };
   const facts = key => sections.find(s => s.key === key)?.facts;
   return (
     <div className="space-y-3">
       <p className="text-[12px] text-[#8A7D6B]">{t.hint}</p>
+      {page === 'config' && <ConfigEditor {...ctx} setup={setup} />}
       {page === 'missions' && <MissionsEditor {...ctx} pointsFacts={facts('points')} note={sections.find(s => s.note)?.note} />}
       {page === 'rewards' && <RewardsEditor {...ctx} />}
       {page === 'referral' && <ReferralEditor {...ctx} />}
@@ -86,11 +104,11 @@ export default function ClientProgramEditor({ lang, page, program, sections, onE
 }
 
 // ── Building blocks ──────────────────────────────────────────────────
-function NumberField({ value, onCommit, step = 1, min = 0, max, suffix, label, width = 'w-20' }) {
+function NumberField({ value, onCommit, step = 1, min = 0, max, suffix, label, width = 'w-20', integer = false }) {
   const [draft, setDraft] = useState(String(value ?? ''));
   const commit = () => {
     const next = Number(String(draft).replace(',', '.'));
-    if (draft === '' || !Number.isFinite(next) || next < min || (max !== undefined && next > max)) {
+    if (draft === '' || !Number.isFinite(next) || next < min || (max !== undefined && next > max) || (integer && !Number.isInteger(next))) {
       setDraft(String(value ?? ''));
       return;
     }
@@ -201,6 +219,142 @@ const Card = ({ title, children }) => (
 
 const th = 'px-2 py-1.5 font-semibold text-left';
 const td = 'px-2 py-2 align-middle';
+
+// ── Configuration ────────────────────────────────────────────────────
+// Setup answers come live from the saved program (`setup`, as the checklist
+// reads them); the points and tier settings from the published program.
+const SETUP_KEYS = ['cms', 'crm', 'international', 'multiLanguage', 'multiCurrency', 'physicalStore', 'posSystem'];
+
+function Choice({ label, options, value, onChange }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      {options.map(([key, text]) => (
+        <button key={String(key)} type="button" onClick={() => key !== value && onChange(key)} aria-pressed={key === value}
+          className={`px-3 py-1 rounded-full text-[12px] font-medium transition-all ${key === value ? 'bg-primary text-white' : 'bg-[#EEEDE6] text-[#645648] hover:bg-[#E5E1D8]'}`}>
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const ConfigRow = ({ label, children, sub }) => (
+  <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 ${sub ? 'pl-4 border-l-2 border-[#E5E1D8] ml-1' : ''}`}>
+    <span className={`text-[13px] ${sub ? 'text-[#645648] min-w-[178px]' : 'font-medium text-[#2B251F] min-w-[200px]'}`}>{label}</span>
+    <div className="flex flex-wrap items-center gap-2">{children}</div>
+  </div>
+);
+
+function ConfigEditor({ t, lang, program, setup, onEdit }) {
+  const config = { ...(program.config || {}), ...Object.fromEntries(SETUP_KEYS.map(k => [k, setup?.[k] ?? program.config?.[k] ?? null])) };
+  const settings = program.settings || {};
+  const yesNo = v => (v === true ? t.yes : v === false ? t.no : '—');
+  const yesNoOptions = [[true, t.yes], [false, t.no]];
+  const typeText = v => (v === 'fixed' ? t.fixed : t.rolling);
+  const set = (card, label, field, value, show, current = config[field]) => onEdit({
+    op: { kind: 'config', field, value }, itemLabel: label, fieldLabel: card,
+    oldValue: show(current), newValue: show(value),
+  });
+  const autoRate = defaultEarnRate(settings.aov);
+  const rateText = (manual, rate) => (manual ? `${rate} pt${rate > 1 ? 's' : ''}/€` : t.auto(autoRate));
+  const rateValue = settings.earnRateManual ? settings.earnRate : 'auto';
+  const basisOptions = ['spend', 'orders', ...(config.hasMissions ? ['points'] : [])].map(b => [b, t.basis[b]]);
+
+  return (
+    <>
+      <Card title={t.setup}>
+        <p className="text-[12px] text-[#8A7D6B] -mt-2 mb-1">{t.setupHint}</p>
+        <ConfigRow label="CMS">
+          <Choice label="CMS" value={config.cms} options={CMS_OPTIONS.map(o => [o.id, o.label])}
+            onChange={v => set(t.setup, 'CMS', 'cms', v, cmsLabel)} />
+        </ConfigRow>
+        <ConfigRow label="CRM">
+          <select value={config.crm ?? ''} aria-label="CRM" className="px-2 text-[13px] min-w-[200px]" style={{ height: 32, borderRadius: 8 }}
+            onChange={e => e.target.value && set(t.setup, 'CRM', 'crm', e.target.value, v => crmLabel(v, lang) ?? '—')}>
+            <option value="" disabled>{t.choose}</option>
+            {CRM_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            <option value={CRM_NONE}>{t.noCrm}</option>
+            <option value={CRM_OTHER}>{t.otherCrm}</option>
+          </select>
+        </ConfigRow>
+        <ConfigRow label={t.international}>
+          <Choice label={t.international} value={config.international} options={yesNoOptions}
+            onChange={v => set(t.setup, t.international, 'international', v, yesNo)} />
+        </ConfigRow>
+        {config.international && (
+          <>
+            <ConfigRow label={t.languages} sub>
+              <Choice label={t.languages} value={config.multiLanguage} options={yesNoOptions}
+                onChange={v => set(t.setup, t.languages, 'multiLanguage', v, yesNo)} />
+            </ConfigRow>
+            <ConfigRow label={t.currencies} sub>
+              <Choice label={t.currencies} value={config.multiCurrency} options={yesNoOptions}
+                onChange={v => set(t.setup, t.currencies, 'multiCurrency', v, yesNo)} />
+            </ConfigRow>
+          </>
+        )}
+        <ConfigRow label={t.store}>
+          <Choice label={t.store} value={config.physicalStore} options={yesNoOptions}
+            onChange={v => set(t.setup, t.store, 'physicalStore', v, yesNo)} />
+        </ConfigRow>
+        {config.physicalStore && (
+          <ConfigRow label={t.pos} sub>
+            <Choice label={t.pos} value={config.posSystem} options={POS_OPTIONS.map(o => [o.id, posLabel(o.id, lang)])}
+              onChange={v => set(t.setup, t.pos, 'posSystem', v, x => posLabel(x, lang) ?? '—')} />
+          </ConfigRow>
+        )}
+      </Card>
+
+      {config.hasMissions && (
+        <Card title={t.points}>
+          <ConfigRow label={t.earnRate}>
+            <Choice label={t.earnRate} value={rateValue}
+              options={[['auto', t.auto(autoRate)], ...EARN_RATES.map(r => [r, `${r} pt${r > 1 ? 's' : ''}/€`])]}
+              onChange={v => onEdit({
+                op: { kind: 'settings', field: 'earnRate', value: v === 'auto' ? null : v }, itemLabel: t.earnRate, fieldLabel: t.points,
+                oldValue: rateText(settings.earnRateManual, settings.earnRate), newValue: rateText(v !== 'auto', v),
+              })} />
+          </ConfigRow>
+          <ConfigRow label={t.pointsExpire}>
+            <Choice label={t.pointsExpire} value={config.pointsExpire !== false} options={yesNoOptions}
+              onChange={v => set(t.points, t.pointsExpire, 'pointsExpire', v, yesNo, config.pointsExpire !== false)} />
+          </ConfigRow>
+          {config.pointsExpire !== false && (
+            <ConfigRow label={t.expiryDelay} sub>
+              <NumberField key={config.expirationMonths ?? 12} value={config.expirationMonths ?? 12} min={1} max={120} integer width="w-16"
+                suffix={t.months} label={`${t.expiryDelay} ${t.pointsExpire}`}
+                onCommit={v => set(t.points, `${t.pointsExpire} — ${t.expiryDelay}`, 'expirationMonths', v, m => `${m ?? 12} ${t.months}`)} />
+              <Choice label={`${t.pointsExpire} — type`} value={config.expirationType || 'rolling'} options={[['rolling', t.rolling], ['fixed', t.fixed]]}
+                onChange={v => set(t.points, t.pointsExpire, 'expirationType', v, typeText)} />
+            </ConfigRow>
+          )}
+        </Card>
+      )}
+
+      {config.hasTiers && (
+        <Card title={t.vip}>
+          <ConfigRow label={t.tierBasis}>
+            <Choice label={t.tierBasis} value={config.tierBasis || 'spend'} options={basisOptions}
+              onChange={v => set(t.vip, t.tierBasis, 'tierBasis', v, b => t.basis[b || 'spend'])} />
+          </ConfigRow>
+          <ConfigRow label={t.tiersExpire}>
+            <Choice label={t.tiersExpire} value={config.tiersExpire !== false} options={yesNoOptions}
+              onChange={v => set(t.vip, t.tiersExpire, 'tiersExpire', v, yesNo, config.tiersExpire !== false)} />
+          </ConfigRow>
+          {config.tiersExpire !== false && (
+            <ConfigRow label={t.every} sub>
+              <NumberField key={config.tierExpirationMonths ?? 12} value={config.tierExpirationMonths ?? 12} min={1} max={120} integer width="w-16"
+                suffix={t.months} label={`${t.every} ${t.tiersExpire}`}
+                onCommit={v => set(t.vip, `${t.tiersExpire} — ${t.every}`, 'tierExpirationMonths', v, m => `${m ?? 12} ${t.months}`)} />
+              <Choice label={`${t.tiersExpire} — type`} value={config.tierExpirationType || 'rolling'} options={[['rolling', t.rolling], ['fixed', t.fixed]]}
+                onChange={v => set(t.vip, t.tiersExpire, 'tierExpirationType', v, typeText)} />
+            </ConfigRow>
+          )}
+        </Card>
+      )}
+    </>
+  );
+}
 
 // ── Missions ─────────────────────────────────────────────────────────
 function MissionsEditor({ t, lang, program, onEdit, onComment, openCountOf, pointsFacts, note, emptyText }) {

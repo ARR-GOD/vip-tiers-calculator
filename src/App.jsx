@@ -146,7 +146,7 @@ function App() {
   // can touch several slices: a new tier also widens the rewards).
   const latestProgram = useRef(null);
   useLayoutEffect(() => {
-    latestProgram.current = { missions, customMissions, rewards, tiers, referralConfig };
+    latestProgram.current = { config, settings, missions, customMissions, rewards, tiers, referralConfig };
   });
   const resetClientEdits = (target, since = null, seen = null) => {
     mergeGuard.current = { target, since, seen, announced: false };
@@ -475,6 +475,8 @@ function App() {
     if (after.tiers !== before.tiers) setTiersRaw(after.tiers.map(normalizeTier));
     if (after.rewards !== before.rewards) setRewards(after.rewards.map(r => normalizeReward(r, after.tiers.length)));
     if (after.referralConfig !== before.referralConfig) setReferralConfig(after.referralConfig);
+    if (after.config !== before.config) setConfig(after.config);
+    if (after.settings !== before.settings) setSettings(after.settings);
     setPublication(pub => (pub?.view?.program
       ? { ...pub, view: { ...pub.view, program: replayProgramOps(pub.view.program, ops) } }
       : pub));

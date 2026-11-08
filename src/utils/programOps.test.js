@@ -100,6 +100,19 @@ describe('program ops (brand edits)', () => {
     expect(isLaterThan('2026-11-08T10:00:00Z', null)).toBe(true);
   });
 
+  it('sets the configuration: setup answers, points and tier settings, earn rate', () => {
+    let p = applyProgramOp({ ...program, config: { hasMissions: true, tierBasis: 'spend' }, settings: { aov: 40, earnRate: 1 } },
+      { kind: 'config', field: 'cms', value: 'prestashop' });
+    p = applyProgramOp(p, { kind: 'config', field: 'international', value: true });
+    p = applyProgramOp(p, { kind: 'config', field: 'expirationMonths', value: 24 });
+    p = applyProgramOp(p, { kind: 'config', field: 'tierBasis', value: 'points' });
+    p = applyProgramOp(p, { kind: 'settings', field: 'earnRate', value: 5 });
+    expect(p.config).toEqual({ hasMissions: true, tierBasis: 'points', cms: 'prestashop', international: true, expirationMonths: 24 });
+    expect(p.settings).toEqual({ aov: 40, earnRate: 5, earnRateManual: true });
+    expect(applyProgramOp(p, { kind: 'settings', field: 'earnRate', value: null }).settings).toEqual({ aov: 40, earnRate: 5, earnRateManual: false });
+    expect(() => applyProgramOp({ config: { hasMissions: false } }, { kind: 'config', field: 'tierBasis', value: 'points' })).toThrow('invalid_value');
+  });
+
   it('refuses anything else', () => {
     const bad = [
       [{ kind: 'mission', id: 'review_site', field: 'completionRate', value: 50 }, 'invalid_op'],
@@ -125,6 +138,16 @@ describe('program ops (brand edits)', () => {
       [{ kind: 'tier', index: 3, field: 'add', value: { name: 'X', pointsMultiplier: 20 } }, 'invalid_value'],
       [{ kind: 'tier', index: 3, field: 'add', value: { name: 'X', avgUtilization: 5 } }, 'invalid_op'],
       [{ kind: 'tier', index: 0, name: 'Or', field: 'remove' }, 'unknown_item'],
+      [{ kind: 'config', field: 'grossMargin', value: 10 }, 'invalid_op'],
+      [{ kind: 'config', field: 'hasMissions', value: false }, 'invalid_op'],
+      [{ kind: 'config', field: 'toString', value: 'x' }, 'invalid_op'],
+      [{ kind: 'config', field: 'cms', value: 'wix' }, 'invalid_value'],
+      [{ kind: 'config', field: 'cms', value: null }, 'invalid_value'],
+      [{ kind: 'config', field: 'international', value: 'yes' }, 'invalid_value'],
+      [{ kind: 'config', field: 'expirationMonths', value: 6.5 }, 'invalid_value'],
+      [{ kind: 'config', field: 'expirationMonths', value: 0 }, 'invalid_value'],
+      [{ kind: 'settings', field: 'earnRate', value: 3 }, 'invalid_value'],
+      [{ kind: 'settings', field: 'aov', value: 80 }, 'invalid_op'],
     ];
     bad.forEach(([op, error]) => expect(() => applyProgramOp(program, op)).toThrow(error));
   });
