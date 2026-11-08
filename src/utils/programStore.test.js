@@ -155,6 +155,9 @@ describe('program rows (client folders)', () => {
     });
     expect(merged.row.state.clientEditsMergedAt).toBe('2026-11-08T10:00:00.123456+00:00');
     expect(normalizeProgram(migrateProgramState(merged.row.state)).clientEditsMergedAt).toBe('2026-11-08T10:00:00.123456+00:00');
+    const seen = buildProgramSnapshot({ id: 'p1' }, { ...buildProgramDefaults({ aov: 80 }), clientEditsSeenAt: '2026-11-08T11:00:00+00:00', customers: [] });
+    expect(normalizeProgram(migrateProgramState(seen.row.state)).clientEditsSeenAt).toBe('2026-11-08T11:00:00+00:00');
+    expect(snapshot.key).not.toContain('clientEditsSeenAt');
   });
 
   it('copies a program into the same folder under a new name', () => {

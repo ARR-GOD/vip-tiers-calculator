@@ -3,6 +3,7 @@ import { MessageSquare, X, AlertCircle, PencilLine } from 'lucide-react';
 import CommentThread from './CommentThread';
 import { addCsmComment, editCsmComment, deleteCsmComment, setCommentResolved, countToHandleByPage } from '../utils/clientPortalStore';
 import { CLIENT_PAGES, pageItems, pageLabel } from '../utils/clientView';
+import { isLaterThan } from '../utils/programOps';
 
 // CSM side of the client portal: the comment threads (one tab per page, with
 // the number of client comments to handle; answer, resolve, edit or delete)
@@ -18,7 +19,7 @@ export default function CommentsPanel({
   const [highlightAfter, setHighlightAfter] = useState(activitySeenAt);
   const toHandle = countToHandleByPage(comments);
   const toHandleTotal = Object.values(toHandle).reduce((s, n) => s + n, 0);
-  const newActivity = activity.filter(a => !activitySeenAt || a.at > activitySeenAt).length;
+  const newActivity = activity.filter(a => isLaterThan(a.at, activitySeenAt)).length;
   const showTab = key => {
     if (key === 'activity') {
       setHighlightAfter(activitySeenAt);
@@ -126,7 +127,7 @@ function ActivityFeed({ lang, activity, error, highlightAfter }) {
   return (
     <ol className="space-y-2" data-testid="activity-feed">
       {[...activity].reverse().map(a => {
-        const isNew = !highlightAfter || a.at > highlightAfter;
+        const isNew = isLaterThan(a.at, highlightAfter);
         return (
           <li key={a.id} className={`rounded-[10px] border p-3 ${isNew ? 'border-primary/40 bg-white' : 'border-[#E5E1D8] bg-white/60'}`}>
             <div className="flex items-center gap-1.5 text-[11px] text-[#8A7D6B]">
@@ -138,11 +139,13 @@ function ActivityFeed({ lang, activity, error, highlightAfter }) {
             <div className="mt-1 text-[13px] text-[#2B251F]">
               <span className="font-semibold">{a.itemLabel}</span>{a.fieldLabel && <span className="text-[#645648]"> — {a.fieldLabel}</span>}
             </div>
-            <div className="mt-0.5 text-[13px]">
-              <span className="text-[#8A7D6B] line-through">{a.oldValue}</span>
-              <span className="text-[#8A7D6B]"> → </span>
-              <span className="font-semibold text-[#2B251F]">{a.newValue}</span>
-            </div>
+            {(a.oldValue || a.newValue) && (
+              <div className="mt-0.5 text-[13px]">
+                {a.oldValue && <span className="text-[#8A7D6B] line-through">{a.oldValue}</span>}
+                {a.oldValue && a.newValue && <span className="text-[#8A7D6B]"> → </span>}
+                {a.newValue && <span className="font-semibold text-[#2B251F]">{a.newValue}</span>}
+              </div>
+            )}
           </li>
         );
       })}

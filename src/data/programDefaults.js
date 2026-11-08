@@ -10,7 +10,7 @@ import {
   DEFAULT_REWARDS, INITIAL_REFERRAL,
   DEFAULT_TIER_COLORS, DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN,
 } from './defaults';
-import { recommendedMissions } from './missionCatalog';
+import { recommendedMissions, catalogMission } from './missionCatalog';
 
 export const INITIAL_CONFIG = {
   tierBasis: 'spend',
@@ -126,7 +126,13 @@ function without(obj, keys) {
   return copy;
 }
 
-export function normalizeMission(mission) {
+// A catalog mission added from the client portal comes with its public
+// fields only: the catalog completes it (engagement, completion rate…).
+export function normalizeMission(saved) {
+  const catalog = catalogMission(saved.id);
+  const mission = catalog
+    ? { engagement: catalog.engagement, completionRate: catalog.completionRate, frequency: catalog.frequency, ...(catalog.caution ? { caution: true } : {}), ...saved }
+    : saved;
   const engagement = mission.engagementByTier;
   let completionRate = mission.completionRate;
   if (typeof completionRate !== 'number') {
@@ -189,5 +195,7 @@ export function normalizeProgram(program = {}) {
     brandAnalysis: program.brandAnalysis ?? null,
     // Creation time of the last brand edit (client portal) replayed into the program.
     clientEditsMergedAt: program.clientEditsMergedAt ?? null,
+    // Creation time of the last brand edit the CSM saw in the activity feed.
+    clientEditsSeenAt: program.clientEditsSeenAt ?? null,
   };
 }

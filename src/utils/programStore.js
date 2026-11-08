@@ -179,6 +179,7 @@ export function buildProgramSnapshot(target, s) {
       onboardingAnswers: s.onboardingAnswers ?? null,
       brandAnalysis: s.brandAnalysis ?? null,
       clientEditsMergedAt: s.clientEditsMergedAt ?? undefined,
+      clientEditsSeenAt: s.clientEditsSeenAt ?? undefined,
     },
   };
   return { target, row, key: stableStringify(row), customers: s.customers };
