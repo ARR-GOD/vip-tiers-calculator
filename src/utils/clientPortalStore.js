@@ -160,4 +160,14 @@ export const clientApi = {
     p_code: code, p_author_name: author.name, p_program_id: programId, p_page: page, p_op: op,
     p_item_label: itemLabel, p_field_label: fieldLabel, p_old_value: oldValue, p_new_value: newValue,
   }),
+  // Launch checklist: a row patch (utils/checklistStore.js, checklistRowPatch).
+  checklistSet: (code, author, programId, key, patch) => rpc('client_checklist_set', {
+    p_code: code, p_author_name: author.name, p_program_id: programId, p_item_key: key, p_patch: patch,
+  }),
+  checklistAdd: (code, author, programId, label, phase) => rpc('client_checklist_add', {
+    p_code: code, p_author_name: author.name, p_program_id: programId, p_label: label.trim(), p_phase: phase,
+  }),
+  checklistDelete: (code, programId, key) => rpc('client_checklist_delete', {
+    p_code: code, p_program_id: programId, p_item_key: key,
+  }),
 };

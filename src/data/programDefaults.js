@@ -29,7 +29,10 @@ export const INITIAL_CONFIG = {
   cms: null,
   crm: null,
   international: null,
+  multiLanguage: null,   // when international: several languages?
+  multiCurrency: null,   // when international: several currencies?
   physicalStore: null,
+  posSystem: null,       // when physicalStore: 'shopify_pos' | 'cegid' | 'other'
 };
 
 export const INITIAL_SETTINGS = {

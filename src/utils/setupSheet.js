@@ -11,7 +11,7 @@ import { pointsModel, missionPoints } from './pointsModel';
 import { rewardPointsCost, rewardMinPurchase, isBurnReward } from './rewardModel';
 import { resolveReferral, formatReferralReward } from './referralModel';
 import { thresholdForBasis } from './calculations';
-import { cmsLabel, crmLabel } from '../data/setupOptions';
+import { cmsLabel, crmLabel, posLabel } from '../data/setupOptions';
 
 const L = {
   fr: {
@@ -26,7 +26,7 @@ const L = {
     tier: 'Palier', threshold: 'Seuil', multiplier: 'Multiplicateur de points', tierRewards: 'Récompenses du palier',
     noReward: 'aucune', preparedBy: 'Préparée par', perPurchase: 'par € dépensé', noMinimum: 'aucun', noMinPurchase: 'sans achat minimum',
     noPoints: 'Programme sans points : statut VIP uniquement.',
-    setup: 'Informations de setup', international: 'International', store: 'Boutique physique', yes: 'Oui', no: 'Non',
+    setup: 'Informations de setup', international: 'International', languages: 'Plusieurs langues', currencies: 'Plusieurs devises', store: 'Boutique physique', pos: 'Caisse', yes: 'Oui', no: 'Non',
   },
   en: {
     title: 'Setup sheet', points: 'Points program', missions: 'Missions',
@@ -40,7 +40,7 @@ const L = {
     tier: 'Tier', threshold: 'Threshold', multiplier: 'Points multiplier', tierRewards: 'Tier rewards',
     noReward: 'none', preparedBy: 'Prepared by', perPurchase: 'per € spent', noMinimum: 'none', noMinPurchase: 'no minimum purchase',
     noPoints: 'No-points program: VIP status only.',
-    setup: 'Setup information', international: 'International', store: 'Physical store', yes: 'Yes', no: 'No',
+    setup: 'Setup information', international: 'International', languages: 'Several languages', currencies: 'Several currencies', store: 'Physical store', pos: 'POS system', yes: 'Yes', no: 'No',
   },
 };
 
@@ -64,7 +64,9 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
     ['CMS', cmsLabel(config.cms)],
     ['CRM', crmLabel(config.crm, lang)],
     [l.international, yesNo(config.international)],
+    ...(config.international ? [[l.languages, yesNo(config.multiLanguage)], [l.currencies, yesNo(config.multiCurrency)]] : []),
     [l.store, yesNo(config.physicalStore)],
+    ...(config.physicalStore ? [[l.pos, posLabel(config.posSystem, lang)]] : []),
   ].filter(([, value]) => value);
   if (setupFacts.length) sections.push({ key: 'setup', title: l.setup, facts: setupFacts });
 

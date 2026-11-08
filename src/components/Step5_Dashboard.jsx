@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Download, Image, RotateCcw, ChevronLeft, TrendingUp, FileText, ClipboardCopy, Check } from 'lucide-react';
+import { Download, Image, RotateCcw, ChevronLeft, ChevronRight, TrendingUp, FileText, ClipboardCopy, Check } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { toPng } from 'html-to-image';
 import Tooltip from './Tooltip';
@@ -25,7 +25,7 @@ const SCENARIOS = ['low', 'medium', 'high'].map(key => ({
 export default function Step5_Dashboard({
   tiers, customers, settings, setSettings, config,
   missions, customMissions, rewards, burnRate,
-  lang, referralConfig, clientName, author, onPrev,
+  lang, referralConfig, clientName, author, onPrev, onNext,
 }) {
   const t = lang === 'fr';
   const dashRef = useRef(null);
@@ -520,14 +520,18 @@ export default function Step5_Dashboard({
         )}
       </div>
 
-      {/* Inline nav (last step — Prev only) */}
+      {/* Inline nav */}
       <div className="flex justify-between pt-6">
         {onPrev ? (
           <button onClick={onPrev} className="btn-secondary">
             <ChevronLeft size={16} /> {t ? 'Précédent' : 'Previous'}
           </button>
         ) : <span />}
-        <span />
+        {onNext ? (
+          <button onClick={onNext} className="btn-primary">
+            {t ? 'Checklist de lancement' : 'Launch checklist'} <ChevronRight size={16} />
+          </button>
+        ) : <span />}
       </div>
     </div>
   );

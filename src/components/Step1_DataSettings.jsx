@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { EARN_RATE_OPTIONS, defaultEarnRate, pointsModel } from '../utils/pointsModel';
-import { CMS_OPTIONS, CRM_OPTIONS, CRM_NONE, CRM_OTHER, INTERNATIONAL_GUIDE, STORE_GUIDE, guideOf } from '../data/setupOptions';
+import { CMS_OPTIONS, CRM_OPTIONS, CRM_NONE, CRM_OTHER, POS_OPTIONS, INTERNATIONAL_GUIDE, CURRENCY_GUIDE, STORE_GUIDE, guideOf, posLabel } from '../data/setupOptions';
 
 export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
@@ -78,18 +78,35 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             </div>
           </Setting>
           <Setting label={t.international} tooltip={t.internationalTip}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.international === true} onClick={() => update('international', true)} />
-              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.international === false} onClick={() => update('international', false)} />
-              <GuideLink href={config.international ? INTERNATIONAL_GUIDE : null} label={t.guide} />
-            </div>
+            <YesNoPills lang={lang} value={config.international} onChange={v => update('international', v)} label={t.international} />
+            {config.international && (
+              <div className="mt-2 pl-3 border-l-2 border-[#E5E1D8] space-y-1.5">
+                <SubQuestion label={t.multiLanguage}>
+                  <YesNoPills lang={lang} value={config.multiLanguage} onChange={v => update('multiLanguage', v)} label={t.multiLanguage} />
+                  <GuideLink href={config.multiLanguage ? INTERNATIONAL_GUIDE : null} label={t.guide} />
+                </SubQuestion>
+                <SubQuestion label={t.multiCurrency}>
+                  <YesNoPills lang={lang} value={config.multiCurrency} onChange={v => update('multiCurrency', v)} label={t.multiCurrency} />
+                  <GuideLink href={config.multiCurrency ? CURRENCY_GUIDE : null} label={t.guide} />
+                </SubQuestion>
+              </div>
+            )}
           </Setting>
           <Setting label={t.store} tooltip={t.storeTip}>
             <div className="flex flex-wrap items-center gap-1.5">
-              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.physicalStore === true} onClick={() => update('physicalStore', true)} />
-              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.physicalStore === false} onClick={() => update('physicalStore', false)} />
+              <YesNoPills lang={lang} value={config.physicalStore} onChange={v => update('physicalStore', v)} label={t.store} />
               <GuideLink href={config.physicalStore ? STORE_GUIDE : null} label={t.guide} />
             </div>
+            {config.physicalStore && (
+              <div className="mt-2 pl-3 border-l-2 border-[#E5E1D8]">
+                <SubQuestion label={t.pos} group>
+                  {POS_OPTIONS.map(o => (
+                    <PillOption key={o.id} label={posLabel(o.id, lang)} active={config.posSystem === o.id} onClick={() => update('posSystem', o.id)} />
+                  ))}
+                  <GuideLink href={guideOf(POS_OPTIONS, config.posSystem)} label={t.guide} />
+                </SubQuestion>
+              </div>
+            )}
           </Setting>
         </div>
       </div>
@@ -317,6 +334,24 @@ function GuideLink({ href, label }) {
   );
 }
 
+function YesNoPills({ lang, value, onChange, label }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={value === true} onClick={() => onChange(true)} />
+      <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={value === false} onClick={() => onChange(false)} />
+    </div>
+  );
+}
+
+function SubQuestion({ label, group, children }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-[12px] text-[#645648] min-w-[130px]">{label}</span>
+      <div className="flex flex-wrap items-center gap-1.5" {...(group ? { role: 'group', 'aria-label': label } : {})}>{children}</div>
+    </div>
+  );
+}
+
 function PillOption({ label, active, onClick }) {
   return (
     <button
@@ -348,8 +383,11 @@ const FR = {
   crmTip: 'Outil d\'emailing / CRM connecté à Loyoly (intégrations du helpdesk).',
   international: 'International',
   internationalTip: 'La marque vend dans plusieurs pays, langues ou devises.',
+  multiLanguage: 'Plusieurs langues ?',
+  multiCurrency: 'Plusieurs devises ?',
   store: 'Boutique physique',
   storeTip: 'La marque a des points de vente physiques (achats en boutique, caisse).',
+  pos: 'Caisse',
   choose: '— Choisir —',
   noCrm: 'Aucun',
   otherCrm: 'Autre',
@@ -387,8 +425,11 @@ const EN = {
   crmTip: 'Emailing / CRM tool connected to Loyoly (help center integrations).',
   international: 'International',
   internationalTip: 'The brand sells in several countries, languages or currencies.',
+  multiLanguage: 'Several languages?',
+  multiCurrency: 'Several currencies?',
   store: 'Physical store',
   storeTip: 'The brand has physical stores (in-store purchases, POS).',
+  pos: 'POS system',
   choose: '— Choose —',
   noCrm: 'None',
   otherCrm: 'Other',

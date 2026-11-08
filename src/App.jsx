@@ -8,6 +8,7 @@ import Step2_Missions from './components/Step2_Missions';
 import Step3_Rewards from './components/Step3_Rewards';
 import Step4_TierBuilder from './components/Step4_TierBuilder';
 import Step5_Dashboard from './components/Step5_Dashboard';
+import StepChecklist from './components/StepChecklist';
 import StepReferral from './components/StepReferral';
 import { parseSampleData } from './data/sampleData';
 import { INITIAL_REFERRAL } from './data/defaults';
@@ -47,6 +48,7 @@ const STEPS = [
   { id: 5, labelFr: 'Récompenses', labelEn: 'Rewards' },
   { id: 6, labelFr: 'Paliers', labelEn: 'Tiers' },
   { id: 7, labelFr: 'Dashboard', labelEn: 'Dashboard' },
+  { id: 8, labelFr: 'Checklist', labelEn: 'Checklist' },
 ];
 
 function App() {
@@ -896,6 +898,12 @@ function App() {
                 referralConfig={referralConfig}
                 clientName={selectedClient?.name || brandAnalysis?.brand_name}
                 author={user.name}
+                onPrev={goPrev} onNext={goNext} />
+            )}
+            {step === 8 && (
+              <StepChecklist lang={lang} programId={programTarget?.id ?? null}
+                config={config} referralConfig={referralConfig} author={user.name}
+                onGoToSetup={() => { setStep(2); requestAnimationFrame(scrollToTop); }}
                 onPrev={goPrev} />
             )}
           </div>

@@ -2,8 +2,9 @@
 // Setup information — the brand's stack, set by the CSM in Configuration
 // ════════════════════════════════════════════════════════════════════
 //
-// CMS and CRM integrations documented on the Loyoly help center, with their
-// guide. These answers will drive the setup checklist.
+// CMS, CRM and point-of-sale integrations documented on the Loyoly help
+// center, with their guide. These answers drive the launch checklist
+// (data/checklistTemplate.js).
 
 const HELP = 'https://help.loyoly.io/fr/articles/';
 
@@ -30,7 +31,19 @@ export const CRM_NONE = 'none';
 export const CRM_OTHER = 'other';
 
 export const INTERNATIONAL_GUIDE = `${HELP}9546919-la-gestion-des-traductions`;
+export const CURRENCY_GUIDE = `${HELP}9687457-la-gestion-des-monnaies`;
 export const STORE_GUIDE = `${HELP}9507211-realiser-un-achat-en-boutique`;
+
+export const POS_OPTIONS = [
+  { id: 'shopify_pos', label: 'Shopify POS', guide: `${HELP}13927138-shopify-pos` },
+  { id: 'cegid', label: 'Cegid', guide: `${HELP}13016063-integration-de-cegid` },
+  { id: 'other', labelFr: 'Autre caisse', labelEn: 'Other POS', guide: null },
+];
+
+export function posLabel(id, lang = 'fr') {
+  const option = POS_OPTIONS.find(o => o.id === id);
+  return option ? option.label || (lang === 'fr' ? option.labelFr : option.labelEn) : null;
+}
 
 export const cmsLabel = id => CMS_OPTIONS.find(o => o.id === id)?.label ?? null;
 

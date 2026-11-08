@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, AlertCircle, CheckCircle2, MessageSquare, Globe, KeyRound, LogOut } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, MessageSquare, Globe, KeyRound, LogOut, ListChecks } from 'lucide-react';
 import CommentThread from './CommentThread';
 import ClientProgramEditor from './ClientProgramEditor';
+import ChecklistBoard from './ChecklistBoard';
+import { buildChecklist, checklistSetup, checklistRowPatch, patchChecklistRows, addChecklistRow, removeChecklistRow } from '../utils/checklist';
 import { clientApi, normalizeComment } from '../utils/clientPortalStore';
 import { CLIENT_PAGES, pageSections, pageItems, pageLabel, isEditableView } from '../utils/clientView';
 import { applyProgramOp } from '../utils/programOps';
@@ -51,6 +53,9 @@ const FR = {
   saved: 'Modification enregistrée : votre CSM Loyoly en est informé.',
   saveError: 'La modification n\'a pas pu être enregistrée. Réessayez ou laissez un commentaire.',
   readOnly: 'Cette version se consulte en lecture seule : laissez vos remarques en commentaire.',
+  checklist: 'Checklist',
+  checklistTitle: 'Checklist de lancement',
+  checklistSubtitle: 'Les étapes pour lancer votre programme, à suivre avec votre CSM Loyoly : indiquez l\'avancement, qui s\'en charge, une date et vos notes.',
 };
 
 const EN = {
@@ -84,6 +89,9 @@ const EN = {
   saved: 'Change saved: your Loyoly CSM is notified.',
   saveError: 'The change could not be saved. Try again or leave a comment.',
   readOnly: 'This version is read-only: leave your remarks as comments.',
+  checklist: 'Checklist',
+  checklistTitle: 'Launch checklist',
+  checklistSubtitle: 'The steps to launch your program, to follow with your Loyoly CSM: set the progress, who handles it, a date and your notes.',
 };
 
 // Browser storage may be unavailable (private mode): the portal still works
@@ -224,6 +232,28 @@ export default function ClientPortal() {
     load();
   };
 
+  // Launch checklist: shown at once, saved, then reloaded.
+  const me = author && { type: 'client', name: author.name };
+  const checklistChange = async (local, save) => {
+    const id = program.id;
+    lastRequest.current++;
+    setData(d => ({ ...d, programs: d.programs.map(p => (p.id === id ? { ...p, checklist: local(p.checklist || []) } : p)) }));
+    try {
+      await save(id);
+    } catch {
+      setToast({ ok: false, text: t.saveError });
+    }
+    load();
+  };
+  const checklistPatch = (key, patch) => {
+    const row = checklistRowPatch(patch);
+    checklistChange(rows => patchChecklistRows(rows, key, row, me), id => clientApi.checklistSet(code, author, id, key, row));
+  };
+  const checklistAdd = (phase, label) => checklistChange(
+    rows => addChecklistRow(rows, `custom_pending_${Date.now()}`, label, phase, me),
+    id => clientApi.checklistAdd(code, author, id, label, phase));
+  const checklistDelete = key => checklistChange(rows => removeChecklistRow(rows, key), id => clientApi.checklistDelete(code, id, key));
+
   // ── Screens before the program ──
   const shell = content => (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -286,6 +316,7 @@ export default function ClientPortal() {
   const sections = pageSections(view, lang, page);
   const hasContent = sections.some(s => s.rows?.length || s.facts?.length);
   const editable = isEditableView(view);
+  const checklist = buildChecklist(checklistSetup(program.setup || {}), program.checklist || [], lang);
 
   return shell(
     <div className="space-y-4">
@@ -323,9 +354,20 @@ export default function ClientPortal() {
             </button>
           );
         })}
+        <button onClick={() => { setPage('checklist'); setTarget(''); }}
+          className={`relative px-3.5 py-2.5 text-[13px] whitespace-nowrap inline-flex items-center gap-1.5 ${page === 'checklist' ? 'text-[#2B251F] font-semibold' : 'text-[#8A7D6B] font-medium hover:text-[#52473C]'}`}>
+          <ListChecks size={14} /> {t.checklist}
+          <span className="px-1.5 rounded-full bg-[#ECFDF5] text-[#047857] text-[10px]">{checklist.progress.done}/{checklist.progress.total}</span>
+          {page === 'checklist' && <span className="absolute left-3 right-3 -bottom-px h-[2px] bg-primary rounded-sm" />}
+        </button>
       </nav>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
+      {page === 'checklist' && (
+        <ChecklistBoard lang={lang} audience="client" title={t.checklistTitle} subtitle={t.checklistSubtitle}
+          checklist={checklist} onPatch={checklistPatch} onAdd={checklistAdd} onDelete={checklistDelete} />
+      )}
+
+      {page !== 'checklist' && <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
         <div className="space-y-3 min-w-0">
           <div className="card flex items-center justify-between gap-3 flex-wrap" style={{ padding: 14 }}>
             {validation ? (
@@ -369,7 +411,7 @@ export default function ClientPortal() {
             onDelete={withReload(id => clientApi.deleteComment(code, author, id))}
           />
         </aside>
-      </div>
+      </div>}
 
       {toast && (
         <div role="status" className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-[10px] shadow-lg text-[13px] font-medium inline-flex items-center gap-2 max-w-[calc(100vw-32px)] ${toast.ok ? 'bg-[#2B251F] text-white' : 'bg-red-600 text-white'}`}>
