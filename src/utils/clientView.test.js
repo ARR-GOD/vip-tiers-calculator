@@ -27,6 +27,13 @@ describe('client view', () => {
     expect(pageItems(view, 'fr', 'referral').map(i => i.ref)).toEqual(['referral:referrer', 'referral:referee']);
   });
 
+  it('keeps the setup information out of the client pages', () => {
+    const withSetup = buildClientView({ ...program, config: { ...program.config, cms: 'shopify', crm: 'klaviyo' } });
+    const shown = CLIENT_PAGES.flatMap(p => pageSections(withSetup, 'fr', p.key)).map(s => s.key);
+    expect(shown).not.toContain('setup');
+    expect(JSON.stringify(withSetup)).not.toContain('Klaviyo');
+  });
+
   it('publishes no internal data', () => {
     const json = JSON.stringify(view);
     for (const internal of ['secret-customer', 'customers', 'realCost', 'grossMargin', 'avgUtilization', 'burnRate', 'cashbackRate', '61.7', '61,7']) {

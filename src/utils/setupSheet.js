@@ -11,6 +11,7 @@ import { pointsModel, missionPoints } from './pointsModel';
 import { rewardPointsCost, rewardMinPurchase, isBurnReward } from './rewardModel';
 import { resolveReferral, formatReferralReward } from './referralModel';
 import { thresholdForBasis } from './calculations';
+import { cmsLabel, crmLabel } from '../data/setupOptions';
 
 const L = {
   fr: {
@@ -25,6 +26,7 @@ const L = {
     tier: 'Palier', threshold: 'Seuil', multiplier: 'Multiplicateur de points', tierRewards: 'Récompenses du palier',
     noReward: 'aucune', preparedBy: 'Préparée par', perPurchase: 'par € dépensé', noMinimum: 'aucun', noMinPurchase: 'sans achat minimum',
     noPoints: 'Programme sans points : statut VIP uniquement.',
+    setup: 'Informations de setup', international: 'International', store: 'Boutique physique', yes: 'Oui', no: 'Non',
   },
   en: {
     title: 'Setup sheet', points: 'Points program', missions: 'Missions',
@@ -38,6 +40,7 @@ const L = {
     tier: 'Tier', threshold: 'Threshold', multiplier: 'Points multiplier', tierRewards: 'Tier rewards',
     noReward: 'none', preparedBy: 'Prepared by', perPurchase: 'per € spent', noMinimum: 'none', noMinPurchase: 'no minimum purchase',
     noPoints: 'No-points program: VIP status only.',
+    setup: 'Setup information', international: 'International', store: 'Physical store', yes: 'Yes', no: 'No',
   },
 };
 
@@ -54,6 +57,16 @@ export function buildSetupSheet({ config, settings, tiers, rewards, missions, cu
   const minPurchase = r => minimum(rewardMinPurchase(r, settings));
   const tierNames = idxs => (idxs.length === tiers.length ? l.allTiers : idxs.map(i => tiers[i]?.name).join(', '));
   const sections = [];
+
+  // The brand's stack, as answered by the CSM (not shown in the client portal).
+  const yesNo = v => (v === true ? l.yes : v === false ? l.no : null);
+  const setupFacts = [
+    ['CMS', cmsLabel(config.cms)],
+    ['CRM', crmLabel(config.crm, lang)],
+    [l.international, yesNo(config.international)],
+    [l.store, yesNo(config.physicalStore)],
+  ].filter(([, value]) => value);
+  if (setupFacts.length) sections.push({ key: 'setup', title: l.setup, facts: setupFacts });
 
   // Each section has a key and each row a ref (`mission:<id>`…): the client
   // portal shows the sections by page and lets comments target one row.

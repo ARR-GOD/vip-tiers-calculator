@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { EARN_RATE_OPTIONS, defaultEarnRate, pointsModel } from '../utils/pointsModel';
+import { CMS_OPTIONS, CRM_OPTIONS, CRM_NONE, CRM_OTHER, INTERNATIONAL_GUIDE, STORE_GUIDE, guideOf } from '../data/setupOptions';
 
 export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
@@ -50,6 +51,47 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <div className="section-subheader">{lang === 'fr' ? 'ÉTAPE 3' : 'STEP 3'}</div>
         <h2 className="text-[28px] font-bold text-[#52473C]">{t.title}</h2>
         <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
+      </div>
+
+      {/* ─── Setup information (CSM only): the brand's stack, for the setup checklist ─── */}
+      <div>
+        <div className="section-header">{t.setupHeader}</div>
+        <div className="card grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" style={{ padding: 16 }}>
+          <Setting label="CMS" tooltip={t.cmsTip}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {CMS_OPTIONS.map(o => (
+                <PillOption key={o.id} label={o.label} active={config.cms === o.id} onClick={() => update('cms', o.id)} />
+              ))}
+              <GuideLink href={guideOf(CMS_OPTIONS, config.cms)} label={t.guide} />
+            </div>
+          </Setting>
+          <Setting label="CRM" tooltip={t.crmTip}>
+            <div className="flex flex-wrap items-center gap-2">
+              <select value={config.crm ?? ''} onChange={e => update('crm', e.target.value || null)}
+                className="px-2 py-1.5 text-[13px] rounded-lg min-w-[200px]" aria-label="CRM">
+                <option value="">{t.choose}</option>
+                {CRM_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                <option value={CRM_NONE}>{t.noCrm}</option>
+                <option value={CRM_OTHER}>{t.otherCrm}</option>
+              </select>
+              <GuideLink href={guideOf(CRM_OPTIONS, config.crm)} label={t.guide} />
+            </div>
+          </Setting>
+          <Setting label={t.international} tooltip={t.internationalTip}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.international === true} onClick={() => update('international', true)} />
+              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.international === false} onClick={() => update('international', false)} />
+              <GuideLink href={config.international ? INTERNATIONAL_GUIDE : null} label={t.guide} />
+            </div>
+          </Setting>
+          <Setting label={t.store} tooltip={t.storeTip}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.physicalStore === true} onClick={() => update('physicalStore', true)} />
+              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.physicalStore === false} onClick={() => update('physicalStore', false)} />
+              <GuideLink href={config.physicalStore ? STORE_GUIDE : null} label={t.guide} />
+            </div>
+          </Setting>
+        </div>
       </div>
 
       {/* ─── Program structure: each answer holds its own settings ─── */}
@@ -266,6 +308,15 @@ function Setting({ label, tooltip, children }) {
   );
 }
 
+function GuideLink({ href, label }) {
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-primary hover:underline ml-1">
+      {label} ↗
+    </a>
+  );
+}
+
 function PillOption({ label, active, onClick }) {
   return (
     <button
@@ -292,6 +343,17 @@ const FR = {
   title: 'Configuration du programme',
   subtitle: 'Configurez la structure du programme et ses paramètres.',
   structureHeader: 'STRUCTURE DU PROGRAMME',
+  setupHeader: 'INFORMATIONS DE SETUP',
+  cmsTip: 'Plateforme e-commerce de la marque. Sert à préparer la checklist de setup.',
+  crmTip: 'Outil d\'emailing / CRM connecté à Loyoly (intégrations du helpdesk).',
+  international: 'International',
+  internationalTip: 'La marque vend dans plusieurs pays, langues ou devises.',
+  store: 'Boutique physique',
+  storeTip: 'La marque a des points de vente physiques (achats en boutique, caisse).',
+  choose: '— Choisir —',
+  noCrm: 'Aucun',
+  otherCrm: 'Autre',
+  guide: 'Guide',
   qPoints: 'Programme à points ?',
   qPointsTip: 'Les clients accumulent des points via achats / missions, échangeables contre des récompenses.',
   qTiers: 'Paliers VIP ?',
@@ -320,6 +382,17 @@ const EN = {
   title: 'Program Configuration',
   subtitle: 'Configure the program structure and parameters.',
   structureHeader: 'PROGRAM STRUCTURE',
+  setupHeader: 'SETUP INFORMATION',
+  cmsTip: 'The brand\'s e-commerce platform. Used to prepare the setup checklist.',
+  crmTip: 'Emailing / CRM tool connected to Loyoly (help center integrations).',
+  international: 'International',
+  internationalTip: 'The brand sells in several countries, languages or currencies.',
+  store: 'Physical store',
+  storeTip: 'The brand has physical stores (in-store purchases, POS).',
+  choose: '— Choose —',
+  noCrm: 'None',
+  otherCrm: 'Other',
+  guide: 'Guide',
   qPoints: 'Points program?',
   qPointsTip: 'Customers earn points via purchases / missions, redeemable for rewards.',
   qTiers: 'VIP tiers?',

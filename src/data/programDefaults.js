@@ -25,6 +25,11 @@ export const INITIAL_CONFIG = {
   tiersExpire: true,
   tierExpirationMonths: 12,
   tierExpirationType: 'rolling',
+  // Setup information (CSM only), see data/setupOptions.js; null = not answered
+  cms: null,
+  crm: null,
+  international: null,
+  physicalStore: null,
 };
 
 export const INITIAL_SETTINGS = {

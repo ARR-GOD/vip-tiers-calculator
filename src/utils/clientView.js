@@ -29,8 +29,11 @@ export const pageLabel = (pageKey, lang) => {
 
 // Both languages are published so the client can switch. The sheet's title and
 // date are left out: the view only changes when the program does.
+// Only the sections of the client pages are published (not the setup information).
+const CLIENT_SECTION_KEYS = CLIENT_PAGES.flatMap(p => p.sections);
+
 export function buildClientView(program, { clientName = null, brandLogo = null } = {}) {
-  const sections = lang => buildSetupSheet({ ...program, lang }).sections;
+  const sections = lang => buildSetupSheet({ ...program, lang }).sections.filter(s => CLIENT_SECTION_KEYS.includes(s.key));
   return {
     v: CLIENT_VIEW_VERSION,
     brand: { name: clientName, logo: brandLogo },

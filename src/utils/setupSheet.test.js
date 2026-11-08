@@ -82,6 +82,15 @@ describe('setup sheet', () => {
     expect(vip.rows.map(r => r[1])).toEqual(['0 pts', '4 000 pts', '16 000 pts']);
   });
 
+  it('lists the setup information the CSM answered', () => {
+    const answered = sheetFor({ ...program, config: { ...program.config, cms: 'shopify_plus', crm: 'klaviyo', international: true, physicalStore: false } });
+    expect(answered.sections[0]).toEqual({
+      key: 'setup', title: 'Informations de setup',
+      facts: [['CMS', 'Shopify Plus'], ['CRM', 'Klaviyo'], ['International', 'Oui'], ['Boutique physique', 'Non']],
+    });
+    expect(sheet.sections.some(s => s.key === 'setup')).toBe(false);
+  });
+
   it('keeps a no-points program to its referral and VIP status', () => {
     const luxury = sheetFor(buildProgramDefaults({ aov: 300, grossMargin: 70, programType: 'luxury', lang: 'en' }), { lang: 'en' });
     expect(luxury.title).toBe('Setup sheet — Loyoly');
