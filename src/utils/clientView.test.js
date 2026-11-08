@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildProgramDefaults } from '../data/programDefaults';
-import { buildClientView, hasUnpublishedChanges, pageSections, pageItems, CLIENT_PAGES } from './clientView';
+import { buildClientView, hasUnpublishedChanges, pageSections, pageItems, CLIENT_PAGES, isEditableView } from './clientView';
+import { applyProgramOp } from './programOps';
 
 const program = { ...buildProgramDefaults({ aov: 80, grossMargin: 61.7 }), customers: [{ customer_id: 'secret-customer', total_ordered_TTC: 999 }] };
 const view = buildClientView(program, { clientName: 'Brand A', brandLogo: 'https://cdn/logo.png' });
@@ -54,5 +55,29 @@ describe('client view', () => {
     expect(pageSections(bare, 'fr', 'referral')).toEqual([]);
     expect(pageSections(bare, 'fr', 'tiers')).toEqual([]);
     expect(pageItems(bare, 'fr', 'tiers')).toEqual([]);
+  });
+});
+
+describe('editable client view (v2)', () => {
+  it('publishes the program structure the brand may edit, nothing internal', () => {
+    expect(view.v).toBe(2);
+    expect(Object.keys(view.program)).toEqual(['config', 'settings', 'tiers', 'rewards', 'missions', 'customMissions', 'referralConfig']);
+    expect(Object.keys(view.program.settings)).toEqual(['aov', 'earnRate', 'earnRateManual']);
+    expect(view.program.tiers[0]).not.toHaveProperty('avgUtilization');
+    expect(view.program.rewards[0]).not.toHaveProperty('realCost');
+    expect(view.program.missions[1]).not.toHaveProperty('completionRate');
+  });
+
+  it('rebuilds the pages from the edited program', () => {
+    const edited = { ...view, program: applyProgramOp(view.program, { kind: 'tier', index: 2, field: 'spendThreshold', value: 1234 }) };
+    const tiers = pageSections(edited, 'fr', 'tiers')[0];
+    expect(tiers.rows[2][1].replace(/[\u202f\u00a0]/g, ' ')).toBe('1 234 €');
+  });
+
+  it('still shows the views published before v2, read-only', () => {
+    const legacy = { v: 1, fr: { sections: [{ key: 'vip', title: 'Programme VIP', rows: [['Or']], refs: ['tier:0'] }] } };
+    expect(isEditableView(legacy)).toBe(false);
+    expect(isEditableView(view)).toBe(true);
+    expect(pageItems(legacy, 'fr', 'tiers')).toEqual([{ ref: 'tier:0', label: 'Or' }]);
   });
 });
