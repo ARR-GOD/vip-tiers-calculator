@@ -63,6 +63,12 @@ function App() {
   useEffect(() => {
     if (!supabase) return;
     const accept = (s) => {
+      // A self-serve brand landing here (its confirmation link fell back to
+      // the site's root) keeps its session and goes to its kit.
+      if (s && !isLoyolyEmail(s.user?.email) && s.user?.user_metadata?.brand_name) {
+        window.location.replace('/kit');
+        return null;
+      }
       if (s && !isLoyolyEmail(s.user?.email)) {
         setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
         // Supabase calls must not be awaited inside the auth callback.
