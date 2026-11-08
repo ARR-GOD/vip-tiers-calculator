@@ -79,8 +79,10 @@ export function applyRewardOp(rewards, op) {
   if (index < 0) return fail('unknown_item');
   if (op.kind === 'perk') {
     if (op.field !== 'assigned' || !Number.isInteger(op.index) || op.index < 0) fail('invalid_op');
+    const value = requireBoolean(op.value);
     const assignedTiers = [...(rewards[index].assignedTiers || [])];
-    assignedTiers[op.index] = requireBoolean(op.value);
+    while (assignedTiers.length <= op.index) assignedTiers.push(false);
+    assignedTiers[op.index] = value;
     return setAt(rewards, index, { assignedTiers });
   }
   if (op.field === 'pointsBase') return setAt(rewards, index, { pointsBase: requireNumber(op.value, 'points') });
@@ -121,7 +123,11 @@ export function applyProgramOp(program, op) {
         : { ...program, customMissions: applyMissionOp(program.customMissions, op) };
     }
     case 'reward':
+      return { ...program, rewards: applyRewardOp(program.rewards || [], op) };
     case 'perk':
+      if (indexOfId(program.rewards, op.id) >= 0 && Number.isInteger(op.index) && op.index >= (program.tiers || []).length) {
+        fail('unknown_item');
+      }
       return { ...program, rewards: applyRewardOp(program.rewards || [], op) };
     case 'tier':
       return { ...program, tiers: applyTierOp(program.tiers || [], op) };
