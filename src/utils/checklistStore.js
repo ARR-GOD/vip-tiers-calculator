@@ -4,7 +4,7 @@
 // The brand goes through clientApi.checklist* (utils/clientPortalStore.js).
 
 import { supabase } from '../lib/supabase';
-import { CUSTOM_PREFIX, isCustomKey } from './checklist';
+import { CUSTOM_PREFIX, isCustomKey, checklistProgressByProgram } from './checklist';
 
 const unwrap = ({ data, error }) => {
   if (error) throw error;
@@ -35,4 +35,15 @@ export async function addChecklistTask(programId, key, label, phase) {
 
 export async function deleteChecklistTask(programId, key) {
   unwrap(await supabase.from('program_checklist').delete().eq('program_id', programId).eq('item_key', key));
+}
+
+// Where every program's checklist stands, for the client space (programs
+// never started are left out). A missing table (migration not run) gives {}.
+export async function listChecklistProgress() {
+  const [rows, programs] = await Promise.all([
+    supabase.from('program_checklist')
+      .select('program_id, item_key, label, phase, status, created_at, updated_at, updated_by_type, updated_by_name').then(unwrap),
+    supabase.from('vip_programs').select('id, config:state->config, referralConfig:state->referralConfig').then(unwrap),
+  ]);
+  return checklistProgressByProgram(programs, rows);
 }

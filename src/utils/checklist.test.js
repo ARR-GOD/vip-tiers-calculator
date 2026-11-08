@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CHECKLIST_PHASES, CHECKLIST_STEPS, SETUP_CONDITIONS, GUIDES } from '../data/checklistTemplate';
-import { buildChecklist, checklistSetup, missingSetup, checklistRowPatch, patchChecklistRows, addChecklistRow, removeChecklistRow } from './checklist';
+import { buildChecklist, checklistSetup, missingSetup, checklistRowPatch, patchChecklistRows, addChecklistRow, removeChecklistRow, checklistProgressByProgram, folderChecklist } from './checklist';
 
 const keysOf = checklist => checklist.phases.flatMap(p => [...p.groups.flatMap(g => g.items), ...p.custom]).map(i => i.key);
 
@@ -92,6 +92,22 @@ describe('checklist for a setup', () => {
     rows = addChecklistRow(rows, 'custom_x', 'Brief vendeurs', 'launch', marie);
     expect(rows[1]).toMatchObject({ item_key: 'custom_x', label: 'Brief vendeurs', phase: 'launch', status: 'todo' });
     expect(removeChecklistRow(rows, 'custom_x')).toHaveLength(1);
+  });
+
+  it('sums up each started checklist for the client space, and a folder by its last moved one', () => {
+    const config = { hasMissions: true, hasTiers: true, cms: 'shopify', crm: 'none', international: false, physicalStore: false };
+    const rows = [
+      { program_id: 'p1', item_key: 'branding', status: 'done', updated_at: '2026-11-08T10:00:00Z', updated_by_type: 'csm', updated_by_name: 'Ana' },
+      { program_id: 'p1', item_key: 'go_live', status: 'in_progress', updated_at: '2026-11-08T12:00:00Z', updated_by_type: 'client', updated_by_name: 'Marie' },
+      { program_id: 'p2', item_key: 'branding', status: 'done', updated_at: '2026-11-07T09:00:00Z', updated_by_type: 'csm', updated_by_name: 'Ana' },
+    ];
+    const byProgram = checklistProgressByProgram([{ id: 'p1', config, referralConfig: { enabled: true } }, { id: 'p2', config }, { id: 'p3', config }], rows);
+    const total = buildChecklist(checklistSetup({ config, referralConfig: { enabled: true } })).progress.total;
+    expect(byProgram.p1).toEqual({ done: 1, total, updatedAt: '2026-11-08T12:00:00Z', updatedByType: 'client', updatedByName: 'Marie' });
+    expect(byProgram.p3).toBeUndefined();
+    const folder = { programs: [{ id: 'p2', program_name: 'Proposition B' }, { id: 'p1', program_name: 'Programme principal' }, { id: 'p3', program_name: 'Brouillon' }] };
+    expect(folderChecklist(folder, byProgram)).toMatchObject({ programName: 'Programme principal', done: 1, updatedByName: 'Marie' });
+    expect(folderChecklist({ programs: [{ id: 'p3' }] }, byProgram)).toBe(null);
   });
 
   it('speaks English', () => {

@@ -173,3 +173,29 @@ export function buildChecklist(setup, savedRows = [], lang = 'fr') {
     progress: { done: counted.filter(i => i.status === 'done').length, total: counted.length },
   };
 }
+
+// ── Client space: where each program's checklist stands ──
+// `programs`: [{ id, config, referralConfig }]; `rows`: checklist rows of all
+// programs. Only the programs whose checklist was started are returned:
+// { programId: { done, total, updatedAt, updatedByType, updatedByName } }.
+export function checklistProgressByProgram(programs, rows) {
+  const byProgram = new Map();
+  rows.forEach(r => {
+    if (!byProgram.has(r.program_id)) byProgram.set(r.program_id, []);
+    byProgram.get(r.program_id).push(r);
+  });
+  return Object.fromEntries(programs.filter(p => byProgram.has(p.id)).map(p => {
+    const list = byProgram.get(p.id);
+    const { progress } = buildChecklist(checklistSetup({ config: p.config || {}, referralConfig: p.referralConfig }), list);
+    const last = list.reduce((a, r) => (!a || String(r.updated_at) > String(a.updated_at) ? r : a), null);
+    return [p.id, { ...progress, updatedAt: last.updated_at, updatedByType: last.updated_by_type, updatedByName: last.updated_by_name }];
+  }));
+}
+
+// A client folder's checklist: the one of its program where it moved last.
+export function folderChecklist(folder, progressByProgram) {
+  return folder.programs
+    .filter(p => progressByProgram[p.id])
+    .map(p => ({ ...progressByProgram[p.id], programName: p.program_name }))
+    .reduce((a, c) => (!a || String(c.updatedAt) > String(a.updatedAt) ? c : a), null);
+}

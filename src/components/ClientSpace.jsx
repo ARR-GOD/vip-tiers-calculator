@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Folder, Loader2, AlertCircle, ArrowRight, FolderOpen } from 'lucide-react';
+import { Search, Plus, Folder, Loader2, AlertCircle, ArrowRight, FolderOpen, ListChecks } from 'lucide-react';
 import { listPrograms } from '../utils/programStore';
 import { listCommentsToHandle } from '../utils/clientPortalStore';
+import { listChecklistProgress } from '../utils/checklistStore';
+import { folderChecklist } from '../utils/checklist';
 import { groupProgramsIntoFolders, isMyFolder, matchesFolderSearch } from '../utils/clientFolders';
 
 const FR = {
@@ -21,6 +23,11 @@ const FR = {
   toHandle: n => `💬 ${n} à traiter`,
   updated: (date, by) => `Modifié le ${date}${by ? ` par ${by}` : ''}`,
   dbError: 'Base de données : ',
+  sortRecent: 'Récents',
+  sortChecklist: 'Moins avancés d\'abord',
+  checklist: (done, total) => `Checklist ${done}/${total}`,
+  checklistNone: 'Checklist pas encore commencée',
+  checklistBy: (who, brand, date) => `${who}${brand ? ' (marque)' : ''} · ${date}`,
 };
 
 const EN = {
@@ -40,6 +47,11 @@ const EN = {
   toHandle: n => `💬 ${n} to handle`,
   updated: (date, by) => `Updated ${date}${by ? ` by ${by}` : ''}`,
   dbError: 'Database: ',
+  sortRecent: 'Recent',
+  sortChecklist: 'Least advanced first',
+  checklist: (done, total) => `Checklist ${done}/${total}`,
+  checklistNone: 'Checklist not started yet',
+  checklistBy: (who, brand, date) => `${who}${brand ? ' (brand)' : ''} · ${date}`,
 };
 
 export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient, onManual }) {
@@ -49,6 +61,8 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
   const [search, setSearch] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
   const [toHandle, setToHandle] = useState({}); // programId → { count, page } of client comments
+  const [checklists, setChecklists] = useState({}); // programId → where its launch checklist stands
+  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'checklist'
 
   useEffect(() => {
     let cancelled = false;
@@ -58,13 +72,26 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
     listCommentsToHandle()
       .then(counts => { if (!cancelled) setToHandle(counts); })
       .catch(() => {});
+    listChecklistProgress()
+      .then(progress => { if (!cancelled) setChecklists(progress); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
   const toHandleIn = folder => folder.programs.reduce((n, p) => n + (toHandle[p.id]?.count || 0), 0);
 
-  const shown = useMemo(() => (folders || [])
-    .filter(f => !onlyMine || isMyFolder(f, userEmail))
-    .filter(f => matchesFolderSearch(f, search)), [folders, onlyMine, userEmail, search]);
+  // Least advanced first: the started checklists by progress, then the others.
+  const shown = useMemo(() => {
+    const list = (folders || [])
+      .filter(f => !onlyMine || isMyFolder(f, userEmail))
+      .filter(f => matchesFolderSearch(f, search));
+    if (sortBy !== 'checklist') return list;
+    const ratio = f => {
+      const c = folderChecklist(f, checklists);
+      return c ? c.done / Math.max(c.total, 1) : 2;
+    };
+    return [...list].sort((a, b) => ratio(a) - ratio(b));
+  }, [folders, onlyMine, userEmail, search, sortBy, checklists]);
+  const shortDate = iso => new Date(iso).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'short' });
 
   const formatDate = iso => new Date(iso).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -106,6 +133,16 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1 ml-auto" role="group" aria-label={lang === 'fr' ? 'Trier' : 'Sort'}>
+          {[['recent', t.sortRecent], ['checklist', t.sortChecklist]].map(([key, label]) => (
+            <button key={key} onClick={() => setSortBy(key)} aria-pressed={sortBy === key}
+              className={`px-3 py-1 rounded-full text-[12px] font-medium border transition-all ${
+                sortBy === key ? 'bg-primary/10 text-primary border-primary/30' : 'text-[#8A7D6B] border-transparent hover:bg-[#E5E1D8]'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Keyed states: the global transition must not morph one into another */}
@@ -140,6 +177,7 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
                   ? folder.plan && <span className="pill pill-purple text-[10px] shrink-0">{folder.plan}</span>
                   : <span className="pill text-[10px] shrink-0 bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
               </div>
+              <FolderChecklist t={t} checklist={folderChecklist(folder, checklists)} several={folder.programs.length > 1} shortDate={shortDate} />
               <div className="mt-3 pt-3 border-t border-[#E5E1D8] flex items-center justify-between gap-2 text-[12px]">
                 <span className="font-medium text-[#52473C] whitespace-nowrap">{t.programs(folder.programs.length)}</span>
                 {toHandleIn(folder) > 0 && (
@@ -152,6 +190,38 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
               </div>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Where the folder's launch checklist stands (its program where it moved last).
+function FolderChecklist({ t, checklist, several, shortDate }) {
+  if (!checklist) {
+    return (
+      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[#B0A595]" data-testid="folder-checklist">
+        <ListChecks size={12} /> {t.checklistNone}
+      </div>
+    );
+  }
+  const percent = checklist.total ? Math.round((checklist.done / checklist.total) * 100) : 0;
+  const byBrand = checklist.updatedByType === 'client';
+  return (
+    <div className="mt-3" data-testid="folder-checklist">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="font-semibold text-[#52473C] inline-flex items-center gap-1.5 min-w-0">
+          <ListChecks size={12} className="text-[#059669] shrink-0" />
+          <span className="truncate">{t.checklist(checklist.done, checklist.total)}{several ? ` · ${checklist.programName}` : ''}</span>
+        </span>
+        <span className="text-[#8A7D6B] tabular-nums">{percent} %</span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-[#EEEDE6] overflow-hidden">
+        <div className="h-full bg-[#059669] rounded-full" style={{ width: `${percent}%` }} />
+      </div>
+      {checklist.updatedByName && (
+        <div className={`mt-1 text-[11px] truncate ${byBrand ? 'text-primary font-medium' : 'text-[#8A7D6B]'}`}>
+          {t.checklistBy(checklist.updatedByName, byBrand, shortDate(checklist.updatedAt))}
         </div>
       )}
     </div>
