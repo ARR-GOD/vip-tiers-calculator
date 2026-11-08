@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2, Send } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
@@ -26,9 +26,11 @@ import ClientFolder from './components/ClientFolder';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
 import SaveStatus from './components/SaveStatus';
 import CommentsPanel, { CommentsButton } from './components/CommentsPanel';
-import { buildClientView, hasUnpublishedChanges, PAGE_OF_STEP, STEP_OF_PAGE } from './utils/clientView';
-import { publishProgram, countToHandleByPage } from './utils/clientPortalStore';
+import { buildClientView, hasUnpublishedChanges, PAGE_OF_STEP, STEP_OF_PAGE, pageLabel } from './utils/clientView';
+import { publishProgram, countToHandleByPage, listProgramActivity } from './utils/clientPortalStore';
 import { useProgramComments } from './utils/useProgramComments';
+import { useProgramActivity } from './utils/useProgramActivity';
+import { applyMissionOp, applyRewardOp, applyTierOp, applyReferralOp, applyProgramOp } from './utils/programOps';
 import { Building2 } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -130,13 +132,30 @@ function App() {
     useProgramComments(phase === 'wizard' ? programTarget?.id : null, user?.email);
   const toHandleByPage = countToHandleByPage(programComments);
   const toHandleTotal = Object.values(toHandleByPage).reduce((s, n) => s + n, 0);
+  // Brand edits from the client portal (activity feed). They are already in
+  // the database, but the open wizard would write over them with its next
+  // save: they are replayed into it. `clientEditsMergedAt` (saved with the
+  // program) is the creation time of the last one replayed.
+  const [clientEditsMergedAt, setClientEditsMergedAt] = useState(null);
+  const [activitySeenAt, setActivitySeenAt] = useState(null); // feed read up to there
+  const mergeGuard = useRef({ target: null, since: null });
+  const resetClientEdits = (target, since = null) => {
+    mergeGuard.current = { target, since };
+    setClientEditsMergedAt(since);
+    setActivitySeenAt(since);
+  };
+  const { activity: programActivity, error: activityError } =
+    useProgramActivity(phase === 'wizard' ? programTarget?.id : null, (activity, programId) => mergeClientEdits(activity, programId));
+  const newActivityCount = programActivity.filter(a => !activitySeenAt || a.at > activitySeenAt).length;
   const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
   const [saver] = useState(() => createProgramSaver({ onChange: setSaveState }));
 
   // A new program starts clean: nothing from the previously opened brand
   // (imported customers, custom missions, referral) carries over.
   const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME) => {
-    setProgramTarget({ id: null, hubspotCompanyId, name });
+    const target = { id: null, hubspotCompanyId, name };
+    setProgramTarget(target);
+    resetClientEdits(target);
     setPublication(null);
     setCustomers(parseSampleData());
     setCustomMissions([]);
@@ -207,6 +226,7 @@ function App() {
     setSelectedClient(values.selectedClient);
     setCsmMode(!!values.selectedClient);
     setProgramTarget(target);
+    resetClientEdits(target, values.clientEditsMergedAt);
     setPhase('wizard');
     setStep(values.step);
     setVisitedSteps(new Set([values.step]));
@@ -292,6 +312,7 @@ function App() {
   const closeProgram = async () => {
     await saver.flush();
     setProgramTarget(null);
+    resetClientEdits(null);
     setPublication(null);
     setCommentsOpen(false);
     applyProgram(BLANK_PROGRAM);
@@ -338,10 +359,10 @@ function App() {
     saver.schedule(buildProgramSnapshot(programTarget, {
       config, settings, tiers, rewards, missions, customMissions,
       burnRate, referralConfig, onboardingAnswers, brandAnalysis,
-      selectedClient, customers, step,
+      selectedClient, customers, step, clientEditsMergedAt,
     }));
   }, [saver, phase, programTarget, config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers, brandAnalysis, selectedClient, customers, step]);
+      burnRate, referralConfig, onboardingAnswers, brandAnalysis, selectedClient, customers, step, clientEditsMergedAt]);
 
   // Write immediately when the tab is hidden, and ask before closing it while
   // a change hasn't reached the database yet.
@@ -394,14 +415,54 @@ function App() {
     try {
       await saver.flush(); // the first save creates the row that gets published
       if (!programTarget.id) throw new Error(t ? 'programme pas encore enregistré' : 'program not saved yet');
-      const version = await publishProgram(programTarget.id, clientView);
-      setPublication({ version, at: new Date().toISOString(), view: clientView });
+      // Brand edits not polled yet go into this version too (the publication
+      // replaces the view the brand edited).
+      const activity = await listProgramActivity(programTarget.id).catch(() => []);
+      const since = mergeGuard.current.since;
+      const pending = activity.filter(a => !since || a.at > since);
+      const view = pending.length
+        ? { ...clientView, program: pending.reduce((p, a) => { try { return applyProgramOp(p, a.op); } catch { return p; } }, clientView.program) }
+        : clientView;
+      mergeClientEdits(activity, programTarget.id);
+      const version = await publishProgram(programTarget.id, view);
+      setPublication({ version, at: new Date().toISOString(), view });
       setShareToast({ ok: true, message: t ? `Version ${version} publiée pour le client` : `Version ${version} published for the client` });
     } catch (err) {
       setShareToast({ ok: false, message: `${t ? 'Échec de la publication' : 'Publication failed'} : ${err.message}` });
     }
     setPublishing(false);
     setTimeout(() => setShareToast(null), 4000);
+  };
+
+  // Replays the brand edits not yet in the wizard (each op sets one value, so
+  // replaying one twice changes nothing), and the published view follows.
+  const mergeClientEdits = (activity, programId) => {
+    const guard = mergeGuard.current;
+    if (!guard.target || guard.target.id !== programId) return;
+    const fresh = activity.filter(a => !guard.since || a.at > guard.since);
+    if (!fresh.length) return;
+    guard.since = fresh[fresh.length - 1].at;
+    const ops = fresh.map(a => a.op);
+    const replay = (kinds, apply) => value => ops.filter(op => kinds.includes(op.kind))
+      .reduce((v, op) => { try { return apply(v, op); } catch { return v; } }, value);
+    setMissions(replay(['mission'], applyMissionOp));
+    setCustomMissions(replay(['mission'], applyMissionOp));
+    setRewards(replay(['reward', 'perk'], applyRewardOp));
+    setTiersRaw(replay(['tier'], applyTierOp));
+    setReferralConfig(replay(['referral'], applyReferralOp));
+    setPublication(pub => (pub?.view?.program
+      ? { ...pub, view: { ...pub.view, program: replay(['mission', 'reward', 'perk', 'tier', 'referral'], applyProgramOp)(pub.view.program) } }
+      : pub));
+    setClientEditsMergedAt(guard.since);
+    const fr = lang === 'fr';
+    const last = fresh[fresh.length - 1];
+    setShareToast({
+      ok: true,
+      message: fresh.length === 1
+        ? `${last.actorName} ${fr ? 'a modifié' : 'changed'} ${pageLabel(last.page, lang)} · ${last.itemLabel} — ${last.fieldLabel} : ${last.oldValue} → ${last.newValue}`
+        : (fr ? `${fresh.length} modifications de la marque intégrées au programme (voir l'activité)` : `${fresh.length} brand changes merged into the program (see the activity)`),
+    });
+    setTimeout(() => setShareToast(null), 6000);
   };
 
   const handleLogout = async () => {
@@ -699,11 +760,14 @@ function App() {
       {/* ─── Main Content ─── */}
       {phase === 'wizard' && programTarget?.id && (
         <>
-          <CommentsButton lang={lang} count={toHandleTotal} onClick={openComments} />
+          <CommentsButton lang={lang} count={toHandleTotal} activityCount={newActivityCount} onClick={openComments} />
           {commentsOpen && (
             <CommentsPanel lang={lang} programId={programTarget.id} comments={programComments}
               error={commentsError} reload={reloadComments} page={commentsPage} onPageChange={setCommentsPage}
-              view={clientView} user={user} onClose={() => setCommentsOpen(false)} />
+              view={clientView} user={user} onClose={() => setCommentsOpen(false)}
+              activity={programActivity} activityError={activityError} activitySeenAt={activitySeenAt}
+              openOnActivity={newActivityCount > 0 && toHandleTotal === 0}
+              onActivitySeen={() => setActivitySeenAt(programActivity[programActivity.length - 1]?.at ?? activitySeenAt)} />
           )}
         </>
       )}

@@ -115,6 +115,23 @@ export async function setCommentResolved(id, resolved) {
     .update({ resolved_at: resolved ? new Date().toISOString() : null }).eq('id', id));
 }
 
+// The brand's edits of a program (activity feed), oldest first.
+export async function listProgramActivity(programId) {
+  const rows = unwrap(await supabase.from('program_activity').select('*')
+    .eq('program_id', programId).order('created_at', { ascending: true }));
+  return rows.map(r => ({
+    id: r.id,
+    at: r.created_at,
+    actorName: r.actor_name,
+    page: r.page,
+    itemLabel: r.item_label,
+    fieldLabel: r.field_label,
+    oldValue: r.old_value,
+    newValue: r.new_value,
+    op: r.op,
+  }));
+}
+
 export async function listValidations(programIds) {
   if (!programIds.length) return [];
   return unwrap(await supabase.from('program_validations').select('*').in('program_id', programIds));
@@ -137,5 +154,10 @@ export const clientApi = {
   }),
   validate: (code, author, programId, page) => rpc('client_validate', {
     p_code: code, p_author_name: author.name, p_program_id: programId, p_page: page,
+  }),
+  // A direct edit of the published program (utils/programOps.js), logged for the CSM.
+  edit: (code, author, { programId, page, op, itemLabel, fieldLabel, oldValue, newValue }) => rpc('client_edit', {
+    p_code: code, p_author_name: author.name, p_program_id: programId, p_page: page, p_op: op,
+    p_item_label: itemLabel, p_field_label: fieldLabel, p_old_value: oldValue, p_new_value: newValue,
   }),
 };

@@ -146,6 +146,17 @@ describe('program rows (client folders)', () => {
     expect(programClientFields({}).client_name).toBe('Configuration manuelle');
   });
 
+  it('saves the last brand edit replayed into the program, and only once there is one', () => {
+    expect(JSON.stringify(snapshot.row.state)).not.toContain('clientEditsMergedAt');
+    expect(snapshot.key).not.toContain('clientEditsMergedAt');
+    expect(normalizeProgram(migrateProgramState(snapshot.row.state)).clientEditsMergedAt).toBe(null);
+    const merged = buildProgramSnapshot({ id: 'p1', hubspotCompanyId: '42' }, {
+      ...buildProgramDefaults({ aov: 80 }), clientEditsMergedAt: '2026-11-08T10:00:00.123456+00:00', customers: [],
+    });
+    expect(merged.row.state.clientEditsMergedAt).toBe('2026-11-08T10:00:00.123456+00:00');
+    expect(normalizeProgram(migrateProgramState(merged.row.state)).clientEditsMergedAt).toBe('2026-11-08T10:00:00.123456+00:00');
+  });
+
   it('copies a program into the same folder under a new name', () => {
     const source = { id: 'p1', ...newProgramRow({ hubspotCompanyId: '42' }, snapshot.row, [{ customer_id: 'c1' }]), created_by: 'ana@loyoly.io' };
     const copy = copyProgramRow(source, 'Programme principal (copie)');

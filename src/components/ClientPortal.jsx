@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, CheckCircle2, MessageSquare, Globe, KeyRound, LogOut } from 'lucide-react';
 import CommentThread from './CommentThread';
+import ClientProgramEditor from './ClientProgramEditor';
 import { clientApi, normalizeComment } from '../utils/clientPortalStore';
-import { CLIENT_PAGES, pageSections, pageItems, pageLabel } from '../utils/clientView';
+import { CLIENT_PAGES, pageSections, pageItems, pageLabel, isEditableView } from '../utils/clientView';
+import { applyProgramOp } from '../utils/programOps';
 import { normalizeAccessCode, isValidAccessCode, formatAccessCode } from '../utils/accessCode';
 import { getAnonSupabase } from '../lib/supabase';
 import { DEFAULT_TIER_COLORS } from '../data/defaults';
@@ -46,6 +48,9 @@ const FR = {
   },
   signedAs: name => `Connecté·e en tant que ${name}`,
   leave: 'Quitter',
+  saved: 'Modification enregistrée : votre CSM Loyoly en est informé.',
+  saveError: 'La modification n\'a pas pu être enregistrée. Réessayez ou laissez un commentaire.',
+  readOnly: 'Cette version se consulte en lecture seule : laissez vos remarques en commentaire.',
 };
 
 const EN = {
@@ -76,6 +81,9 @@ const EN = {
   },
   signedAs: name => `Signed in as ${name}`,
   leave: 'Leave',
+  saved: 'Change saved: your Loyoly CSM is notified.',
+  saveError: 'The change could not be saved. Try again or leave a comment.',
+  readOnly: 'This version is read-only: leave your remarks as comments.',
 };
 
 // Browser storage may be unavailable (private mode): the portal still works
@@ -104,6 +112,7 @@ export default function ClientPortal() {
   const [programId, setProgramId] = useState(null);
   const [page, setPage] = useState('missions');
   const [target, setTarget] = useState('');
+  const [toast, setToast] = useState(null); // { ok, text }
   const textareaRef = useRef(null);
   // A background refresh answering after a newer one must not bring back old data.
   const lastRequest = useRef(0);
@@ -140,6 +149,12 @@ export default function ClientPortal() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     document.title = data?.client_name ? `${data.client_name} — ${t.portal}` : `Loyoly — ${t.portal}`;
@@ -187,6 +202,27 @@ export default function ClientPortal() {
     textareaRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
   const openCountOf = ref => comments.filter(c => c.itemRef === ref && !c.resolved).length;
+
+  // A direct edit: shown at once, saved, then the portal is reloaded (which
+  // also brings the change back if it was refused).
+  const saveEdit = async ({ op, ...labels }) => {
+    const id = program.id;
+    lastRequest.current++; // a refresh already on its way would show the old value
+    setData(d => ({
+      ...d,
+      programs: d.programs.map(p => {
+        if (p.id !== id) return p;
+        try { return { ...p, view: { ...p.view, program: applyProgramOp(p.view.program, op) } }; } catch { return p; }
+      }),
+    }));
+    try {
+      await clientApi.edit(code, author, { programId: id, page, op, ...labels });
+      setToast({ ok: true, text: t.saved });
+    } catch {
+      setToast({ ok: false, text: t.saveError });
+    }
+    load();
+  };
 
   // ── Screens before the program ──
   const shell = content => (
@@ -249,6 +285,7 @@ export default function ClientPortal() {
   // ── The program ──
   const sections = pageSections(view, lang, page);
   const hasContent = sections.some(s => s.rows?.length || s.facts?.length);
+  const editable = isEditableView(view);
 
   return shell(
     <div className="space-y-4">
@@ -305,10 +342,18 @@ export default function ClientPortal() {
             )}
           </div>
 
-          {!hasContent && <div className="card text-[13px] text-[#8A7D6B]">{sections.find(s => s.note)?.note || t.emptyPage[page]}</div>}
-          {sections.filter(s => s.rows?.length || s.facts?.length).map(section => (
-            <SectionCard key={section.key} section={section} t={t} onComment={commentOn} openCountOf={openCountOf} />
-          ))}
+          {editable ? (
+            <ClientProgramEditor lang={lang} page={page} program={view.program} sections={sections}
+              onEdit={saveEdit} onComment={commentOn} openCountOf={openCountOf} emptyText={t.emptyPage[page]} />
+          ) : (
+            <>
+              {hasContent && <p className="text-[12px] text-[#8A7D6B]">{t.readOnly}</p>}
+              {!hasContent && <div className="card text-[13px] text-[#8A7D6B]">{sections.find(s => s.note)?.note || t.emptyPage[page]}</div>}
+              {sections.filter(s => s.rows?.length || s.facts?.length).map(section => (
+                <SectionCard key={section.key} section={section} t={t} onComment={commentOn} openCountOf={openCountOf} />
+              ))}
+            </>
+          )}
         </div>
 
         <aside className="card lg:sticky lg:top-4" style={{ padding: 16 }}>
@@ -325,6 +370,12 @@ export default function ClientPortal() {
           />
         </aside>
       </div>
+
+      {toast && (
+        <div role="status" className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-[10px] shadow-lg text-[13px] font-medium inline-flex items-center gap-2 max-w-[calc(100vw-32px)] ${toast.ok ? 'bg-[#2B251F] text-white' : 'bg-red-600 text-white'}`}>
+          {toast.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {toast.text}
+        </div>
+      )}
     </div>,
   );
 }

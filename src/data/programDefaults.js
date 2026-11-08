@@ -187,5 +187,7 @@ export function normalizeProgram(program = {}) {
     referralConfig: normalizeReferral(program.referralConfig),
     onboardingAnswers: program.onboardingAnswers ?? null,
     brandAnalysis: program.brandAnalysis ?? null,
+    // Creation time of the last brand edit (client portal) replayed into the program.
+    clientEditsMergedAt: program.clientEditsMergedAt ?? null,
   };
 }

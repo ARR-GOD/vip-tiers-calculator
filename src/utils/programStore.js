@@ -178,6 +178,7 @@ export function buildProgramSnapshot(target, s) {
       referralConfig: s.referralConfig,
       onboardingAnswers: s.onboardingAnswers ?? null,
       brandAnalysis: s.brandAnalysis ?? null,
+      clientEditsMergedAt: s.clientEditsMergedAt ?? undefined,
     },
   };
   return { target, row, key: stableStringify(row), customers: s.customers };
