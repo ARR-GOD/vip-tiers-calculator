@@ -4,6 +4,7 @@ import ClientPortal from './ClientPortal';
 import { supabase, apiFetch, isLoyolyEmail } from '../lib/supabase';
 import { buildKit } from '../utils/brandKit';
 import { normalizeDomain } from '../utils/clientFolders';
+import { authErrorText } from '../utils/accountSpaces';
 
 // ════════════════════════════════════════════════════════════════════
 // /kit — self-serve brands: an account, then a ready-to-use onboarding kit
@@ -49,6 +50,7 @@ const FR = {
     'Email not confirmed': 'Confirmez d\'abord votre email : cliquez sur le lien reçu à l\'inscription.',
     'User already registered': 'Un compte existe déjà avec cet email : connectez-vous.',
     email_not_confirmed: 'Confirmez d\'abord votre email : cliquez sur le lien reçu à l\'inscription.',
+    agency_account: 'Ce compte est un compte agence : connectez-vous depuis l\'espace Agence (/agency).',
     generic: 'Une erreur est survenue. Réessayez dans un instant.',
   },
 };
@@ -86,15 +88,12 @@ const EN = {
     'Email not confirmed': 'Confirm your email first: click the link received when you signed up.',
     'User already registered': 'An account already exists with this email: sign in.',
     email_not_confirmed: 'Confirm your email first: click the link received when you signed up.',
+    agency_account: 'This is an agency account: sign in from the Agency space (/agency).',
     generic: 'Something went wrong. Try again in a moment.',
   },
 };
 
-const errorText = (t, err) => {
-  const message = err?.message || '';
-  const known = Object.keys(t.errors).find(key => message.includes(key));
-  return known ? t.errors[known] : (message || t.errors.generic);
-};
+const errorText = authErrorText;
 
 export default function BrandKit() {
   const [lang, setLang] = useState(() => (navigator.language?.startsWith('fr') === false ? 'en' : 'fr'));
@@ -166,7 +165,7 @@ export default function BrandKit() {
       <div className="card max-w-md mx-auto text-center space-y-3">
         <p className="text-[14px] text-[#52473C]">{t.teamAccount}</p>
         <div className="flex justify-center gap-2">
-          <a href="/" className="btn-primary">{t.openCsm}</a>
+          <a href="/loyoly" className="btn-primary">{t.openCsm}</a>
           <button onClick={signOut} className="btn-secondary">{t.logout}</button>
         </div>
       </div>,
@@ -207,9 +206,14 @@ const field = 'w-full px-3 text-[14px]';
 // Inline: the global input rules (index.css) only cover type="text" / "number".
 const FIELD_STYLE = { height: 40, border: '1px solid var(--color-card-border)', borderRadius: 10, background: 'var(--color-card-elev)' };
 
-function AuthCard({ t }) {
+// Sign-up / sign-in / password reset with Supabase Auth (email + password).
+// The kit (brands) and the agency space share it: `nameKey` is the metadata
+// the name typed at sign-up goes to, `extraData` more metadata, and a
+// `t.website` label adds an optional website field (`websiteKey`).
+export function AuthCard({ t, redirectPath = '/kit', nameKey = 'brand_name', websiteKey = null, extraData = {} }) {
   const [mode, setMode] = useState('signup'); // signup | login | forgot
   const [brandName, setBrandName] = useState('');
+  const [website, setWebsite] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -226,13 +230,13 @@ function AuthCard({ t }) {
     }
     setBusy(false);
   };
-  const redirectTo = `${window.location.origin}/kit`;
+  const redirectTo = `${window.location.origin}${redirectPath}`;
   const submit = e => {
     e.preventDefault();
     if (mode === 'signup') {
       run(async () => {
         const { data, error: err } = await supabase.auth.signUp({
-          email: email.trim(), password, options: { data: { brand_name: brandName.trim() }, emailRedirectTo: redirectTo },
+          email: email.trim(), password, options: { data: { ...extraData, [nameKey]: brandName.trim(), ...(websiteKey && website.trim() ? { [websiteKey]: website.trim() } : {}) }, emailRedirectTo: redirectTo },
         });
         if (err) throw err;
         if (!data.session) setSent({ kind: 'signup', email: email.trim() });
@@ -298,6 +302,12 @@ function AuthCard({ t }) {
             <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)} maxLength={80} autoComplete="organization" className={field} style={FIELD_STYLE} />
           </label>
         )}
+        {mode === 'signup' && websiteKey && t.website && (
+          <label className="block text-[12px] font-medium text-[#645648] space-y-1">
+            <span>{t.website}</span>
+            <input type="url" value={website} onChange={e => setWebsite(e.target.value)} maxLength={200} autoComplete="url" placeholder="https://" className={field} style={FIELD_STYLE} />
+          </label>
+        )}
         <label className="block text-[12px] font-medium text-[#645648] space-y-1">
           <span>{t.email}</span>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" className={field} style={FIELD_STYLE} />
@@ -326,7 +336,7 @@ function AuthCard({ t }) {
   );
 }
 
-function NewPassword({ t, onDone }) {
+export function NewPassword({ t, onDone }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const save = async e => {

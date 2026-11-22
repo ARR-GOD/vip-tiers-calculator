@@ -32,6 +32,30 @@
     {
       "source": "/client/:code",
       "destination": "/index.html"
+    },
+    {
+      "source": "/kit",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/kit/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/agency",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/agency/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/loyoly",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/loyoly/:path*",
+      "destination": "/index.html"
     }
   ]
 }

@@ -5,6 +5,7 @@ import { listCommentsToHandle } from '../utils/clientPortalStore';
 import { listChecklistProgress } from '../utils/checklistStore';
 import { folderChecklist } from '../utils/checklist';
 import { groupProgramsIntoFolders, isMyFolder, matchesFolderSearch, isSelfServeFolder } from '../utils/clientFolders';
+import { agencyNames } from '../utils/agencyStore';
 
 const FR = {
   title: 'Espace clients',
@@ -29,6 +30,10 @@ const FR = {
   checklist: (done, total) => `Checklist ${done}/${total}`,
   checklistNone: 'Checklist pas encore commencée',
   checklistBy: (who, brand, date) => `${who}${brand ? ' (marque)' : ''} · ${date}`,
+  agencySubtitle: 'Un dossier par client ou prospect, avec tous ses programmes. Partagé avec votre agence.',
+  agencyEmptyHint: 'Indiquez le site d\'un client ou d\'un prospect : nous l\'analysons et vous proposons un premier programme.',
+  agency: name => `Agence ${name}`,
+  agencies: 'Agences',
 };
 
 const EN = {
@@ -54,9 +59,15 @@ const EN = {
   checklist: (done, total) => `Checklist ${done}/${total}`,
   checklistNone: 'Checklist not started yet',
   checklistBy: (who, brand, date) => `${who}${brand ? ' (brand)' : ''} · ${date}`,
+  agencySubtitle: 'One folder per client or prospect, with all its programs. Shared with your agency.',
+  agencyEmptyHint: 'Enter a client\'s or prospect\'s website: we analyze it and suggest a first program.',
+  agency: name => `Agency ${name}`,
+  agencies: 'Agencies',
 };
 
-export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient, onManual }) {
+// agencyMode: an agency's space (no HubSpot, no client portal). The Loyoly
+// team sees the agencies' folders too, badged with the agency's name.
+export default function ClientSpace({ lang, userEmail, agencyMode = false, onOpenFolder, onNewClient, onManual }) {
   const t = lang === 'fr' ? FR : EN;
   const [folders, setFolders] = useState(null);
   const [error, setError] = useState('');
@@ -65,26 +76,32 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
   const [toHandle, setToHandle] = useState({}); // programId → { count, page } of client comments
   const [checklists, setChecklists] = useState({}); // programId → where its launch checklist stands
   const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'checklist'
+  const [scope, setScope] = useState('all'); // 'all' | 'mine' | 'agencies' (team side)
+  const [agencies, setAgencies] = useState({}); // agency id → name (team side)
 
   useEffect(() => {
     let cancelled = false;
     listPrograms()
       .then(list => { if (!cancelled) setFolders(groupProgramsIntoFolders(list)); })
       .catch(err => { if (!cancelled) { setError(err.message); setFolders([]); } });
-    listCommentsToHandle()
-      .then(counts => { if (!cancelled) setToHandle(counts); })
-      .catch(() => {});
+    if (!agencyMode) {
+      listCommentsToHandle()
+        .then(counts => { if (!cancelled) setToHandle(counts); })
+        .catch(() => {});
+      agencyNames().then(names => { if (!cancelled) setAgencies(names); });
+    }
     listChecklistProgress()
       .then(progress => { if (!cancelled) setChecklists(progress); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [agencyMode]);
   const toHandleIn = folder => folder.programs.reduce((n, p) => n + (toHandle[p.id]?.count || 0), 0);
 
   // Least advanced first: the started checklists by progress, then the others.
   const shown = useMemo(() => {
     const list = (folders || [])
       .filter(f => !onlyMine || isMyFolder(f, userEmail))
+      .filter(f => scope !== 'agencies' || !!f.agencyId)
       .filter(f => matchesFolderSearch(f, search));
     if (sortBy !== 'checklist') return list;
     const ratio = f => {
@@ -92,7 +109,7 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
       return c ? c.done / Math.max(c.total, 1) : 2;
     };
     return [...list].sort((a, b) => ratio(a) - ratio(b));
-  }, [folders, onlyMine, userEmail, search, sortBy, checklists]);
+  }, [folders, onlyMine, userEmail, search, sortBy, checklists, scope]);
   const shortDate = iso => new Date(iso).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'short' });
 
   const formatDate = iso => new Date(iso).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
@@ -105,10 +122,10 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
             <FolderOpen size={20} className="text-primary" />
             <h1 className="text-[24px] font-bold text-[#52473C]">{t.title}</h1>
           </div>
-          <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
+          <p className="text-[14px] text-[#8A7D6B]">{agencyMode ? t.agencySubtitle : t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onManual} className="btn-secondary">{t.manual}</button>
+          {!agencyMode && <button onClick={onManual} className="btn-secondary">{t.manual}</button>}
           <button onClick={onNewClient} className="btn-primary"><Plus size={14} /> {t.newClient}</button>
         </div>
       </div>
@@ -126,10 +143,10 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#D9D5CB] bg-[#EEEDE6] text-[13px] text-[#52473C] placeholder:text-[#8A7D6B] focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <div className="flex items-center gap-1">
-          {[[false, t.all], [true, t.mine]].map(([mine, label]) => (
-            <button key={label} onClick={() => setOnlyMine(mine)}
+          {[['all', t.all], ['mine', t.mine], ...(agencyMode ? [] : [['agencies', t.agencies]])].map(([key, label]) => (
+            <button key={key} onClick={() => { setScope(key); setOnlyMine(key === 'mine'); }}
               className={`px-3 py-1 rounded-full text-[12px] font-medium border transition-all ${
-                onlyMine === mine ? 'bg-primary/10 text-primary border-primary/30' : 'text-[#8A7D6B] border-transparent hover:bg-[#E5E1D8]'
+                scope === key ? 'bg-primary/10 text-primary border-primary/30' : 'text-[#8A7D6B] border-transparent hover:bg-[#E5E1D8]'
               }`}>
               {label}
             </button>
@@ -157,7 +174,7 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
         <div key="empty" className="card text-center py-12">
           <Folder size={28} className="mx-auto text-[#D9D5CB] mb-3" />
           <p className="text-[15px] font-semibold text-[#52473C]">{t.empty}</p>
-          <p className="text-[13px] text-[#8A7D6B] mt-1 mb-4">{t.emptyHint}</p>
+          <p className="text-[13px] text-[#8A7D6B] mt-1 mb-4">{agencyMode ? t.agencyEmptyHint : t.emptyHint}</p>
           <button onClick={onNewClient} className="btn-primary mx-auto"><Plus size={14} /> {t.newClient}</button>
         </div>
       ) : shown.length === 0 ? (
@@ -175,7 +192,9 @@ export default function ClientSpace({ lang, userEmail, onOpenFolder, onNewClient
                   <div className="text-[15px] font-semibold text-[#2B251F] truncate">{folder.name}</div>
                   <div className="text-[12px] text-[#8A7D6B] truncate">{folder.domain || '—'}</div>
                 </div>
-                {isSelfServeFolder(folder.key)
+                {agencyMode ? null : folder.agencyId
+                  ? <span className="pill text-[10px] shrink-0 bg-[#FEF3C7] text-[#92400E] max-w-[140px] truncate" data-testid="agency-pill">{t.agency(agencies[folder.agencyId] || '…')}</span>
+                  : isSelfServeFolder(folder.key)
                   ? <span className="pill text-[10px] shrink-0 bg-[#ECFDF5] text-[#047857]" title="Kit d'onboarding (/kit)">{t.selfServe}</span>
                   : folder.hubspotCompanyId
                     ? folder.plan && <span className="pill pill-purple text-[10px] shrink-0">{folder.plan}</span>

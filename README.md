@@ -44,6 +44,18 @@ the matching wizard steps (**Commentaires client**).
 Clients never read the tables: the `client_*` SQL functions check the access code on every
 call and return only what was published. Codes can be regenerated or revoked from the folder.
 
+## Spaces
+
+- `/` — home page: **Clients** (`/kit`, or an access code → `/client/…`), **Loyoly**, **Agence**.
+  A signed-in account goes straight to its space (`src/utils/accountSpaces.js`).
+- `/loyoly` — the Loyoly team's tool (Google sign-in, `@loyoly.io`).
+- `/agency` — partner agencies (`src/components/AgencyAccess.jsx`): email + password account,
+  pending until the team approves it (navbar **Agences** button → `AgenciesAdmin`). Approved,
+  they use the tool without HubSpot nor client portal, on their own folders
+  (`agency:<agency id>:<brand>`); the database only shows them their agency's programs
+  (`supabase/migrations/20261122000000_agencies.sql`). 30 site analyses per agency.
+- `/kit` — self-serve brands; `/client/<code>` — the client portal.
+
 ## Local development
 
 ```bash
@@ -60,7 +72,8 @@ npm test                     # unit tests (points model, calculations, migration
    `20261018000000_vip_programs.sql` (the `vip_programs` table, its trigger and the
    `@loyoly.io` access rules), `20261019000000_program_folders.sql` (several named
    programs per client), then `20261020000000_client_portal.sql` (client portal:
-   access codes, publication, comments, approvals).
+   access codes, publication, comments, approvals), then the later files in date order
+   (client edits, checklist, brand accounts, `20261122000000_agencies.sql`).
 2. **Authentication → Sign In / Providers → Google**: enable it and add the Google
    OAuth Web client ID (the same as `VITE_GOOGLE_CLIENT_ID`) to the authorized client IDs.
 3. Keep **Confirm email** enabled so nobody can claim an `@loyoly.io` address without owning it.

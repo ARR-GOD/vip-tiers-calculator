@@ -10,7 +10,8 @@ import { useProgramChecklist } from '../utils/useProgramChecklist';
 // ════════════════════════════════════════════════════════════════════
 // Its steps follow the setup answers of Configuration; the brand sees the
 // same checklist in its client portal and fills it in too.
-export default function StepChecklist({ lang, programId, config, referralConfig, author, onGoToSetup, onPrev }) {
+// agencyMode: no client portal, the brand does not see this checklist.
+export default function StepChecklist({ lang, programId, config, referralConfig, author, agencyMode = false, onGoToSetup, onPrev }) {
   const t = lang === 'fr';
   const { rows, loaded, error, missing, reload, update } = useProgramChecklist(programId);
   const [saveError, setSaveError] = useState('');
@@ -43,8 +44,11 @@ export default function StepChecklist({ lang, programId, config, referralConfig,
         <div className="section-subheader">{t ? 'ÉTAPE 9' : 'STEP 9'}</div>
         <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Checklist de lancement' : 'Launch checklist'}</h2>
         <p className="text-[15px] text-[#645648] mt-0.5">
-          {t ? 'Les étapes du setup, choisies selon la Configuration. La marque suit et complète la même checklist dans son espace client.'
-            : 'The setup steps, chosen from the Configuration. The brand follows and fills in the same checklist in its client portal.'}
+          {agencyMode
+            ? (t ? 'Les étapes du setup, choisies selon la Configuration : la feuille de route du lancement à présenter à votre client.'
+              : 'The setup steps, chosen from the Configuration: the launch roadmap to present to your client.')
+            : (t ? 'Les étapes du setup, choisies selon la Configuration. La marque suit et complète la même checklist dans son espace client.'
+              : 'The setup steps, chosen from the Configuration. The brand follows and fills in the same checklist in its client portal.')}
         </p>
       </div>
 
