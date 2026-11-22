@@ -21,6 +21,9 @@ export const GUIDES = {
   'Configuration des paliers VIP': `${HELP}8531876-configuration-des-paliers-vip`,
   'Paramètres du programme VIP': `${HELP}8532056-parametres-du-programme-vip`,
   'Mettre en place le parrainage': `${HELP}8475397-mettre-en-place-le-parrainage`,
+  'Prévention de la fraude (parrainage)': `${HELP}8475397-mettre-en-place-le-parrainage#h_be72060bee`,
+  "L'expiration des points": `${HELP}10007450-l-expiration-des-points`,
+  'Blacklister des utilisateurs': `${HELP}10055469-blacklister-des-utilisateurs`,
   'Gestion des traductions': `${HELP}9546919-la-gestion-des-traductions`,
   'Intégration Weglot': `${HELP}11144356-integration-weglot`,
   'Gestion des monnaies': `${HELP}9687457-la-gestion-des-monnaies`,
@@ -152,6 +155,12 @@ export const CHECKLIST_STEPS = [
     { noteFr: 'Buy X Get Y : Shopify uniquement (non dispo sur PrestaShop)', noteEn: 'Buy X Get Y: Shopify only (not available on PrestaShop)', guides: ['Types de récompenses', 'Buy X Get Y'] }),
   pre('program', 'vip_tiers', 'tiers', 'Configurer les paliers VIP', 'Set up the VIP tiers', { guides: ['Configuration des paliers VIP', 'Paramètres du programme VIP'] }),
   pre('program', 'referral', 'referral', 'Configurer le parrainage', 'Set up the referral', { guides: ['Mettre en place le parrainage'] }),
+  pre('program', 'fraud_settings', 'referral', 'Vérifier les paramètres anti-fraude du parrainage', 'Check the referral fraud settings',
+    { noteFr: 'Paramètres → Profil → Fraude : limites par IP et par email, qui peut parrainer, qui peut être parrainé', noteEn: 'Settings → Profile → Fraud: limits per IP and per email, who can refer, who can be referred', guides: ['Prévention de la fraude (parrainage)'] }),
+  pre('program', 'points_expiration', 'points', "Valider la règle d'expiration des points", 'Confirm the points expiration rule',
+    { noteFr: "Paramètres → Programme. Irréversible : vérifier l'aperçu d'impact. Afficher la règle aux clients (Branding → Étapes)", noteEn: 'Settings → Program. Irreversible: check the impact preview. Show the rule to customers (Branding → Steps)', guides: ["L'expiration des points"] }),
+  pre('program', 'blocked_accounts', 'all', 'Vérifier les comptes bloqués et les domaines exclus', 'Check the blocked accounts and excluded domains',
+    { noteFr: 'Paramètres → Programme : tag de blocage, domaines des marketplaces (Amazon, La Redoute…)', noteEn: 'Settings → Program: blocking tag, marketplace domains (Amazon, La Redoute…)', guides: ['Blacklister des utilisateurs'] }),
 
   // 3 · International
   pre('international', 'translations', 'multi_language', 'Ajouter les langues et traduire missions, récompenses et branding', 'Add the languages and translate missions, rewards and branding',
