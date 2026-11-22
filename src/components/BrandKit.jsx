@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, AlertCircle, Globe, LogOut, Mail, Sparkles, CheckCircle2 } from 'lucide-react';
 import ClientPortal from './ClientPortal';
-import { supabase, apiFetch, isLoyolyEmail } from '../lib/supabase';
+import { supabase, apiFetch, isTeamUser } from '../lib/supabase';
 import { buildKit } from '../utils/brandKit';
 import { normalizeDomain } from '../utils/clientFolders';
 import { authErrorText } from '../utils/accountSpaces';
@@ -113,7 +113,7 @@ export default function BrandKit() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const isBrand = !!session && !isLoyolyEmail(session.user?.email);
+  const isBrand = !!session && !isTeamUser(session.user);
   const loadAccount = useCallback(() => supabase.rpc('brand_account').then(({ data, error }) => {
     if (error) setAccountError(error.message);
     else { setAccount(data); setAccountError(''); }

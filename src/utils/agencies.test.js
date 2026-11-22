@@ -52,9 +52,13 @@ describe('folder of the open program', () => {
 });
 
 describe('account spaces', () => {
-  const session = (email, meta = {}) => ({ user: { email, user_metadata: meta } });
+  const session = (email, meta = {}, provider = 'email') =>
+    ({ user: { email, user_metadata: meta, app_metadata: { provider, providers: [provider] } } });
   it('sends each account to its space', () => {
-    expect(spaceOf(session('csm@loyoly.io'))).toBe('/loyoly');
+    expect(spaceOf(session('csm@loyoly.io', {}, 'google'))).toBe('/loyoly');
+    // A @loyoly.io address signed up with a password is not the team.
+    expect(spaceOf(session('hey@loyoly.io', { account_type: 'agency', agency_name: 'Test' }))).toBe('/agency');
+    expect(spaceOf(session('hey@loyoly.io'))).toBe(null);
     expect(spaceOf(session('a@agence.fr', { account_type: 'agency', agency_name: 'A' }))).toBe('/agency');
     expect(spaceOf(session('b@brand.fr', { brand_name: 'B' }))).toBe('/kit');
     expect(spaceOf(session('x@other.fr'))).toBe(null);

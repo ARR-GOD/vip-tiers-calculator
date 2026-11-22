@@ -1,14 +1,14 @@
 // ════════════════════════════════════════════════════════════════════
 // Accounts and their spaces — which page a signed-in account belongs to
 // ════════════════════════════════════════════════════════════════════
-import { isLoyolyEmail } from '../lib/supabase';
+import { isTeamUser } from '../lib/supabase';
 
 // '/loyoly' (team), '/agency' (agency), '/kit' (self-serve brand), or null.
 // The metadata only routes: what an account may do is checked by the database.
 export function spaceOf(session) {
   const user = session?.user;
   if (!user) return null;
-  if (isLoyolyEmail(user.email)) return '/loyoly';
+  if (isTeamUser(user)) return '/loyoly';
   if (user.user_metadata?.account_type === 'agency') return '/agency';
   if (user.user_metadata?.brand_name) return '/kit';
   return null;

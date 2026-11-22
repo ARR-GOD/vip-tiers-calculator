@@ -2,10 +2,19 @@
 // exposing this file as an endpoint).
 //
 // The front sends the Supabase session as `Authorization: Bearer <token>`.
-// We ask Supabase Auth who the token belongs to and only let @loyoly.io
-// accounts through. Returns the user, or null after having answered 401/403.
+// We ask Supabase Auth who the token belongs to and only let the Loyoly
+// team (@loyoly.io, Google sign-in) through. Returns the user, or null after having answered 401/403.
 
 const ALLOWED_DOMAIN = 'loyoly.io';
+
+// The Loyoly team: a @loyoly.io account signed in with Google (same rule as
+// public.is_loyoly() and isTeamUser in src/lib/supabase.js). A @loyoly.io
+// address signed up with a password is an agency or brand account.
+export function isTeamUser(user) {
+  if (!user?.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) return false;
+  const app = user.app_metadata || {};
+  return app.provider === 'google' || (Array.isArray(app.providers) && app.providers.includes('google'));
+}
 
 export async function requireLoyolyUser(req, res) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -30,7 +39,7 @@ export async function requireLoyolyUser(req, res) {
       return null;
     }
     const user = await resp.json();
-    if (!user?.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+    if (!isTeamUser(user)) {
       res.status(403).json({ error: `Access restricted to @${ALLOWED_DOMAIN} accounts`, code: 'FORBIDDEN' });
       return null;
     }
@@ -67,7 +76,7 @@ export async function requireAnalysisUser(req, res) {
       return null;
     }
     const user = await resp.json();
-    if (user?.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) return user;
+    if (isTeamUser(user)) return user;
     if (!user?.email_confirmed_at) {
       res.status(403).json({ error: 'Email not confirmed', code: 'EMAIL_NOT_CONFIRMED' });
       return null;
