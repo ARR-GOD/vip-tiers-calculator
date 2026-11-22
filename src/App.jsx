@@ -20,7 +20,7 @@ import { isSelfServeFolder } from './utils/clientFolders';
 import { agencyMe, listAgencies, pendingCount } from './utils/agencyStore';
 import { AgencyShell, AgencySignIn, AgencyNewPassword, AgencyLoading, AgencyBlocked } from './components/AgencyAccess';
 import AgenciesAdmin from './components/AgenciesAdmin';
-import { supabase, apiFetch, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
+import { supabase, apiFetch, ALLOWED_DOMAIN, isTeamUser } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
@@ -72,15 +72,15 @@ function App({ mode = 'loyoly' }) {
     if (!supabase) return;
     const accept = (s) => {
       if (!s) return null;
-      const email = s.user?.email;
+      const team = isTeamUser(s.user);
       const meta = s.user?.user_metadata || {};
       if (isAgency) {
         // Each account in its own space (a confirmation link can land here).
-        if (isLoyolyEmail(email)) { window.location.replace('/loyoly'); return null; }
+        if (team) { window.location.replace('/loyoly'); return null; }
         if (meta.brand_name && meta.account_type !== 'agency') { window.location.replace('/kit'); return null; }
         return s;
       }
-      if (!isLoyolyEmail(email)) {
+      if (!team) {
         // A self-serve brand or an agency landing here keeps its session and
         // goes to its own space.
         if (meta.account_type === 'agency') { window.location.replace('/agency'); return null; }

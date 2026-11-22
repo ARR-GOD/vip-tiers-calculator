@@ -26,6 +26,15 @@ export function isLoyolyEmail(email) {
   return typeof email === 'string' && email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
 }
 
+// The Loyoly team: a @loyoly.io account signed in with Google (Workspace).
+// A @loyoly.io address signed up with a password (e.g. a test agency account
+// at /agency) is not the team — same rule as public.is_loyoly().
+export function isTeamUser(user) {
+  if (!user || !isLoyolyEmail(user.email)) return false;
+  const app = user.app_metadata || {};
+  return app.provider === 'google' || (Array.isArray(app.providers) && app.providers.includes('google'));
+}
+
 // fetch() for our /api functions: forwards the Supabase session so the
 // serverless side can check the caller is a signed-in @loyoly.io account.
 export async function apiFetch(path, options = {}) {
