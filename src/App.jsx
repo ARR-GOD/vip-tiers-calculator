@@ -982,7 +982,7 @@ function App({ mode = 'loyoly' }) {
             )}
             {step === 8 && (
               <StepChecklist lang={lang} programId={programTarget?.id ?? null}
-                config={config} referralConfig={referralConfig} author={user.name}
+                config={config} referralConfig={referralConfig} author={user.name} agencyMode={isAgency}
                 onGoToSetup={() => { setStep(2); requestAnimationFrame(scrollToTop); }}
                 onPrev={goPrev} />
             )}
