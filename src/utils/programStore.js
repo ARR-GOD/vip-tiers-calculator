@@ -10,12 +10,12 @@
 import { supabase } from '../lib/supabase';
 import { defaultTierUtilization } from '../data/programDefaults';
 import { pointsModel } from './pointsModel';
-import { normalizeDomain, folderKeyOf, isSelfServeFolder } from './clientFolders';
+import { normalizeDomain, folderKeyOf, isSelfServeFolder, agencyFolderKey } from './clientFolders';
 
 const TABLE = 'vip_programs';
 export const DEFAULT_PROGRAM_NAME = 'Programme principal';
 export const STATE_VERSION = 3;
-const LIST_COLUMNS = 'id, hubspot_company_id, folder_key, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, shared_with_client, published_version, published_at, created_by, updated_at, updated_by';
+const LIST_COLUMNS = 'id, hubspot_company_id, agency_id, folder_key, client_name, client_domain, client_plan, program_name, step, customers_count, tier_count, shared_with_client, published_version, published_at, created_by, updated_at, updated_by';
 
 // ── Reads / deletes ──────────────────────────────────────────────────
 export async function listPrograms() {
@@ -158,14 +158,14 @@ function migrateV2(state) {
 }
 
 // ── Snapshot of the wizard state ─────────────────────────────────────
-// `target` is the mutable handle of the open program: { id, hubspotCompanyId, name }.
-// id stays null until the first save inserts the row.
+// `target` is the mutable handle of the open program:
+// { id, hubspotCompanyId, name, folderKey, agencyId }. id stays null until
+// the first save inserts the row.
 export function buildProgramSnapshot(target, s) {
   const client = programClientFields(s);
   const row = {
     ...client,
-    // A self-serve brand's folder is its account's: never derived again.
-    folder_key: isSelfServeFolder(target.folderKey) ? target.folderKey : folderKeyOf({ hubspot_company_id: target.hubspotCompanyId, ...client }),
+    folder_key: programFolderKey(target, client),
     step: s.step ?? 1,
     state: {
       v: STATE_VERSION,
@@ -184,6 +184,14 @@ export function buildProgramSnapshot(target, s) {
     },
   };
   return { target, row, key: stableStringify(row), customers: s.customers };
+}
+
+// Folder of the open program. A self-serve brand's folder is its account's
+// (never derived again); an agency's programs stay in its own folders.
+export function programFolderKey(target, client) {
+  if (isSelfServeFolder(target?.folderKey)) return target.folderKey;
+  if (target?.agencyId) return agencyFolderKey(target.agencyId, client);
+  return folderKeyOf({ hubspot_company_id: target?.hubspotCompanyId, ...client });
 }
 
 // Client a program is filed under: its HubSpot company, else the analyzed brand.

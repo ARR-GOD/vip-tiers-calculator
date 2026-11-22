@@ -19,12 +19,22 @@ export function normalizeDomain(value) {
 // Self-serve brands (/kit) have a folder of their own: 'self:<user id>'.
 export const isSelfServeFolder = key => typeof key === 'string' && key.startsWith('self:');
 
+// Agencies file their programs under 'agency:<agency id>:<brand>': the
+// database checks an agency only writes in its own folders.
+export const isAgencyFolder = key => typeof key === 'string' && key.startsWith('agency:');
+export const agencyOfFolder = key => (isAgencyFolder(key) ? key.slice(7, 43) : null);
+
+// Brand part of a folder key: its domain, or its name when it has none.
+export const brandKeyOf = client =>
+  normalizeDomain(client.client_domain) || (client.client_name || '').trim().toLowerCase();
+
+export const agencyFolderKey = (agencyId, client) => `agency:${agencyId}:${brandKeyOf(client)}`;
+
 // Saved programs carry their key (folder_key); it is derived the same way.
 export function folderKeyOf(program) {
   if (program.folder_key) return program.folder_key;
   if (program.hubspot_company_id) return `hs:${program.hubspot_company_id}`;
-  const brand = normalizeDomain(program.client_domain) || (program.client_name || '').trim().toLowerCase();
-  return `brand:${brand}`;
+  return `brand:${brandKeyOf(program)}`;
 }
 
 const byUpdatedDesc = (a, b) => (b.updated_at || '').localeCompare(a.updated_at || '');
@@ -45,6 +55,7 @@ export function groupProgramsIntoFolders(programs) {
       return {
         key,
         hubspotCompanyId: latest.hubspot_company_id || null,
+        agencyId: latest.agency_id || agencyOfFolder(key),
         name: latest.client_name,
         domain: latest.client_domain || null,
         plan: latest.client_plan || null,

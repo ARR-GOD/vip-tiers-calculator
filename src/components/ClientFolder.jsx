@@ -24,6 +24,7 @@ const FR = {
   shared: 'Visible par le client',
   openComments: n => `${n} commentaire${n > 1 ? 's' : ''} client à traiter`,
   validated: (n, total) => `${n}/${total} pages validées`,
+  agencyFolder: 'Dossier d\'agence',
 };
 
 const EN = {
@@ -44,9 +45,12 @@ const EN = {
   shared: 'Visible to the client',
   openComments: n => `${n} client comment${n > 1 ? 's' : ''} to handle`,
   validated: (n, total) => `${n}/${total} pages approved`,
+  agencyFolder: 'Agency folder',
 };
 
-export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, onNewProgram }) {
+// agencyMode: an agency's folder — no client portal (access code, publication,
+// comments, approvals).
+export default function ClientFolder({ lang, agencyMode = false, folderKey, onBack, onOpenProgram, onNewProgram }) {
   const t = lang === 'fr' ? FR : EN;
   const [folder, setFolder] = useState(undefined); // undefined while loading, null when empty
   const [error, setError] = useState('');
@@ -58,7 +62,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
     .then(async list => {
       const found = groupProgramsIntoFolders(list).find(f => f.key === folderKey) || null;
       setFolder(found);
-      if (!found) return;
+      if (!found || agencyMode) return;
       const ids = found.programs.map(p => p.id);
       const [comments, validations] = await Promise.all([listComments(ids), listValidations(ids)]);
       setActivity(Object.fromEntries(found.programs.map(p => {
@@ -72,7 +76,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
       }];
       })));
     })
-    .catch(err => { setError(err.message); setFolder(f => f ?? null); }), [folderKey]);
+    .catch(err => { setError(err.message); setFolder(f => f ?? null); }), [folderKey, agencyMode]);
   useEffect(() => { refresh(); }, [refresh]);
 
   // Every action reports its error here and reloads the folder.
@@ -144,11 +148,12 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                 <h1 className="text-[24px] font-bold text-[#52473C] leading-tight">{folder.name}</h1>
                 <div className="flex items-center gap-2 text-[12px] text-[#8A7D6B] mt-0.5">
                   {folder.domain && <span>{folder.domain}</span>}
-                  {isSelfServeFolder(folder.key)
+                  {agencyMode || folder.agencyId ? null : isSelfServeFolder(folder.key)
                     ? <span className="pill text-[10px] bg-[#ECFDF5] text-[#047857]">{t.selfServe}</span>
                     : folder.hubspotCompanyId
                       ? folder.plan && <span className="pill pill-purple text-[10px]">{folder.plan}</span>
                       : <span className="pill text-[10px] bg-[#F5F4F0] text-[#8A7D6B]">{t.outsideHubspot}</span>}
+                  {!agencyMode && folder.agencyId && <span className="pill text-[10px] bg-[#FEF3C7] text-[#92400E]">{t.agencyFolder}</span>}
                   <span>· {t.programs(folder.programs.length)}</span>
                 </div>
               </div>
@@ -158,7 +163,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
             </button>
           </div>
 
-          <ClientAccessCard lang={lang} folderKey={folder.key} />
+          {!agencyMode && !folder.agencyId && <ClientAccessCard lang={lang} folderKey={folder.key} />}
 
           {error && (
             <div className="card text-[12px] text-red-600 flex items-center gap-2">
@@ -187,7 +192,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                       </div>
                     </button>
                     {/* Client portal: publication, visibility, comments, approvals */}
-                    <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                    {!agencyMode && !folder.agencyId && <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
                       {p.published_version > 0 ? (
                         <>
                           <span className="pill text-[10px] bg-[#ECFDF5] text-[#047857]">
@@ -208,7 +213,7 @@ export default function ClientFolder({ lang, folderKey, onBack, onOpenProgram, o
                           💬 {t.openComments(activity[p.id].open)}
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 )}
                 {editing?.id !== p.id && (

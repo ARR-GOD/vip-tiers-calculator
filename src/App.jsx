@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2, Send } from 'lucide-react';
+import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2, Send, Briefcase } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -15,8 +15,11 @@ import { INITIAL_REFERRAL } from './data/defaults';
 import { normalizeProgram, normalizeMission, normalizeReward, normalizeTier } from './data/programDefaults';
 import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { createProgramSaver, buildProgramSnapshot, programClientFields, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
-import { folderKeyOf, isSelfServeFolder } from './utils/clientFolders';
+import { createProgramSaver, buildProgramSnapshot, programClientFields, programFolderKey, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
+import { isSelfServeFolder } from './utils/clientFolders';
+import { agencyMe, listAgencies, pendingCount } from './utils/agencyStore';
+import { AgencyShell, AgencySignIn, AgencyNewPassword, AgencyLoading, AgencyBlocked } from './components/AgencyAccess';
+import AgenciesAdmin from './components/AgenciesAdmin';
 import { supabase, apiFetch, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
@@ -51,7 +54,11 @@ const STEPS = [
   { id: 8, labelFr: 'Checklist', labelEn: 'Checklist' },
 ];
 
-function App() {
+// mode "loyoly" (/loyoly): the Loyoly team, Google sign-in @loyoly.io.
+// mode "agency" (/agence): partner agencies, email + password, once approved
+// by the team; no HubSpot, no client portal, only their agency's programs.
+function App({ mode = 'loyoly' }) {
+  const isAgency = mode === 'agency';
   // ─── Auth state ───
   // CSMs sign in with Google (@loyoly.io only). The Google ID token is then
   // exchanged for a Supabase session, which gives access to the shared
@@ -59,17 +66,25 @@ function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!supabase);
   const [loginError, setLoginError] = useState(null);
+  const [recovery, setRecovery] = useState(false); // agency: back from a password reset link
 
   useEffect(() => {
     if (!supabase) return;
     const accept = (s) => {
-      // A self-serve brand landing here (its confirmation link fell back to
-      // the site's root) keeps its session and goes to its kit.
-      if (s && !isLoyolyEmail(s.user?.email) && s.user?.user_metadata?.brand_name) {
-        window.location.replace('/kit');
-        return null;
+      if (!s) return null;
+      const email = s.user?.email;
+      const meta = s.user?.user_metadata || {};
+      if (isAgency) {
+        // Each account in its own space (a confirmation link can land here).
+        if (isLoyolyEmail(email)) { window.location.replace('/loyoly'); return null; }
+        if (meta.brand_name && meta.account_type !== 'agency') { window.location.replace('/kit'); return null; }
+        return s;
       }
-      if (s && !isLoyolyEmail(s.user?.email)) {
+      if (!isLoyolyEmail(email)) {
+        // A self-serve brand or an agency landing here keeps its session and
+        // goes to its own space.
+        if (meta.account_type === 'agency') { window.location.replace('/agence'); return null; }
+        if (meta.brand_name) { window.location.replace('/kit'); return null; }
         setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
         // Supabase calls must not be awaited inside the auth callback.
         setTimeout(() => supabase.auth.signOut(), 0);
@@ -81,9 +96,32 @@ function App() {
       setSession(accept(data.session));
       setAuthReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(accept(s)));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      setSession(accept(s));
+    });
     return () => sub.subscription.unsubscribe();
+  }, [isAgency]);
+
+  // ─── Agency of the signed-in member (agency mode) ───
+  const [agency, setAgency] = useState(null);
+  const [agencyError, setAgencyError] = useState('');
+  const loadAgency = useCallback(() => {
+    setAgencyError('');
+    return agencyMe().then(setAgency).catch(err => setAgencyError(err.message || 'generic'));
   }, []);
+  useEffect(() => {
+    if (!isAgency || !session || recovery) return;
+    loadAgency();
+  }, [isAgency, session?.user?.id, recovery, loadAgency]); // eslint-disable-line react-hooks/exhaustive-deps
+  const agencyId = isAgency && agency?.status === 'approved' ? agency.agency_id : null;
+
+  // ─── Agencies waiting for a review (Loyoly team: navbar badge) ───
+  const [agenciesPending, setAgenciesPending] = useState(0);
+  useEffect(() => {
+    if (isAgency || !session) return;
+    listAgencies().then(list => setAgenciesPending(pendingCount(list))).catch(() => {});
+  }, [isAgency, session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const meta = session?.user?.user_metadata || {};
   const user = session?.user
@@ -119,7 +157,7 @@ function App() {
   const [burnRate, setBurnRate] = useState(BLANK_PROGRAM.burnRate);
   const [referralConfig, setReferralConfig] = useState(BLANK_PROGRAM.referralConfig);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('clients'); // 'clients' | 'folder' | 'csm' | 'brand' | 'wizard'
+  const [phase, setPhase] = useState('clients'); // 'clients' | 'folder' | 'csm' | 'brand' | 'wizard' | 'agencies'
   const [folderKey, setFolderKey] = useState(null); // client folder shown in the 'folder' phase
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
@@ -167,8 +205,10 @@ function App() {
 
   // A new program starts clean: nothing from the previously opened brand
   // (imported customers, custom missions, referral) carries over.
-  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME, folderKey = null) => {
-    const target = { id: null, hubspotCompanyId, name, folderKey };
+  // An agency member's programs always go to its agency's folders; the team
+  // creating one in an agency folder keeps it there (`targetAgencyId`).
+  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME, folderKey = null, targetAgencyId = agencyId) => {
+    const target = { id: null, hubspotCompanyId, name, folderKey, agencyId: targetAgencyId };
     setProgramTarget(target);
     resetClientEdits(target);
     setPublication(null);
@@ -232,7 +272,7 @@ function App() {
         : null,
       step: row.step ?? 1,
     };
-    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name, folderKey: row.folder_key || null };
+    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name, folderKey: row.folder_key || null, agencyId: row.agency_id || null };
 
     applyProgram(values);
     setOnboardingAnswers(values.onboardingAnswers);
@@ -305,7 +345,7 @@ function App() {
     const latest = await loadProgram(folder.programs[0].id);
     const analysis = latest.state?.brandAnalysis || null;
     const firstStep = analysis ? 1 : 0;
-    startNewProgram(null, name, isSelfServeFolder(folder.key) ? folder.key : null);
+    startNewProgram(null, name, isSelfServeFolder(folder.key) ? folder.key : null, folder.agencyId || agencyId);
     setSelectedClient(null);
     setCsmMode(false);
     setOnboardingAnswers(null);
@@ -352,10 +392,7 @@ function App() {
 
   // Back from the wizard to the folder of the open program.
   const leaveProgram = async () => {
-    const key = isSelfServeFolder(programTarget?.folderKey) ? programTarget.folderKey : folderKeyOf({
-      hubspot_company_id: programTarget?.hubspotCompanyId,
-      ...programClientFields({ selectedClient, brandAnalysis }),
-    });
+    const key = programFolderKey(programTarget, programClientFields({ selectedClient, brandAnalysis }));
     await closeProgram();
     openFolder(key);
   };
@@ -532,11 +569,11 @@ function App() {
   const t = lang === 'fr';
 
   // ─── Configuration / login gate ───
-  if (!supabase || !GOOGLE_CLIENT_ID) {
+  if (!supabase || (!GOOGLE_CLIENT_ID && !isAgency)) {
     const missing = [
       !import.meta.env.VITE_SUPABASE_URL && 'VITE_SUPABASE_URL',
       !import.meta.env.VITE_SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY',
-      !GOOGLE_CLIENT_ID && 'VITE_GOOGLE_CLIENT_ID',
+      !GOOGLE_CLIENT_ID && !isAgency && 'VITE_GOOGLE_CLIENT_ID',
     ].filter(Boolean);
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: '#EEEDE6' }}>
@@ -556,6 +593,19 @@ function App() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
         <Loader2 size={24} className="animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // ─── Agency: sign-in, review by Loyoly, then the tool ───
+  if (isAgency && (!user || recovery || !agencyId)) {
+    const signOut = async () => { await supabase.auth.signOut(); setAgency(null); setRecovery(false); };
+    return (
+      <AgencyShell lang={lang} onLang={() => setLang(l => (l === 'fr' ? 'en' : 'fr'))} onSignOut={user ? signOut : null}>
+        {!user ? <AgencySignIn lang={lang} />
+          : recovery ? <AgencyNewPassword lang={lang} onDone={() => setRecovery(false)} />
+            : !agency && !agencyError ? <AgencyLoading lang={lang} />
+              : <AgencyBlocked lang={lang} agency={agency} error={agencyError} onRetry={loadAgency} onSignOut={signOut} />}
+      </AgencyShell>
     );
   }
 
@@ -598,6 +648,11 @@ function App() {
               <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
               <span className="text-[15px] font-bold text-white">Loyoly Setup</span>
             </button>
+            {isAgency && (
+              <span className="pill text-[10px] bg-white/10 text-white/80 shrink-0 hidden sm:inline-flex items-center gap-1" data-testid="agency-badge">
+                <Briefcase size={11} /> {agency.name}
+              </span>
+            )}
             {/* Breadcrumb of the open program: client folder › program */}
             {phase === 'wizard' && programTarget && (
               <div className="hidden md:flex items-center gap-2 text-[13px] text-white/50 min-w-0">
@@ -611,7 +666,7 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-1">
-            {phase === 'wizard' && programTarget && (
+            {phase === 'wizard' && programTarget && !isAgency && (
               <div className="flex items-center gap-2 mr-2">
                 <span className="text-[12px] text-white/60 hidden lg:inline" data-testid="publication-status">
                   {!publication
@@ -642,6 +697,18 @@ function App() {
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
               <FolderOpen size={15} />
             </button>
+            {!isAgency && (
+              <button onClick={async () => { if (programTarget) await closeProgram(); setPhase('agencies'); }}
+                title={t ? 'Agences partenaires' : 'Partner agencies'} data-testid="agencies-button"
+                className="relative w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                <Briefcase size={15} />
+                {agenciesPending > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[10px] font-semibold flex items-center justify-center">
+                    {agenciesPending}
+                  </span>
+                )}
+              </button>
+            )}
             {/* User avatar + logout */}
             <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
               {user.picture && (
@@ -791,7 +858,7 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      {phase === 'wizard' && programTarget?.id && (
+      {phase === 'wizard' && programTarget?.id && !isAgency && (
         <>
           <CommentsButton lang={lang} count={toHandleTotal} activityCount={newActivityCount} onClick={openComments} />
           {commentsOpen && (
@@ -806,17 +873,22 @@ function App() {
       )}
 
       <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-24">
-        {phase === 'clients' ? (
+        {phase === 'agencies' && !isAgency ? (
+          <AgenciesAdmin lang={lang} onOpenFolder={openFolder} onPendingChange={setAgenciesPending}
+            onBack={() => setPhase('clients')} />
+        ) : phase === 'clients' ? (
           <ClientSpace
             lang={lang}
             userEmail={user.email}
+            agencyMode={isAgency}
             onOpenFolder={openFolder}
-            onNewClient={() => setPhase('csm')}
+            onNewClient={isAgency ? handleSkipToManual : () => setPhase('csm')}
             onManual={handleSkipToManual}
           />
         ) : phase === 'folder' ? (
           <ClientFolder
             lang={lang}
+            agencyMode={isAgency}
             folderKey={folderKey}
             onBack={() => setPhase('clients')}
             onOpenProgram={handleOpenProgram}
@@ -905,7 +977,7 @@ function App() {
                 rewards={rewards} burnRate={burnRate} lang={lang}
                 referralConfig={referralConfig}
                 clientName={selectedClient?.name || brandAnalysis?.brand_name}
-                author={user.name}
+                author={isAgency ? `${user.name} · ${agency.name}` : user.name}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 8 && (

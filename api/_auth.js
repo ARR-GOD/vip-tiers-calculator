@@ -42,9 +42,11 @@ export async function requireLoyolyUser(req, res) {
   }
 }
 
-// The site analysis also serves the self-serve brands (/kit): a signed-in
-// account with a confirmed email, within its quota (brand_consume_analysis,
-// five per account). Returns the user, or null after having answered.
+// The site analysis also serves the partner agencies (/agence: approved,
+// thirty per agency, agency_consume_analysis) and the self-serve brands
+// (/kit): a signed-in account with a confirmed email, within its quota
+// (brand_consume_analysis, five per account). Returns the user, or null
+// after having answered.
 export async function requireAnalysisUser(req, res) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
@@ -68,6 +70,21 @@ export async function requireAnalysisUser(req, res) {
     if (user?.email?.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) return user;
     if (!user?.email_confirmed_at) {
       res.status(403).json({ error: 'Email not confirmed', code: 'EMAIL_NOT_CONFIRMED' });
+      return null;
+    }
+    const rpc = name => fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    // An agency member: its agency's quota (null when the caller is none).
+    const agencyResp = await rpc('agency_consume_analysis');
+    const agency = agencyResp.ok ? await agencyResp.json() : null;
+    if (agency === 'ok') return user;
+    if (agency === 'not_approved') {
+      res.status(403).json({ error: 'Agency not approved yet', code: 'AGENCY_NOT_APPROVED' });
+      return null;
+    }
+    if (agency === 'quota') {
+      res.status(429).json({ error: 'Analysis limit reached for this agency', code: 'QUOTA' });
       return null;
     }
     const quota = await fetch(`${supabaseUrl}/rest/v1/rpc/brand_consume_analysis`, {
