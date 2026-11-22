@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const fromDate = sixMonthsAgo.toISOString().split('T')[0];
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5-5',
       max_tokens: 2000,
       headers: {
         'anthropic-beta': 'mcp-client-2025-04-04',
