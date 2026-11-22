@@ -33,17 +33,17 @@ describe('checklist for a setup', () => {
     ['shopify_app', 'shopify_page', 'potential_points', 'checkout_extensions', 'checkout_translations', 'checkout_mobile',
       'translations', 'weglot', 'check_locales', 'crm_klaviyo', 'crm_properties', 'crm_optin', 'crm_email_translations',
       'native_emails_off', 'pos_tile', 'store_mission', 'retail_training', 'store_go_live', 'com_store_material',
-      'vip_tiers', 'referral', 'post_referral_campaigns'].forEach(key => expect(keys, key).toContain(key));
+      'vip_tiers', 'referral', 'post_referral_campaigns', 'fraud_settings', 'points_expiration', 'blocked_accounts'].forEach(key => expect(keys, key).toContain(key));
     ['ps_module', 'ps_page', 'ps_checkout', 'post_ps_updates', 'crm_brevo', 'native_emails_on', 'currency_points',
       'intl_app_embed', 'pos_connect'].forEach(key => expect(keys, key).not.toContain(key));
   });
 
   it('PrestaShop without CRM, international or store, nor referral', () => {
     const keys = keysOf(buildChecklist(setupOf({ cms: 'prestashop', crm: 'none', international: false, physicalStore: false, hasTiers: false }, false)));
-    ['ps_module', 'ps_order_statuses', 'ps_page', 'ps_account', 'ps_checkout', 'post_ps_updates', 'native_emails_on', 'branding']
+    ['ps_module', 'ps_order_statuses', 'ps_page', 'ps_account', 'ps_checkout', 'post_ps_updates', 'native_emails_on', 'branding', 'blocked_accounts']
       .forEach(key => expect(keys, key).toContain(key));
     ['shopify_app', 'checkout_extensions', 'native_emails_off', 'crm_properties', 'translations', 'check_locales',
-      'pos_tile', 'retail_training', 'vip_tiers', 'referral', 'post_referral_campaigns'].forEach(key => expect(keys, key).not.toContain(key));
+      'pos_tile', 'retail_training', 'vip_tiers', 'referral', 'post_referral_campaigns', 'fraud_settings'].forEach(key => expect(keys, key).not.toContain(key));
   });
 
   it('Shopify, several currencies, Cegid: currency steps and the POS connection', () => {
