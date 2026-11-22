@@ -9,7 +9,7 @@ import Landing from './components/Landing.jsx'
 
 // /                 the three ways in (clients, Loyoly, agencies).
 // /loyoly           the Loyoly team's tool: Google sign-in, @loyoly.io only.
-// /agency           partner agencies: their own account (email + password), then the tool.
+// /agency           partner agencies: their own account (email + password or Google), then the tool.
 // /kit              self-serve brands: their own account (email + password).
 // /client/<code>    the client's side: no account, only the access code.
 const path = window.location.pathname
@@ -25,7 +25,9 @@ createRoot(document.getElementById('root')).render(
     ) : isClientPortal ? (
       <ClientPortal />
     ) : isAgency ? (
-      <App mode="agency" />
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+        <App mode="agency" />
+      </GoogleOAuthProvider>
     ) : isTeam ? (
       <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
         <App mode="loyoly" />

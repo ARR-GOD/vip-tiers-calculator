@@ -17,7 +17,7 @@ import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
 import { createProgramSaver, buildProgramSnapshot, programClientFields, programFolderKey, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
 import { isSelfServeFolder } from './utils/clientFolders';
-import { agencyMe, listAgencies, pendingCount } from './utils/agencyStore';
+import { agencyMe, listAgencies, pendingCount, takePendingAgency, clearPendingAgency } from './utils/agencyStore';
 import { AgencyShell, AgencySignIn, AgencyNewPassword, AgencyLoading, AgencyBlocked } from './components/AgencyAccess';
 import AgenciesAdmin from './components/AgenciesAdmin';
 import { supabase, apiFetch, ALLOWED_DOMAIN, isTeamUser } from './lib/supabase';
@@ -106,9 +106,18 @@ function App({ mode = 'loyoly' }) {
   // ─── Agency of the signed-in member (agency mode) ───
   const [agency, setAgency] = useState(null);
   const [agencyError, setAgencyError] = useState('');
-  const loadAgency = useCallback(() => {
+  // `details`: the agency name of a Google sign-up ({ name, website }), from
+  // the sign-up form (kept across the sign-in) or the completion form.
+  const loadAgency = useCallback((details = takePendingAgency()) => {
     setAgencyError('');
-    return agencyMe().then(setAgency).catch(err => setAgencyError(err.message || 'generic'));
+    return agencyMe(details).then(a => {
+      setAgency(a);
+      clearPendingAgency();
+      // Route a Google account to /agency from the home page next time.
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user && data.user.user_metadata?.account_type !== 'agency') supabase.auth.updateUser({ data: { account_type: 'agency' } });
+      });
+    }).catch(err => setAgencyError(err.message || 'generic'));
   }, []);
   useEffect(() => {
     if (!isAgency || !session || recovery) return;
@@ -604,7 +613,7 @@ function App({ mode = 'loyoly' }) {
         {!user ? <AgencySignIn lang={lang} />
           : recovery ? <AgencyNewPassword lang={lang} onDone={() => setRecovery(false)} />
             : !agency && !agencyError ? <AgencyLoading lang={lang} />
-              : <AgencyBlocked lang={lang} agency={agency} error={agencyError} onRetry={loadAgency} onSignOut={signOut} />}
+              : <AgencyBlocked lang={lang} agency={agency} error={agencyError} onRetry={() => loadAgency()} onComplete={loadAgency} onSignOut={signOut} />}
       </AgencyShell>
     );
   }

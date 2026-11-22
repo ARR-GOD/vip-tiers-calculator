@@ -13,9 +13,28 @@ const unwrap = ({ data, error }) => {
 export const AGENCY_STATUSES = ['pending', 'approved', 'suspended'];
 
 // The signed-in member's agency, created (pending) on its first visit:
-// { agency_id, name, website, status, role, analyses_left }.
-export async function agencyMe() {
-  return unwrap(await supabase.rpc('agency_me'));
+// { agency_id, name, website, status, role, analyses_left }. A Google
+// account has no agency name in its metadata: { name, website } give it
+// (without one, the first visit fails with agency_name_required).
+export async function agencyMe({ name, website } = {}) {
+  return unwrap(await supabase.rpc('agency_me', { p_name: name || null, p_website: website || null }));
+}
+
+// The agency name typed before a Google sign-up, kept across the sign-in.
+const PENDING_KEY = 'loyoly-agency-pending';
+export function savePendingAgency(pending) {
+  try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch { /* private mode */ }
+}
+export function takePendingAgency() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+export function clearPendingAgency() {
+  try { sessionStorage.removeItem(PENDING_KEY); } catch { /* private mode */ }
 }
 
 // Every agency with its members (Loyoly team only), newest first.

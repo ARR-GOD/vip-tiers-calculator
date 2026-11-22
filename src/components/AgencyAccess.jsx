@@ -1,12 +1,17 @@
-import { Loader2, AlertCircle, Globe, LogOut, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { Loader2, AlertCircle, Globe, LogOut, Clock, Building2 } from 'lucide-react';
 import { AuthCard, NewPassword } from './BrandKit';
 import { authErrorText } from '../utils/accountSpaces';
+import { supabase } from '../lib/supabase';
+import { savePendingAgency } from '../utils/agencyStore';
 
 // ════════════════════════════════════════════════════════════════════
 // /agency — partner agencies: account, review by Loyoly, then the tool
 // ════════════════════════════════════════════════════════════════════
-// An agency signs up (agency name, website, email, password; Supabase Auth
-// sends the confirmation email). Its first visit creates its agency, pending
+// An agency signs up with Google, or with agency name, website, email and
+// password (Supabase Auth sends the confirmation email). A Google account
+// gives its agency name on a "complete your account" form. Its first visit creates its agency, pending
 // until the Loyoly team approves it (supabase/migrations/20261122000000_agencies.sql).
 // Approved, it gets the setup tool (App, mode "agency").
 
@@ -17,6 +22,11 @@ const FR = {
   email: 'Email professionnel', password: 'Mot de passe', passwordHint: '8 caractères minimum',
   signup: 'Créer mon compte agence', login: 'Se connecter', forgot: 'Mot de passe oublié ?', sendReset: 'Recevoir un lien',
   backToLogin: 'Retour à la connexion',
+  or: 'ou',
+  googleError: 'Connexion Google impossible. Réessayez ou utilisez votre email.',
+  completeTitle: 'Finalisez votre compte agence',
+  completeText: 'Indiquez le nom de votre agence : l\'équipe Loyoly validera ensuite votre accès.',
+  completeSubmit: 'Créer mon compte agence',
   pitch: 'Concevez des programmes de fidélité Loyoly pour vos clients',
   pitchItems: [
     'Analyse du site de votre client ou prospect et programme proposé en quelques minutes',
@@ -53,6 +63,11 @@ const EN = {
   email: 'Work email', password: 'Password', passwordHint: 'At least 8 characters',
   signup: 'Create my agency account', login: 'Sign in', forgot: 'Forgot your password?', sendReset: 'Send me a link',
   backToLogin: 'Back to sign in',
+  or: 'or',
+  googleError: 'Google sign-in failed. Try again or use your email.',
+  completeTitle: 'Complete your agency account',
+  completeText: 'Enter your agency\'s name: the Loyoly team will then approve your access.',
+  completeSubmit: 'Create my agency account',
   pitch: 'Design Loyoly loyalty programs for your clients',
   pitchItems: [
     'Analysis of your client\'s or prospect\'s website and a suggested program in minutes',
@@ -118,7 +133,65 @@ export function AgencyShell({ lang, onLang, onSignOut, children }) {
 export function AgencySignIn({ lang }) {
   return (
     <AuthCard t={agencyTexts(lang)} redirectPath="/agency" nameKey="agency_name" websiteKey="agency_website"
-      extraData={{ account_type: 'agency' }} />
+      extraData={{ account_type: 'agency' }}
+      google={({ mode, name, website }) => <AgencyGoogleButton lang={lang} mode={mode} name={name} website={website} />} />
+  );
+}
+
+// Google sign-in (any Google account; a @loyoly.io one is sent to /loyoly).
+// The agency name typed on the sign-up tab, if any, is kept for the first
+// visit; otherwise the account completes it right after (AgencyComplete).
+function AgencyGoogleButton({ lang, mode, name, website }) {
+  const t = agencyTexts(lang);
+  const [error, setError] = useState('');
+  const onSuccess = async ({ credential }) => {
+    setError('');
+    if (mode === 'signup' && name) savePendingAgency({ name, website });
+    const { error: err } = await supabase.auth.signInWithIdToken({ provider: 'google', token: credential });
+    if (err) setError(t.googleError);
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-center">
+        <GoogleLogin onSuccess={onSuccess} onError={() => setError(t.googleError)}
+          theme="outline" size="large" width="360" shape="rectangular" locale={lang}
+          text={mode === 'signup' ? 'signup_with' : 'signin_with'} />
+      </div>
+      {error && <p className="text-[12px] text-red-600 text-center" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+// A Google account without an agency yet: its name (and website).
+function AgencyComplete({ lang, onComplete }) {
+  const t = agencyTexts(lang);
+  const [name, setName] = useState('');
+  const [website, setWebsite] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async e => {
+    e.preventDefault();
+    setBusy(true);
+    await onComplete({ name: name.trim(), website: website.trim() });
+    setBusy(false);
+  };
+  const input = 'w-full px-3 py-2 rounded-lg border border-[#E5E1D8] bg-white text-[14px] text-[#2B251F] focus:outline-none focus:border-primary';
+  return (
+    <form onSubmit={submit} className="card max-w-md mx-auto space-y-3 py-8">
+      <Building2 size={28} className="mx-auto text-primary" />
+      <h1 className="text-[20px] font-bold text-[#2B251F] text-center">{t.completeTitle}</h1>
+      <p className="text-[14px] text-[#52473C] text-center">{t.completeText}</p>
+      <label className="block text-[12px] font-medium text-[#645648] space-y-1">
+        <span>{t.brandName}</span>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} maxLength={80} autoComplete="organization" className={input} />
+      </label>
+      <label className="block text-[12px] font-medium text-[#645648] space-y-1">
+        <span>{t.website}</span>
+        <input type="url" value={website} onChange={e => setWebsite(e.target.value)} maxLength={200} autoComplete="url" placeholder="https://" className={input} />
+      </label>
+      <button type="submit" disabled={!name.trim() || busy} className="btn-primary w-full justify-center">
+        {busy && <Loader2 size={14} className="animate-spin" />} {t.completeSubmit}
+      </button>
+    </form>
   );
 }
 
@@ -136,8 +209,9 @@ export function AgencyLoading({ lang }) {
 }
 
 // Signed in, not in the tool yet: waiting for the review, suspended, or a problem.
-export function AgencyBlocked({ lang, agency, error, onRetry, onSignOut }) {
+export function AgencyBlocked({ lang, agency, error, onRetry, onComplete, onSignOut }) {
   const t = agencyTexts(lang);
+  if (error?.includes('agency_name_required')) return <AgencyComplete lang={lang} onComplete={onComplete} />;
   if (error?.includes('team_account')) {
     return (
       <div className="card max-w-md mx-auto text-center space-y-3">

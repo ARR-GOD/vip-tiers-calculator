@@ -210,7 +210,9 @@ const FIELD_STYLE = { height: 40, border: '1px solid var(--color-card-border)', 
 // The kit (brands) and the agency space share it: `nameKey` is the metadata
 // the name typed at sign-up goes to, `extraData` more metadata, and a
 // `t.website` label adds an optional website field (`websiteKey`).
-export function AuthCard({ t, redirectPath = '/kit', nameKey = 'brand_name', websiteKey = null, extraData = {} }) {
+// `google`: optional ({ mode, name, website }) => node, a "continue with
+// Google" button shown above the email form (agencies).
+export function AuthCard({ t, redirectPath = '/kit', nameKey = 'brand_name', websiteKey = null, extraData = {}, google = null }) {
   const [mode, setMode] = useState('signup'); // signup | login | forgot
   const [brandName, setBrandName] = useState('');
   const [website, setWebsite] = useState('');
@@ -296,6 +298,14 @@ export function AuthCard({ t, redirectPath = '/kit', nameKey = 'brand_name', web
           </div>
         )}
         {mode === 'forgot' && <h2 className="text-[16px] font-bold text-[#2B251F]">{t.forgot}</h2>}
+        {google && mode !== 'forgot' && (
+          <>
+            {google({ mode, name: brandName.trim(), website: website.trim() })}
+            <div className="flex items-center gap-3 text-[11px] text-[#B0A595] uppercase">
+              <span className="flex-1 h-px bg-[#E5E1D8]" /> {t.or} <span className="flex-1 h-px bg-[#E5E1D8]" />
+            </div>
+          </>
+        )}
         {mode === 'signup' && (
           <label className="block text-[12px] font-medium text-[#645648] space-y-1">
             <span>{t.brandName}</span>
