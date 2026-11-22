@@ -164,8 +164,11 @@ export default async function handler(req, res) {
 
     // Call Claude
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      // claude-sonnet-4-20250514 is retired (404). Thinking off: a short
+      // extraction task, and the JSON must fit in max_tokens.
+      model: 'claude-sonnet-5-5',
+      max_tokens: 2048,
+      thinking: { type: 'between_tools' },
       system: `You are a brand analyst for an e-commerce loyalty program tool.
 Analyze the provided website content (meta tags + visible text) and extract brand characteristics.
 Focus on the actual brand, NOT third-party tools (Shopify, Shoplift, Klaviyo, etc.).
@@ -202,7 +205,7 @@ Rules:
     });
 
     // Parse response
-    const responseText = message.content[0].text;
+    const responseText = message.content.find(b => b.type === 'text')?.text || '';
     let analysis;
     try {
       analysis = JSON.parse(responseText);
