@@ -1,46 +1,22 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
 import Tooltip from './Tooltip';
+import BenchmarkBadge from './BenchmarkBadge';
 import { REWARD_TYPES, REWARD_USAGE_OPTIONS, REWARD_CATALOG } from '../data/defaults';
-import { formatCurrency, formatNumber } from '../utils/calculations';
+import { formatCurrency } from '../utils/calculations';
+import {
+  parseDiscountPct, rewardMinPurchase, rewardRealCost, rewardPointsCost,
+  rewardBaseFromPoints, isRealCostDerived, isBurnReward, DEFAULT_POINTS_PER_REWARD_EUR,
+} from '../utils/rewardModel';
 
-// Parse the discount percentage out of a promo name, e.g. "-20% sur la commande" → 20.
-function parseDiscountPct(name) {
-  if (!name) return null;
-  const m = String(name).match(/-?\s*(\d+(?:[.,]\d+)?)\s*%/);
-  if (!m) return null;
-  return parseFloat(m[1].replace(',', '.'));
-}
+// Catalog prices are expressed for 100 pts = 1 €: the € value, at the default
+// points price on the 1 pt/€ grid.
+const catalogPointsBase = item => (item.pointsCost || 0) / 100 * DEFAULT_POINTS_PER_REWARD_EUR;
 
-// COGS cost of a percentage discount coupon:
-//   realCost = (discount% × minPurchase) × (1 − grossMargin%)
-// Returns null for non-promo rewards or when the discount can't be parsed.
-function derivePromoRealCost(reward, grossMargin) {
-  if (!reward || reward.type !== 'promo_percent') return null;
-  const pct = parseDiscountPct(reward.nameFr) ?? parseDiscountPct(reward.nameEn);
-  if (!pct || pct <= 0) return null;
-  const minP = reward.minPurchase || 0;
-  if (minP <= 0) return null;
-  const cogsRatio = Math.max(0, 1 - (grossMargin || 0) / 100);
-  return Math.round(pct / 100 * minP * cogsRatio * 100) / 100;
-}
-
-export default function Step3_Rewards({ rewards, setRewards, settings, config, lang, brandAnalysis, clientName, customers, onPrev, onNext }) {
+export default function Step3_Rewards({ rewards, setRewards, tiers, settings, burnRate, setBurnRate, lang, onPrev, onNext }) {
   const t = lang === 'fr';
 
   const [showCatalog, setShowCatalog] = useState(false);
-
-  // Keep promo_percent rewards' realCost in sync with the gross margin globally.
-  // When user changes settings.grossMargin elsewhere, all percentage coupons
-  // recompute their COGS cost.
-  useEffect(() => {
-    setRewards(prev => prev.map(r => {
-      const derived = derivePromoRealCost(r, settings.grossMargin);
-      if (derived === null || derived === r.realCost) return r;
-      return { ...r, realCost: derived };
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.grossMargin]);
 
   const addReward = () => {
     setRewards(prev => [...prev, {
@@ -49,64 +25,44 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
       nameFr: t ? 'Nouvelle récompense' : 'New reward',
       nameEn: t ? 'New reward' : 'New reward',
       rewardUsage: 'burn',
-      pointsCost: 300,
+      pointsBase: 5 * DEFAULT_POINTS_PER_REWARD_EUR,
       realCost: 5,
+      realCostAuto: false,
       minPurchase: 0,
-      assignedTiers: [true, true, true],
-      utilizationByTier: [20, 30, 40],
+      minPurchaseAuto: true,
+      expirationDays: 90,
+      assignedTiers: tiers.map(() => true),
     }]);
     setShowCatalog(false);
   };
 
   const addFromCatalog = (item) => {
-    const seed = {
+    setRewards(prev => [...prev, {
       id: `r_${Date.now()}`,
       type: item.type,
       nameFr: item.nameFr,
       nameEn: item.nameEn,
       rewardUsage: item.rewardUsage,
-      pointsCost: item.pointsCost,
-      pointsBonus: item.pointsBonus || 0,
+      pointsBase: catalogPointsBase(item),
+      bonusBasePoints: item.pointsBonus || 0,
       realCost: item.realCost,
+      realCostAuto: item.type === 'promo_percent',
       minPurchase: item.minPurchase,
-      assignedTiers: [true, true, true],
-      utilizationByTier: item.rewardUsage === 'perk' ? [0, 30, 50] : [20, 30, 40],
-    };
-    // For percentage promos, override the catalog's static realCost with the
-    // formula-derived value so it stays consistent with the brand's margin.
-    const derived = derivePromoRealCost(seed, settings.grossMargin);
-    if (derived !== null) seed.realCost = derived;
-    // For bonus_points rewards, realCost = pointsBonus / pointsPerEuro (face value).
-    if (item.type === 'bonus_points' && item.pointsBonus > 0) {
-      seed.realCost = Math.round((item.pointsBonus / (settings.pointsPerEuro || 100)) * 100) / 100;
-    }
-    setRewards(prev => [...prev, seed]);
+      minPurchaseAuto: item.type !== 'early_access',
+      expirationDays: 90,
+      assignedTiers: tiers.map((_, i) => item.rewardUsage === 'perk' ? i >= 1 : true),
+    }]);
     setShowCatalog(false);
   };
 
   const removeReward = (id) => setRewards(prev => prev.filter(r => r.id !== id));
 
-  const updateReward = (id, field, value) => {
-    setRewards(prev => prev.map(r => {
-      if (r.id !== id) return r;
-      const next = { ...r, [field]: value };
-      // Re-derive realCost on a promo when its discount percentage (name) or
-      // minPurchase changes. Skip if the user is directly editing realCost.
-      if (r.type === 'promo_percent' && field !== 'realCost' && ['nameFr', 'nameEn', 'minPurchase'].includes(field)) {
-        const derived = derivePromoRealCost(next, settings.grossMargin);
-        if (derived !== null) next.realCost = derived;
-      }
-      // For bonus_points rewards, realCost = pointsBonus / pointsPerEuro.
-      if (r.type === 'bonus_points' && field === 'pointsBonus') {
-        const pb = parseInt(value) || 0;
-        next.realCost = Math.round((pb / (settings.pointsPerEuro || 100)) * 100) / 100;
-      }
-      return next;
-    }));
+  const updateReward = (id, patch) => {
+    setRewards(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
   };
 
-  const totalRealCost = rewards.reduce((s, r) => s + r.realCost, 0);
-  const totalIncrementalRevenue = rewards.reduce((s, r) => s + (r.minPurchase || 0), 0);
+  const totalRealCost = rewards.reduce((s, r) => s + rewardRealCost(r, settings), 0);
+  const totalIncrementalRevenue = rewards.reduce((s, r) => s + rewardMinPurchase(r, settings), 0);
   const avgROI = totalRealCost > 0
     ? ((totalIncrementalRevenue * (settings.grossMargin / 100)) / totalRealCost * 100 - 100).toFixed(0)
     : 0;
@@ -115,7 +71,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-subheader">{t ? 'ÉTAPE 5' : 'STEP 5'}</div>
+          <div className="section-subheader">{t ? 'ÉTAPE 6' : 'STEP 6'}</div>
           <h2 className="text-[28px] font-bold text-[#52473C]">{t ? 'Catalogue de récompenses' : 'Rewards Catalog'}</h2>
           <p className="text-[15px] text-[#645648] mt-0.5">{t ? 'Définissez vos récompenses. L\'attribution par palier se fait à l\'étape suivante.' : 'Define your rewards. Tier assignment happens in the next step.'}</p>
         </div>
@@ -142,7 +98,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                           className="w-full text-left px-3 py-2 flex items-center gap-2 text-[13px] hover:bg-[#EEEDE6] transition-colors">
                           <span className="text-[#645648]">{t ? item.nameFr : item.nameEn}</span>
                           <span className="ml-auto text-[11px] text-[#8A7D6B]">
-                            {item.rewardUsage === 'perk' ? 'Perk' : `${item.pointsCost} pts`}
+                            {item.rewardUsage === 'perk' ? 'Perk' : `${rewardPointsCost({ pointsBase: catalogPointsBase(item) }, settings)} pts`}
                           </span>
                         </button>
                       ))}
@@ -159,6 +115,24 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
             </>
           )}
         </div>
+      </div>
+
+      {/* Points utilization rate — share of emitted points that get redeemed */}
+      <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
+        <div className="flex items-center gap-1.5">
+          <label className="text-[13px] font-medium text-[#645648]">{t ? 'Taux d\'utilisation des points' : 'Points utilization rate'}</label>
+          <Tooltip text={t ? 'Part des points émis qui sont échangés contre une récompense dans l\'année. Observé chez Loyoly : 5 à 7 %. Pilote les points utilisés et dormants (vue CFO du Dashboard).' : 'Share of emitted points redeemed for a reward within a year. Observed at Loyoly: 5 to 7%. Drives redeemed and dormant points (Dashboard CFO view).'} />
+        </div>
+        <input type="range" min={0} max={50} step={0.5} value={burnRate}
+          onChange={e => setBurnRate(parseFloat(e.target.value))}
+          className="flex-1 min-w-[160px]" />
+        <div className="flex items-center gap-1">
+          <input type="number" min={0} max={100} step={0.5} value={burnRate}
+            onChange={e => setBurnRate(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+            className="w-16 px-1.5 py-1 text-[14px] font-bold text-primary text-center" />
+          <span className="text-[13px] font-bold text-primary">%</span>
+        </div>
+        <BenchmarkBadge benchmarkKey="burnRate" value={burnRate} lang={lang} />
       </div>
 
       {/* Rewards table */}
@@ -189,7 +163,13 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
                   <div className="flex items-center gap-1 justify-center">
                     {t ? 'Achat min.' : 'Min purchase'}
-                    <Tooltip text={t ? 'Montant minimum d\'achat pour déclencher cette récompense. Génère du revenu incrémental.' : 'Minimum purchase to trigger this reward. Drives incremental revenue.'} />
+                    <Tooltip text={t ? 'Montant minimum d\'achat pour utiliser la récompense. Par défaut : le panier moyen (suit sa valeur tant qu\'il n\'est pas modifié).' : 'Minimum purchase to use the reward. Default: the AOV (follows it until edited).'} />
+                  </div>
+                </th>
+                <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
+                  <div className="flex items-center gap-1 justify-center">
+                    {t ? 'Expiration' : 'Expiry'}
+                    <Tooltip text={t ? 'Durée de validité de la récompense une fois obtenue (90 jours par défaut).' : 'How long the reward stays valid once obtained (90 days by default).'} />
                   </div>
                 </th>
                 <th className="text-center px-3 py-2.5 font-medium text-[#645648] w-24">
@@ -210,8 +190,10 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
             <tbody>
               {rewards.map(reward => {
                 const icon = REWARD_TYPES.find(rt => rt.id === reward.type)?.icon || '';
-                const incrRevenue = reward.minPurchase || 0;
+                const realCost = rewardRealCost(reward, settings);
+                const incrRevenue = rewardMinPurchase(reward, settings);
                 const marginOnIncr = incrRevenue * (settings.grossMargin / 100);
+                const canDeriveCost = reward.type === 'promo_percent';
 
                 return (
                   <tr key={reward.id} className="border-b border-[#E5E1D8] hover:bg-[#EEEDE6]" style={{ transition: 'all 0.15s ease' }}>
@@ -220,13 +202,13 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                         {icon && <span className="text-[14px]">{icon}</span>}
                         <input type="text"
                           value={t ? reward.nameFr : reward.nameEn}
-                          onChange={e => updateReward(reward.id, t ? 'nameFr' : 'nameEn', e.target.value)}
+                          onChange={e => updateReward(reward.id, { [t ? 'nameFr' : 'nameEn']: e.target.value })}
                           className="px-2 py-1 text-[12px] w-40 font-medium" />
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <select value={reward.rewardUsage}
-                        onChange={e => updateReward(reward.id, 'rewardUsage', e.target.value)}
+                        onChange={e => updateReward(reward.id, { rewardUsage: e.target.value })}
                         className="px-2 py-1 text-[12px] bg-[#EEEDE6]">
                         {REWARD_USAGE_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{t ? opt.labelFr : opt.labelEn}</option>
@@ -234,9 +216,9 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      {(reward.rewardUsage === 'burn' || reward.rewardUsage === 'both') ? (
-                        <input type="number" value={reward.pointsCost} min={0}
-                          onChange={e => updateReward(reward.id, 'pointsCost', parseInt(e.target.value) || 0)}
+                      {isBurnReward(reward) ? (
+                        <input type="number" value={rewardPointsCost(reward, settings)} min={0}
+                          onChange={e => updateReward(reward.id, { pointsBase: rewardBaseFromPoints(parseInt(e.target.value) || 0, settings) })}
                           className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
                       ) : (
                         <span className="text-[#8A7D6B]">&mdash;</span>
@@ -244,25 +226,49 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-0.5">
-                        <input type="number" value={reward.realCost} min={0} step={0.5}
-                          onChange={e => updateReward(reward.id, 'realCost', parseFloat(e.target.value) || 0)}
+                        <input type="number" value={realCost} min={0} step={0.5}
+                          onChange={e => updateReward(reward.id, { realCost: parseFloat(e.target.value) || 0, realCostAuto: false })}
                           className="w-16 px-1.5 py-0.5 text-[12px] text-center"
-                          title={reward.type === 'promo_percent'
-                            ? (t ? `Auto-calculé : ${parseDiscountPct(reward.nameFr) || 0}% × ${reward.minPurchase || 0}€ × (1 − ${settings.grossMargin}%). Modifiable manuellement.` : `Auto-computed: ${parseDiscountPct(reward.nameEn) || 0}% × ${reward.minPurchase || 0}€ × (1 − ${settings.grossMargin}%). Editable manually.`)
+                          title={reward.type === 'promo_percent' && isRealCostDerived(reward)
+                            ? (t ? `Auto-calculé : ${parseDiscountPct(reward.nameFr) || 0}% × ${incrRevenue}€ × (1 − ${settings.grossMargin}%). Modifiable manuellement.` : `Auto-computed: ${parseDiscountPct(reward.nameEn) || 0}% × ${incrRevenue}€ × (1 − ${settings.grossMargin}%). Editable manually.`)
                             : undefined}
                         />
                         <span className="text-[10px] text-[#8A7D6B]">€</span>
-                        {reward.type === 'promo_percent' && (
-                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Recalculé depuis le % du code promo, min. achat et marge brute' : 'Recomputed from discount %, min purchase, gross margin'}>auto</span>
+                        {isRealCostDerived(reward) && (
+                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Recalculé depuis la marge brute et l\'achat minimum' : 'Recomputed from gross margin and min purchase'}>auto</span>
+                        )}
+                        {canDeriveCost && !isRealCostDerived(reward) && (
+                          <button onClick={() => updateReward(reward.id, { realCostAuto: true })}
+                            className="text-[#8A7D6B] hover:text-primary ml-0.5"
+                            title={t ? 'Revenir au calcul automatique' : 'Back to automatic cost'}>
+                            <RotateCcw size={10} />
+                          </button>
                         )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-0.5">
-                        <input type="number" value={reward.minPurchase || 0} min={0} step={5}
-                          onChange={e => updateReward(reward.id, 'minPurchase', parseFloat(e.target.value) || 0)}
+                        <input type="number" value={incrRevenue} min={0} step={5}
+                          onChange={e => updateReward(reward.id, { minPurchase: parseFloat(e.target.value) || 0, minPurchaseAuto: false })}
                           className="w-16 px-1.5 py-0.5 text-[12px] text-center" />
                         <span className="text-[10px] text-[#8A7D6B]">€</span>
+                        {reward.minPurchaseAuto ? (
+                          <span className="text-[8px] text-primary font-medium ml-0.5" title={t ? 'Panier moyen' : 'Average order value'}>AOV</span>
+                        ) : (
+                          <button onClick={() => updateReward(reward.id, { minPurchaseAuto: true })}
+                            className="text-[#8A7D6B] hover:text-primary ml-0.5"
+                            title={t ? 'Revenir au panier moyen' : 'Back to the AOV'}>
+                            <RotateCcw size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <input type="number" value={reward.expirationDays ?? 90} min={0} step={1}
+                          onChange={e => updateReward(reward.id, { expirationDays: parseInt(e.target.value) || 0 })}
+                          className="w-14 px-1.5 py-0.5 text-[12px] text-center" />
+                        <span className="text-[10px] text-[#8A7D6B]">{t ? 'j' : 'd'}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center text-[#645648]">
@@ -270,7 +276,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       {incrRevenue > 0 ? (
-                        <span className={`font-medium ${marginOnIncr > reward.realCost ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+                        <span className={`font-medium ${marginOnIncr > realCost ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
                           {formatCurrency(marginOnIncr)}
                         </span>
                       ) : <span className="text-[#8A7D6B]">&mdash;</span>}
@@ -287,6 +293,7 @@ export default function Step3_Rewards({ rewards, setRewards, settings, config, l
               <tr className="bg-[#EEEDE6] border-t border-[#D9D5CB]">
                 <td colSpan={3} className="px-4 py-2.5 text-[12px] font-semibold text-[#645648]">{t ? 'Total catalogue' : 'Catalog total'}</td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-[#52473C]">{formatCurrency(totalRealCost)}</td>
+                <td></td>
                 <td></td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-[#52473C]">{formatCurrency(totalIncrementalRevenue)}</td>
                 <td className="px-3 py-2.5 text-center text-[12px] font-bold text-primary">

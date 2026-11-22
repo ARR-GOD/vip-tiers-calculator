@@ -13,15 +13,24 @@ export const TIER_COLOR_MAP = {
   Platinum: '#7C3AED',
 };
 
-// ── Missions ──
-// Each mission has per-tier engagement rates (% of tier customers who complete it per year)
-// ── Referral config (separate module, not a mission) ──
+// ── Referral config ──
 export const INITIAL_REFERRAL = {
   enabled: true,
+  // Rewards follow the AOV (see utils/referralModel.js) until edited.
+  rewardsAuto: true,
   referrerType: 'fixed',      // 'percent' | 'fixed'
   referrerValue: 10,          // 10€
   refereeType: 'fixed',       // 'percent' | 'fixed'
   refereeValue: 10,           // 10€
+  // Expirations follow the reward amount until edited.
+  expirationsAuto: true,
+  referrerExpirationDays: 14,
+  refereeExpirationDays: 7,
+  // Minimum purchase follows the AOV until edited.
+  referrerMinPurchaseAuto: true,
+  referrerMinPurchase: 0,
+  refereeMinPurchaseAuto: true,
+  refereeMinPurchase: 0,
   estimatedReferralsPerMonth: 10,
   conversionRate: 30,         // % of referees who purchase
   avgFirstOrderValue: 80,     // avg first order value of referee
@@ -70,26 +79,6 @@ export function getReferralBaseline({ customerCount, aov, industry }) {
   return baseline;
 }
 
-// ── Mission catalog (CSM) ──
-export const MISSION_CATALOG = {
-  social: [
-    { id: 'tiktok_follow', icon: '🎵', nameFr: 'Follow TikTok', nameEn: 'Follow on TikTok', points: 75, frequency: 1, defaultEngagement: [15, 25, 40] },
-    { id: 'instagram_follow', icon: '📸', nameFr: 'Follow Instagram', nameEn: 'Follow on Instagram', points: 75, frequency: 1, defaultEngagement: [20, 30, 45] },
-    { id: 'ugc_content', icon: '📹', nameFr: 'Créer du contenu UGC', nameEn: 'Create UGC content', points: 300, frequency: 2, defaultEngagement: [3, 8, 15] },
-    { id: 'share_purchase', icon: '📤', nameFr: 'Partager un achat', nameEn: 'Share a purchase', points: 50, frequency: 4, defaultEngagement: [8, 15, 30] },
-  ],
-  engagement: [
-    { id: 'quiz', icon: '❓', nameFr: 'Compléter un quiz', nameEn: 'Complete a quiz', points: 50, frequency: 4, defaultEngagement: [25, 40, 60] },
-    { id: 'poll', icon: '📊', nameFr: 'Répondre à un sondage', nameEn: 'Answer a poll', points: 30, frequency: 6, defaultEngagement: [30, 45, 65] },
-    { id: 'profile_complete', icon: '✏️', nameFr: 'Compléter son profil', nameEn: 'Complete profile', points: 100, frequency: 1, defaultEngagement: [40, 60, 80] },
-  ],
-  purchase: [
-    { id: 'min_basket', icon: '🛒', nameFr: 'Panier minimum 100€', nameEn: 'Min basket €100', points: 200, frequency: 3, defaultEngagement: [15, 30, 50] },
-    { id: 'subscribe', icon: '🔄', nameFr: 'Souscrire un abonnement', nameEn: 'Subscribe', points: 500, frequency: 1, defaultEngagement: [5, 15, 30] },
-    { id: 'cross_sell', icon: '🔀', nameFr: 'Acheter une autre catégorie', nameEn: 'Buy from another category', points: 150, frequency: 2, defaultEngagement: [10, 20, 35] },
-  ],
-};
-
 // ── Reward catalog (CSM) ──
 export const REWARD_CATALOG = {
   monetary: [
@@ -104,7 +93,11 @@ export const REWARD_CATALOG = {
     { type: 'free_delivery', nameFr: 'Livraison offerte', nameEn: 'Free delivery', rewardUsage: 'burn', pointsCost: 200, realCost: 5, minPurchase: 0 },
     { type: 'free_product', nameFr: 'Échantillon gratuit', nameEn: 'Free sample', rewardUsage: 'perk', pointsCost: 0, realCost: 3, minPurchase: 0 },
     { type: 'free_product', nameFr: 'Produit mystère', nameEn: 'Mystery product', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
-    { type: 'early_access', nameFr: 'Accès anticipé ventes', nameEn: 'Early access to sales', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'early_access', nameFr: 'Accès ventes privées', nameEn: 'Private sales access', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'early_access', nameFr: 'Accès collection en avant-première', nameEn: 'Early access to new collections', rewardUsage: 'perk', pointsCost: 0, realCost: 0, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 5 €', nameEn: '€5 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 5, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 10 €', nameEn: '€10 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 10, minPurchase: 0 },
+    { type: 'birthday', nameFr: 'Anniversaire 15 €', nameEn: '€15 birthday gift', rewardUsage: 'perk', pointsCost: 0, realCost: 15, minPurchase: 0 },
     { type: 'experience', nameFr: 'Invitation événement VIP', nameEn: 'VIP event invitation', rewardUsage: 'perk', pointsCost: 0, realCost: 50, minPurchase: 0 },
     { type: 'experience', nameFr: 'Personal shopper', nameEn: 'Personal shopper', rewardUsage: 'perk', pointsCost: 0, realCost: 30, minPurchase: 0 },
   ],
@@ -115,51 +108,6 @@ export const REWARD_CATALOG = {
     { type: 'bonus_points', nameFr: 'Double points (anniversaire)', nameEn: 'Double points (birthday)', rewardUsage: 'perk', pointsCost: 0, pointsBonus: 300, realCost: 3, minPurchase: 0 },
   ],
 };
-
-export const DEFAULT_MISSIONS = [
-  {
-    id: 'purchase', icon: '🛒',
-    nameFr: 'Réaliser un achat', nameEn: 'Make a purchase',
-    points: 1, frequency: 4, enabled: true, isPurchaseMission: true,
-    engagementByTier: [100, 100, 100],
-  },
-  {
-    id: 'review', icon: '⭐',
-    nameFr: 'Avis produit', nameEn: 'Product review',
-    points: 100, frequency: 3, enabled: true,
-    engagementByTier: [10, 25, 45],
-  },
-  {
-    id: 'birthday', icon: '🎂',
-    nameFr: 'Anniversaire', nameEn: 'Birthday',
-    points: 200, frequency: 1, enabled: true,
-    engagementByTier: [30, 50, 70],
-  },
-  {
-    id: 'social_share', icon: '📱',
-    nameFr: 'Partage social', nameEn: 'Social share',
-    points: 50, frequency: 4, enabled: true,
-    engagementByTier: [8, 15, 30],
-  },
-  {
-    id: 'first_purchase', icon: '🛍️',
-    nameFr: 'Premier achat', nameEn: 'First purchase',
-    points: 150, frequency: 1, enabled: true,
-    engagementByTier: [100, 100, 100],
-  },
-  {
-    id: 'newsletter', icon: '📧',
-    nameFr: 'Inscription newsletter', nameEn: 'Newsletter signup',
-    points: 75, frequency: 1, enabled: true,
-    engagementByTier: [40, 55, 70],
-  },
-  {
-    id: 'account_creation', icon: '👤',
-    nameFr: 'Création de compte', nameEn: 'Account creation',
-    points: 100, frequency: 1, enabled: true,
-    engagementByTier: [100, 100, 100],
-  },
-];
 
 // ── Engagement scenarios (scale engagement rates globally) ──
 export const ENGAGEMENT_SCENARIOS = {
@@ -191,6 +139,7 @@ export const REWARD_TYPES = [
   { id: 'free_product', icon: '🎁', nameFr: 'Produit offert', nameEn: 'Free product' },
   { id: 'experience', icon: '✨', nameFr: 'Expérience', nameEn: 'Experience' },
   { id: 'early_access', icon: '🔑', nameFr: 'Accès anticipé', nameEn: 'Early access' },
+  { id: 'birthday', icon: '🎂', nameFr: 'Anniversaire', nameEn: 'Birthday' },
   { id: 'bonus_points', icon: '⭐', nameFr: 'Bonus points', nameEn: 'Bonus points' },
   { id: 'custom', icon: '⚙️', nameFr: 'Personnalisé', nameEn: 'Custom' },
 ];
@@ -201,45 +150,33 @@ export const REWARD_USAGE_OPTIONS = [
   { value: 'both', labelFr: 'Les deux', labelEn: 'Both' },
 ];
 
-// ── Default rewards catalog ──
-// Step 3 = catalog only (no tier assignment). Tier assignment happens in Step 4.
+// ── Default rewards ──
+// Points rewards bought with points in every tier, and tier perks following
+// the Loyoly recommendations (cumulative: a tier keeps the perks below it; the
+// voucher and birthday gift of a higher tier replace the lower ones).
+// assignedTiers are written for 3 tiers. Minimum purchase follows the AOV.
+// Points rewards cost 10 pts per € of value at 1 pt/€ (DEFAULT_POINTS_PER_REWARD_EUR).
+const points = (id, type, nameFr, nameEn, value) => ({
+  id, type, nameFr, nameEn, rewardUsage: 'burn', pointsBase: value * 10, realCost: value,
+  assignedTiers: [true, true, true], minPurchaseAuto: true, expirationDays: 90,
+});
+const perk = (id, type, nameFr, nameEn, realCost, assignedTiers, minPurchaseAuto = true) => ({
+  id, type, nameFr, nameEn, rewardUsage: 'perk', pointsBase: 0, realCost,
+  assignedTiers, minPurchaseAuto, minPurchase: 0, expirationDays: 90,
+});
+
 export const DEFAULT_REWARDS = [
-  {
-    id: 'r1', type: 'free_delivery',
-    nameFr: 'Livraison gratuite', nameEn: 'Free delivery',
-    rewardUsage: 'burn',
-    pointsCost: 200, realCost: 5,
-    minPurchase: 0,
-    assignedTiers: [true, true, true],
-    utilizationByTier: [30, 40, 50],
-  },
-  {
-    id: 'r2', type: 'promo_percent',
-    nameFr: '-10% sur la commande', nameEn: '-10% off order',
-    rewardUsage: 'burn',
-    pointsCost: 500, realCost: 8,
-    minPurchase: 90,
-    assignedTiers: [true, true, true],
-    utilizationByTier: [20, 35, 50],
-  },
-  {
-    id: 'r3', type: 'gift_voucher',
-    nameFr: 'Bon de 10€', nameEn: '10€ voucher',
-    rewardUsage: 'burn',
-    pointsCost: 1000, realCost: 10,
-    minPurchase: 90,
-    assignedTiers: [false, true, true],
-    utilizationByTier: [0, 25, 40],
-  },
-  {
-    id: 'r4', type: 'free_product',
-    nameFr: 'Produit mystère', nameEn: 'Mystery product',
-    rewardUsage: 'perk',
-    pointsCost: 0, realCost: 15,
-    minPurchase: 0,
-    assignedTiers: [false, false, true],
-    utilizationByTier: [0, 0, 60],
-  },
+  points('pts_delivery', 'free_delivery', 'Livraison offerte (points)', 'Free delivery (points)', 5),
+  points('pts_voucher_5', 'gift_voucher', 'Bon de 5 € (points)', '€5 voucher (points)', 5),
+  points('pts_voucher_10', 'gift_voucher', 'Bon de 10 € (points)', '€10 voucher (points)', 10),
+  perk('perk_delivery', 'free_delivery', 'Livraison gratuite', 'Free delivery', 5, [true, true, true]),
+  perk('perk_birthday_5', 'birthday', 'Anniversaire 5 €', '€5 birthday gift', 5, [true, false, false]),
+  perk('perk_voucher_10', 'gift_voucher', 'Bon 10 €', '€10 voucher', 10, [false, true, false]),
+  perk('perk_birthday_10', 'birthday', 'Anniversaire 10 €', '€10 birthday gift', 10, [false, true, false]),
+  perk('perk_voucher_15', 'gift_voucher', 'Bon 15 €', '€15 voucher', 15, [false, false, true]),
+  perk('perk_birthday_15', 'birthday', 'Anniversaire 15 €', '€15 birthday gift', 15, [false, false, true]),
+  perk('perk_private_sales', 'early_access', 'Accès ventes privées', 'Private sales access', 0, [false, true, true], false),
+  perk('perk_early_collection', 'early_access', 'Accès collection en avant-première', 'Early access to new collections', 0, [false, true, true], false),
 ];
 
 // ── Onboarding industries ──

@@ -1,0 +1,204 @@
+// ════════════════════════════════════════════════════════════════════
+// Program defaults — one builder for every entry point, one normalizer
+// ════════════════════════════════════════════════════════════════════
+//
+// buildProgramDefaults() is used by the three presets (onboarding answers,
+// brand analysis, HubSpot client). normalizeProgram() completes any program —
+// freshly built or loaded from the database — with the fields the app expects.
+
+import {
+  DEFAULT_REWARDS, INITIAL_REFERRAL,
+  DEFAULT_TIER_COLORS, DEFAULT_TIER_NAMES_FR, DEFAULT_TIER_NAMES_EN,
+} from './defaults';
+import { recommendedMissions, catalogMission } from './missionCatalog';
+
+export const INITIAL_CONFIG = {
+  tierBasis: 'spend',
+  hasMissions: true,    // "Programme à points" — Oui/Non
+  hasTiers: true,       // "Paliers VIP" — Oui/Non
+  // Reward types follow from these two: points → points rewards, tiers → VIP perks.
+  // Points expiration (only meaningful when hasMissions)
+  pointsExpire: true,
+  expirationMonths: 12,
+  expirationType: 'rolling',
+  // Tier expiration / reassessment (independent of points — applies when hasTiers)
+  tiersExpire: true,
+  tierExpirationMonths: 12,
+  tierExpirationType: 'rolling',
+  // Setup information (CSM only), see data/setupOptions.js; null = not answered
+  cms: null,
+  crm: null,
+  international: null,
+  multiLanguage: null,   // when international: several languages?
+  multiCurrency: null,   // when international: several currencies?
+  physicalStore: null,
+  posSystem: null,       // when physicalStore: 'shopify_pos' | 'cegid' | 'other'
+};
+
+export const INITIAL_SETTINGS = {
+  segmentationType: 'revenue',
+  caWeight: 0.5,
+  aov: 60,
+  grossMargin: 60,
+  earnRate: 1,            // pts per € spent — follows the AOV rule until earnRateManual
+  earnRateManual: false,
+  scenario: 'medium',     // engagement scenario shared by Missions and Dashboard
+  participationRate: 40,  // % of the customer base active in the program (Dashboard)
+};
+
+export const INITIAL_TIERS = [
+  { name: 'Bronze', color: '#B87333', spendThreshold: 0, orderThreshold: 0, pointsMultiplier: 1 },
+  { name: 'Argent', color: '#9CA3AF', spendThreshold: 500, orderThreshold: 3, pointsMultiplier: 1.5 },
+  { name: 'Or', color: '#D97706', spendThreshold: 2000, orderThreshold: 10, pointsMultiplier: 2 },
+];
+
+// Share of a tier's members who use each of its rewards in a year.
+export const defaultTierUtilization = tierIndex => 5 + tierIndex * 5;
+
+// Share of emitted points that get redeemed (5–7% observed at Loyoly).
+export const DEFAULT_BURN_RATE = 6;
+
+// ── Builder ──────────────────────────────────────────────────────────
+export function buildProgramDefaults({
+  lang = 'fr',
+  aov = 60,
+  grossMargin = 50,
+  programType = 'mid',
+  tierNames,
+  multipliers = [1, 1.5, 2],
+}) {
+  const luxury = programType === 'luxury';
+  const names = tierNames?.length === 3
+    ? tierNames
+    : (lang === 'fr' ? DEFAULT_TIER_NAMES_FR : DEFAULT_TIER_NAMES_EN).slice(0, 3);
+  const roundedAov = Math.round(aov) || 60;
+  const spendThresholds = [0, roundedAov * 5, roundedAov * 20];
+  const orderThresholds = [0, 5, 20];
+
+  const tiers = names.map((name, i) => ({
+    name,
+    color: DEFAULT_TIER_COLORS[i],
+    spendThreshold: spendThresholds[i],
+    orderThreshold: orderThresholds[i],
+    pointsMultiplier: multipliers[i] ?? 1,
+  }));
+
+  // Without points, only the tier perks make sense.
+  const rewards = DEFAULT_REWARDS.filter(r => !luxury || r.rewardUsage === 'perk');
+
+  return normalizeProgram({
+    config: {
+      ...INITIAL_CONFIG,
+      hasMissions: !luxury,
+    },
+    settings: {
+      ...INITIAL_SETTINGS,
+      aov: roundedAov,
+      grossMargin,
+    },
+    tiers,
+    rewards,
+    // Luxury programs have no points: only the purchase mission is kept.
+    missions: recommendedMissions().filter(m => !luxury || m.isPurchaseMission),
+    customMissions: [],
+    burnRate: luxury ? 0 : DEFAULT_BURN_RATE,
+    referralConfig: INITIAL_REFERRAL,
+  });
+}
+
+// ── Normalizer ───────────────────────────────────────────────────────
+function resize(arr, length, fill) {
+  return Array.from({ length }, (_, i) => (arr && arr[i] !== undefined ? arr[i] : fill));
+}
+
+export function normalizeTier(tier, index) {
+  return {
+    name: tier.name,
+    color: tier.color || DEFAULT_TIER_COLORS[index % DEFAULT_TIER_COLORS.length],
+    spendThreshold: tier.spendThreshold ?? 0,
+    orderThreshold: tier.orderThreshold ?? 0,
+    pointsMultiplier: tier.pointsMultiplier ?? 1,
+    avgUtilization: tier.avgUtilization ?? defaultTierUtilization(index),
+  };
+}
+
+// Legacy fields replaced by derived values are dropped.
+function without(obj, keys) {
+  const copy = { ...obj };
+  keys.forEach(k => delete copy[k]);
+  return copy;
+}
+
+// A catalog mission added from the client portal comes with its public
+// fields only: the catalog completes it (engagement, completion rate…).
+export function normalizeMission(saved) {
+  const catalog = catalogMission(saved.id);
+  const mission = catalog
+    ? { engagement: catalog.engagement, completionRate: catalog.completionRate, frequency: catalog.frequency, ...(catalog.caution ? { caution: true } : {}), ...saved }
+    : saved;
+  const engagement = mission.engagementByTier;
+  let completionRate = mission.completionRate;
+  if (typeof completionRate !== 'number') {
+    completionRate = Array.isArray(engagement) && engagement.length > 0
+      ? Math.round(engagement.reduce((s, v) => s + (v || 0), 0) / engagement.length)
+      : 20;
+  }
+  return {
+    ...without(mission, ['points', 'engagementByTier']),
+    basePoints: mission.basePoints ?? mission.points ?? 0,
+    frequency: mission.frequency ?? 1,
+    enabled: mission.enabled ?? true,
+    completionRate,
+  };
+}
+
+export function normalizeReward(reward, tierCount) {
+  const assignedTiers = reward.assignedTiers
+    ? resize(reward.assignedTiers, tierCount, false)
+    : Array.from({ length: tierCount }, (_, i) => i >= (reward.minTier || 0));
+  const derivable = reward.type === 'promo_percent';
+  return {
+    ...without(reward, ['pointsCost', 'pointsValueEur', 'pointsBonus', 'utilizationByTier', 'minTier']),
+    rewardUsage: reward.rewardUsage || 'burn',
+    pointsBase: reward.pointsBase ?? 0,
+    bonusBasePoints: reward.bonusBasePoints ?? reward.pointsBonus ?? 0,
+    realCost: reward.realCost ?? 0,
+    realCostAuto: reward.realCostAuto ?? derivable,
+    minPurchase: reward.minPurchase ?? 0,
+    minPurchaseAuto: reward.minPurchaseAuto ?? false,
+    expirationDays: reward.expirationDays ?? 90,
+    assignedTiers,
+  };
+}
+
+// Referral configs saved before the AOV-indexed defaults keep the rewards
+// their CSM chose; their new fields (expirations, minimum purchase) start auto.
+function normalizeReferral(referral) {
+  if (!referral) return { ...INITIAL_REFERRAL };
+  const legacy = !('rewardsAuto' in referral);
+  return { ...INITIAL_REFERRAL, ...(legacy ? { rewardsAuto: false } : {}), ...referral };
+}
+
+export function normalizeProgram(program = {}) {
+  const config = { ...INITIAL_CONFIG, ...(program.config || {}) };
+  // A points threshold needs a points program.
+  if (!config.hasMissions && config.tierBasis === 'points') config.tierBasis = 'spend';
+
+  const tiers = (program.tiers?.length ? program.tiers : INITIAL_TIERS).map(normalizeTier);
+  return {
+    config,
+    settings: { ...INITIAL_SETTINGS, ...(program.settings || {}) },
+    tiers,
+    rewards: (program.rewards ?? DEFAULT_REWARDS).map(r => normalizeReward(r, tiers.length)),
+    missions: (program.missions ?? recommendedMissions()).map(normalizeMission),
+    customMissions: (program.customMissions ?? []).map(normalizeMission),
+    burnRate: program.burnRate ?? DEFAULT_BURN_RATE,
+    referralConfig: normalizeReferral(program.referralConfig),
+    onboardingAnswers: program.onboardingAnswers ?? null,
+    brandAnalysis: program.brandAnalysis ?? null,
+    // Creation time of the last brand edit (client portal) replayed into the program.
+    clientEditsMergedAt: program.clientEditsMergedAt ?? null,
+    // Creation time of the last brand edit the CSM saw in the activity feed.
+    clientEditsSeenAt: program.clientEditsSeenAt ?? null,
+  };
+}

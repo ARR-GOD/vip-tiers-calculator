@@ -1,20 +1,19 @@
-import { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Lightbulb } from 'lucide-react';
+import { useMemo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Tooltip from './Tooltip';
 import { formatCurrency, formatNumber } from '../utils/calculations';
+import { EARN_RATE_OPTIONS, defaultEarnRate, pointsModel } from '../utils/pointsModel';
+import { CMS_OPTIONS, CRM_OPTIONS, CRM_NONE, CRM_OTHER, POS_OPTIONS, INTERNATIONAL_GUIDE, CURRENCY_GUIDE, STORE_GUIDE, guideOf, posLabel } from '../data/setupOptions';
 
-// Default cashback rate suggestion based on gross margin.
-// Rule: margin < 40 → 5%; < 60 → 10%; < 80 → 15%; else → 20%.
-function suggestedCashback(margin) {
-  if (!margin || margin < 40) return 5;
-  if (margin < 60) return 10;
-  if (margin < 80) return 15;
-  return 20;
-}
-
-export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, clientName, onboardingAnswers, onPrev, onNext }) {
+export default function Step1_DataSettings({ config, setConfig, customers, settings, setSettings, lang, brandAnalysis, onboardingAnswers, onPrev, onNext }) {
   const t = lang === 'fr' ? FR : EN;
   const update = (key, val) => setConfig(prev => ({ ...prev, [key]: val }));
+  // Without points, tiers can't be based on points.
+  const setHasMissions = (val) => setConfig(prev => ({
+    ...prev,
+    hasMissions: val,
+    tierBasis: !val && prev.tierBasis === 'points' ? 'spend' : prev.tierBasis,
+  }));
 
   // ── Derived stats from imported customers ──
   const stats = useMemo(() => {
@@ -41,45 +40,10 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         : `Industry estimate (${industry}) — adjustable`)
     : (lang === 'fr' ? 'Saisi manuellement' : 'Manually entered');
 
-  // ── Cashback suggestion ──
-  const suggested = suggestedCashback(settings.grossMargin);
-
-  // Track whether the user has manually edited cashback. If not, we keep it in
-  // sync with the margin-derived suggestion when margin changes.
-  const [cashbackTouched, setCashbackTouched] = useState(false);
-  useEffect(() => {
-    if (!cashbackTouched) {
-      setSettings(p => ({ ...p, cashbackRate: suggested }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggested]);
-
-  // ── Derive pointsToEuro so that 1€ spent = 1 pt earned ──
-  // points_earned_per_euro = cashbackRate × pointsToEuro / 100
-  // We want points_earned_per_euro = 1 → pointsToEuro = 100 / cashbackRate.
-  // Auto-derive unless user has manually overridden.
-  const [pointsTouched, setPointsTouched] = useState(false);
-  const derivedPointsValue = settings.cashbackRate > 0
-    ? Math.max(1, Math.round(100 / settings.cashbackRate))
-    : 100;
-  useEffect(() => {
-    if (!pointsTouched) {
-      setSettings(p => ({ ...p, pointsPerEuro: derivedPointsValue }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [derivedPointsValue]);
-
-  // ── Keep config consistent: if no points, tierBasis can't be 'points' ──
-  useEffect(() => {
-    if (!config.hasMissions && config.tierBasis === 'points') {
-      update('tierBasis', 'spend');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.hasMissions]);
-
-  const pointsEarnedPerEuro = settings.pointsPerEuro > 0
-    ? (settings.cashbackRate * settings.pointsPerEuro) / 100
-    : 0;
+  // ── Points: earn rate (follows the AOV rule until chosen) ──
+  // A rate the CSM picked is never overwritten when coming back to this step.
+  const { earnRate } = pointsModel(settings);
+  const autoEarnRate = defaultEarnRate(settings.aov);
 
   return (
     <div className="space-y-3">
@@ -89,120 +53,139 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
         <p className="text-[15px] text-[#645648] mt-0.5">{t.subtitle}</p>
       </div>
 
-      {/* ─── Program structure questions ─── */}
+      {/* ─── Setup information (CSM only): the brand's stack, for the setup checklist ─── */}
+      <div>
+        <div className="section-header">{t.setupHeader}</div>
+        <div className="card grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" style={{ padding: 16 }}>
+          <Setting label="CMS" tooltip={t.cmsTip}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {CMS_OPTIONS.map(o => (
+                <PillOption key={o.id} label={o.label} active={config.cms === o.id} onClick={() => update('cms', o.id)} />
+              ))}
+              <GuideLink href={guideOf(CMS_OPTIONS, config.cms)} label={t.guide} />
+            </div>
+          </Setting>
+          <Setting label="CRM" tooltip={t.crmTip}>
+            <div className="flex flex-wrap items-center gap-2">
+              <select value={config.crm ?? ''} onChange={e => update('crm', e.target.value || null)}
+                className="px-2 py-1.5 text-[13px] rounded-lg min-w-[200px]" aria-label="CRM">
+                <option value="">{t.choose}</option>
+                {CRM_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                <option value={CRM_NONE}>{t.noCrm}</option>
+                <option value={CRM_OTHER}>{t.otherCrm}</option>
+              </select>
+              <GuideLink href={guideOf(CRM_OPTIONS, config.crm)} label={t.guide} />
+            </div>
+          </Setting>
+          <Setting label={t.international} tooltip={t.internationalTip}>
+            <YesNoPills lang={lang} value={config.international} onChange={v => update('international', v)} label={t.international} />
+            {config.international && (
+              <div className="mt-2 pl-3 border-l-2 border-[#E5E1D8] space-y-1.5">
+                <SubQuestion label={t.multiLanguage}>
+                  <YesNoPills lang={lang} value={config.multiLanguage} onChange={v => update('multiLanguage', v)} label={t.multiLanguage} />
+                  <GuideLink href={config.multiLanguage ? INTERNATIONAL_GUIDE : null} label={t.guide} />
+                </SubQuestion>
+                <SubQuestion label={t.multiCurrency}>
+                  <YesNoPills lang={lang} value={config.multiCurrency} onChange={v => update('multiCurrency', v)} label={t.multiCurrency} />
+                  <GuideLink href={config.multiCurrency ? CURRENCY_GUIDE : null} label={t.guide} />
+                </SubQuestion>
+              </div>
+            )}
+          </Setting>
+          <Setting label={t.store} tooltip={t.storeTip}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <YesNoPills lang={lang} value={config.physicalStore} onChange={v => update('physicalStore', v)} label={t.store} />
+              <GuideLink href={config.physicalStore ? STORE_GUIDE : null} label={t.guide} />
+            </div>
+            {config.physicalStore && (
+              <div className="mt-2 pl-3 border-l-2 border-[#E5E1D8]">
+                <SubQuestion label={t.pos} group>
+                  {POS_OPTIONS.map(o => (
+                    <PillOption key={o.id} label={posLabel(o.id, lang)} active={config.posSystem === o.id} onClick={() => update('posSystem', o.id)} />
+                  ))}
+                  <GuideLink href={guideOf(POS_OPTIONS, config.posSystem)} label={t.guide} />
+                </SubQuestion>
+              </div>
+            )}
+          </Setting>
+        </div>
+      </div>
+
+      {/* ─── Program structure: each answer holds its own settings ─── */}
+      {/* The reward types follow from the structure: a points program spends
+          points on rewards, VIP tiers give perks. */}
       <div>
         <div className="section-header">{t.structureHeader}</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
           <YesNoCard
             title={t.qPoints}
             tooltip={t.qPointsTip}
             value={config.hasMissions}
-            onChange={v => update('hasMissions', v)}
+            onChange={setHasMissions}
             lang={lang}
-          />
+          >
+            <Setting label={t.expirationLabel} tooltip={t.expirationTip}>
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="number" min={1} max={60} value={config.expirationMonths}
+                  onChange={e => update('expirationMonths', parseInt(e.target.value) || 12)}
+                  className="w-20 px-2 py-1.5 text-[13px] text-center" aria-label={t.expirationLabel} />
+                <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
+                <div className="flex gap-1.5">
+                  {['rolling', 'fixed'].map(type => (
+                    <PillOption key={type} label={type === 'rolling' ? t.rolling : t.fixed}
+                      active={config.expirationType === type} onClick={() => update('expirationType', type)} />
+                  ))}
+                </div>
+              </div>
+              <div className="text-[11px] text-[#8A7D6B] mt-1">{t.expirationDefault}</div>
+            </Setting>
+          </YesNoCard>
+
           <YesNoCard
             title={t.qTiers}
             tooltip={t.qTiersTip}
             value={config.hasTiers}
             onChange={v => update('hasTiers', v)}
             lang={lang}
-          />
+          >
+            <Setting label={t.tierBasis} tooltip={t.tierBasisTip}>
+              <div className="flex flex-wrap gap-1.5">
+                <PillOption label={t.spend} active={config.tierBasis === 'spend'} onClick={() => update('tierBasis', 'spend')} />
+                <PillOption label={t.orders} active={config.tierBasis === 'orders'} onClick={() => update('tierBasis', 'orders')} />
+                {config.hasMissions && (
+                  <PillOption label={t.points} active={config.tierBasis === 'points'} onClick={() => update('tierBasis', 'points')} />
+                )}
+              </div>
+            </Setting>
+            <Setting label={t.tierExpireLabel} tooltip={t.tierExpireTip}>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1.5">
+                  <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.tiersExpire === true} onClick={() => update('tiersExpire', true)} />
+                  <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.tiersExpire === false} onClick={() => update('tiersExpire', false)} />
+                </div>
+                {config.tiersExpire && (
+                  <>
+                    <span className="text-[12px] text-[#8A7D6B]">{t.tierEvery}</span>
+                    <input type="number" min={1} max={60} value={config.tierExpirationMonths}
+                      onChange={e => update('tierExpirationMonths', parseInt(e.target.value) || 12)}
+                      className="w-20 px-2 py-1.5 text-[13px] text-center" aria-label={t.tierExpireLabel} />
+                    <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
+                    <div className="flex gap-1.5">
+                      {['rolling', 'fixed'].map(type => (
+                        <PillOption key={type} label={type === 'rolling' ? t.rolling : t.fixed}
+                          active={config.tierExpirationType === type} onClick={() => update('tierExpirationType', type)} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="text-[11px] text-[#8A7D6B] mt-1">
+                {config.tiersExpire && `${t.tierExpireDefault} `}{t.tierExpireExplanation}
+              </div>
+            </Setting>
+          </YesNoCard>
         </div>
       </div>
-
-      {/* ─── Points expiration (only if points program) ─── */}
-      {config.hasMissions && (
-        <div className="card flex flex-wrap items-center gap-4" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.expirationLabel}</label>
-            <Tooltip text={t.expirationTip} />
-          </div>
-          <input type="number" min={1} max={60} value={config.expirationMonths}
-            onChange={e => update('expirationMonths', parseInt(e.target.value) || 12)}
-            className="w-20 px-2 py-1.5 text-[13px] text-center" />
-          <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
-          <div className="flex gap-1.5 ml-2">
-            {['rolling', 'fixed'].map(type => (
-              <button key={type} onClick={() => update('expirationType', type)}
-                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
-                  ${config.expirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
-                {type === 'rolling' ? t.rolling : t.fixed}
-              </button>
-            ))}
-          </div>
-          <span className="text-[11px] text-[#8A7D6B] ml-2">{t.expirationDefault}</span>
-        </div>
-      )}
-
-      {/* ─── Tier basis (only if tiers enabled) ─── */}
-      {config.hasTiers && (
-        <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.tierBasis}</label>
-            <Tooltip text={t.tierBasisTip} />
-          </div>
-          <div className="flex gap-1.5">
-            <PillOption label={t.spend} active={config.tierBasis === 'spend'} onClick={() => update('tierBasis', 'spend')} />
-            <PillOption label={t.orders} active={config.tierBasis === 'orders'} onClick={() => update('tierBasis', 'orders')} />
-            {config.hasMissions && (
-              <PillOption label={t.points} active={config.tierBasis === 'points'} onClick={() => update('tierBasis', 'points')} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Tier reassessment / expiration (only if tiers enabled) ─── */}
-      {config.hasTiers && (
-        <div className="card" style={{ padding: 16 }}>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <label className="text-[13px] font-medium text-[#645648]">{t.tierExpireLabel}</label>
-              <Tooltip text={t.tierExpireTip} />
-            </div>
-            <div className="flex gap-1.5">
-              <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={config.tiersExpire === true} onClick={() => update('tiersExpire', true)} />
-              <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={config.tiersExpire === false} onClick={() => update('tiersExpire', false)} />
-            </div>
-            {config.tiersExpire && (
-              <>
-                <span className="text-[12px] text-[#8A7D6B] ml-2">{t.tierEvery}</span>
-                <input type="number" min={1} max={60} value={config.tierExpirationMonths}
-                  onChange={e => update('tierExpirationMonths', parseInt(e.target.value) || 12)}
-                  className="w-20 px-2 py-1.5 text-[13px] text-center" />
-                <span className="text-[13px] text-[#8A7D6B]">{t.months}</span>
-                <div className="flex gap-1.5 ml-2">
-                  {['rolling', 'fixed'].map(type => (
-                    <button key={type} onClick={() => update('tierExpirationType', type)}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all
-                        ${config.tierExpirationType === type ? 'bg-primary text-white' : 'bg-[#E5E1D8] text-[#645648]'}`}>
-                      {type === 'rolling' ? t.rolling : t.fixed}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[11px] text-[#8A7D6B] ml-2">{t.tierExpireDefault}</span>
-              </>
-            )}
-          </div>
-          <div className="text-[11px] text-[#8A7D6B] mt-2">
-            {t.tierExpireExplanation}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Reward type (only if points program) ─── */}
-      {config.hasMissions && (
-        <div className="card flex flex-wrap items-center gap-3" style={{ padding: 16 }}>
-          <div className="flex items-center gap-1.5">
-            <label className="text-[13px] font-medium text-[#645648]">{t.rewards}</label>
-            <Tooltip text={t.rewardsTip} />
-          </div>
-          <div className="flex gap-1.5">
-            <PillOption label={t.burn} active={config.rewardType === 'burn'} onClick={() => update('rewardType', 'burn')} />
-            <PillOption label={t.perks} active={config.rewardType === 'perks'} onClick={() => update('rewardType', 'perks')} />
-            <PillOption label={t.both} active={config.rewardType === 'both'} onClick={() => update('rewardType', 'both')} />
-          </div>
-        </div>
-      )}
 
       {/* ─── Program parameters ─── */}
       <div>
@@ -251,101 +234,32 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
             </div>
           </div>
 
-          {/* Cashback rate — number input + suggested hint */}
+          {/* Earn rate — points per € spent */}
           {config.hasMissions && (
             <div className="pt-3 border-t border-[#D9D5CB]">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <label className="text-[12px] font-medium text-[#645648]">{t.cashbackRate}</label>
-                <Tooltip text={t.cashbackTip} />
+                <label className="text-[12px] font-medium text-[#645648]">{t.earnRate}</label>
+                <Tooltip text={t.earnRateTip} />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative" style={{ width: 140 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    value={settings.cashbackRate || ''}
-                    onChange={e => {
-                      setCashbackTouched(true);
-                      setSettings(p => ({ ...p, cashbackRate: parseFloat(e.target.value) || 0 }));
-                    }}
-                    className="w-full px-3 py-2 pr-8 text-[15px]"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">%</span>
-                </div>
-                <div className="flex items-center gap-2 text-[12px] text-[#8A7D6B]">
-                  <Lightbulb size={13} className="text-[#D97706]" />
-                  <span>
-                    {lang === 'fr'
-                      ? `Suggéré pour ${settings.grossMargin || 0}% de marge : ${suggested}%`
-                      : `Suggested for ${settings.grossMargin || 0}% margin: ${suggested}%`}
-                  </span>
-                  {settings.cashbackRate !== suggested && (
-                    <button
-                      onClick={() => {
-                        setCashbackTouched(false);
-                        setSettings(p => ({ ...p, cashbackRate: suggested }));
-                      }}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      {lang === 'fr' ? 'Utiliser' : 'Apply'}
-                    </button>
-                  )}
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {EARN_RATE_OPTIONS.map(rate => (
+                  <PillOption key={rate} label={`${rate} ${rate > 1 ? 'pts' : 'pt'} / €`} active={earnRate === rate}
+                    onClick={() => setSettings(p => ({ ...p, earnRate: rate, earnRateManual: true }))} />
+                ))}
+                {settings.earnRateManual ? (
+                  <button
+                    onClick={() => setSettings(p => ({ ...p, earnRateManual: false }))}
+                    className="text-[12px] text-primary hover:underline font-medium ml-1"
+                  >
+                    {lang === 'fr' ? `Revenir à la règle panier moyen (${autoEarnRate} pt${autoEarnRate > 1 ? 's' : ''}/€)` : `Back to the AOV rule (${autoEarnRate} pt${autoEarnRate > 1 ? 's' : ''}/€)`}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-[#8A7D6B] ml-1">{t.earnRateAuto}</span>
+                )}
               </div>
-              {settings.grossMargin > 0 && (
-                <div className="mt-2 text-[11px] text-[#8A7D6B]">
-                  = {((settings.cashbackRate / settings.grossMargin) * 100).toFixed(1)}% {t.ofMargin}
-                </div>
-              )}
             </div>
           )}
 
-          {/* Points value — derived to keep 1€ = 1pt earning convention */}
-          {config.hasMissions && (
-            <div className="pt-3 border-t border-[#D9D5CB]">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <label className="text-[12px] font-medium text-[#645648]">{t.pointsPerEuro}</label>
-                <Tooltip text={t.pointsPerEuroTip} />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative" style={{ width: 180 }}>
-                  <input
-                    type="number" min={1} max={10000}
-                    value={settings.pointsPerEuro || ''}
-                    onChange={e => {
-                      setPointsTouched(true);
-                      setSettings(p => ({ ...p, pointsPerEuro: parseInt(e.target.value) || 1 }));
-                    }}
-                    className="w-full px-3 py-2 pr-16 text-[15px]"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[#8A7D6B]">pts = 1€</span>
-                </div>
-                {settings.pointsPerEuro !== derivedPointsValue && derivedPointsValue > 0 && (
-                  <button
-                    onClick={() => {
-                      setPointsTouched(false);
-                      setSettings(p => ({ ...p, pointsPerEuro: derivedPointsValue }));
-                    }}
-                    className="text-[12px] text-primary hover:underline font-medium"
-                  >
-                    {lang === 'fr' ? `Réinitialiser (${derivedPointsValue} pts = 1€)` : `Reset (${derivedPointsValue} pts = 1€)`}
-                  </button>
-                )}
-              </div>
-              <div className="mt-2 text-[11px] text-[#8A7D6B]">
-                {lang === 'fr'
-                  ? `→ ${settings.cashbackRate}% × ${settings.pointsPerEuro || 1} pts/€ = ${pointsEarnedPerEuro.toFixed(2)} pt(s) gagné(s) par 1€ dépensé`
-                  : `→ ${settings.cashbackRate}% × ${settings.pointsPerEuro || 1} pts/€ = ${pointsEarnedPerEuro.toFixed(2)} pt(s) earned per 1€ spent`}
-              </div>
-              <div className="mt-1 text-[11px]" style={{ color: '#059669' }}>
-                {lang === 'fr'
-                  ? '💡 Convention par défaut : 1€ dépensé = 1 pt gagné. Ajuster « pts = 1€ » change ce que les points valent à la conversion.'
-                  : '💡 Default convention: 1€ spent = 1 pt earned. Adjusting "pts = 1€" changes what points are worth at redemption.'}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -366,7 +280,8 @@ export default function Step1_DataSettings({ config, setConfig, customers, setti
   );
 }
 
-function YesNoCard({ title, tooltip, value, onChange, lang }) {
+// A structure question; its settings show inside the card when the answer is yes.
+function YesNoCard({ title, tooltip, value, onChange, lang, children }) {
   return (
     <div className="card" style={{ padding: '16px 20px' }}>
       <div className="flex items-center gap-1.5 mb-2">
@@ -391,6 +306,48 @@ function YesNoCard({ title, tooltip, value, onChange, lang }) {
           {lang === 'fr' ? 'Non' : 'No'}
         </button>
       </div>
+      {value && children && (
+        <div className="mt-4 pt-4 border-t border-[#E5E1D8] space-y-4">{children}</div>
+      )}
+    </div>
+  );
+}
+
+function Setting({ label, tooltip, children }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-[12px] font-medium text-[#645648]">{label}</label>
+        {tooltip && <Tooltip text={tooltip} />}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function GuideLink({ href, label }) {
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-primary hover:underline ml-1">
+      {label} ↗
+    </a>
+  );
+}
+
+function YesNoPills({ lang, value, onChange, label }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      <PillOption label={lang === 'fr' ? 'Oui' : 'Yes'} active={value === true} onClick={() => onChange(true)} />
+      <PillOption label={lang === 'fr' ? 'Non' : 'No'} active={value === false} onClick={() => onChange(false)} />
+    </div>
+  );
+}
+
+function SubQuestion({ label, group, children }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-[12px] text-[#645648] min-w-[130px]">{label}</span>
+      <div className="flex flex-wrap items-center gap-1.5" {...(group ? { role: 'group', 'aria-label': label } : {})}>{children}</div>
     </div>
   );
 }
@@ -421,6 +378,20 @@ const FR = {
   title: 'Configuration du programme',
   subtitle: 'Configurez la structure du programme et ses paramètres.',
   structureHeader: 'STRUCTURE DU PROGRAMME',
+  setupHeader: 'INFORMATIONS DE SETUP',
+  cmsTip: 'Plateforme e-commerce de la marque. Sert à préparer la checklist de setup.',
+  crmTip: 'Outil d\'emailing / CRM connecté à Loyoly (intégrations du helpdesk).',
+  international: 'International',
+  internationalTip: 'La marque vend dans plusieurs pays, langues ou devises.',
+  multiLanguage: 'Plusieurs langues ?',
+  multiCurrency: 'Plusieurs devises ?',
+  store: 'Boutique physique',
+  storeTip: 'La marque a des points de vente physiques (achats en boutique, caisse).',
+  pos: 'Caisse',
+  choose: '— Choisir —',
+  noCrm: 'Aucun',
+  otherCrm: 'Autre',
+  guide: 'Guide',
   qPoints: 'Programme à points ?',
   qPointsTip: 'Les clients accumulent des points via achats / missions, échangeables contre des récompenses.',
   qTiers: 'Paliers VIP ?',
@@ -428,9 +399,6 @@ const FR = {
   tierBasis: 'Base des paliers',
   tierBasisTip: 'Sur quelle métrique segmenter les clients.',
   spend: 'Dépenses (€)', orders: 'Commandes', points: 'Points',
-  rewards: 'Type de récompenses',
-  rewardsTip: 'Burn : réductions/cadeaux échangés contre des points. Perks : avantages par palier.',
-  burn: 'Points brûlés', perks: 'Avantages VIP', both: 'Les deux',
   expirationLabel: "Délai d'expiration des points",
   expirationTip: 'Au bout de combien de temps les points expirent.',
   months: 'mois', rolling: 'Glissant', fixed: 'Fixe',
@@ -443,17 +411,29 @@ const FR = {
   keyParams: 'Paramètres clés',
   aov: 'Panier moyen (AOV)',
   margin: 'Marge brute',
-  cashbackRate: 'Taux de cashback',
-  cashbackTip: '% de la valeur d\'achat retourné au client en valeur de récompense.',
-  ofMargin: 'de la marge',
-  pointsPerEuro: 'Valeur des points',
-  pointsPerEuroTip: 'Combien de points valent 1€ à la conversion en récompense.',
+  earnRate: 'Points gagnés par € dépensé',
+  earnRateTip: 'Règle Loyoly : panier moyen ≥ 50 € → 1 pt/€, sous 50 € → 10 pts/€. Les points des missions et le prix des récompenses suivent ce ratio.',
+  earnRateAuto: 'Automatique selon le panier moyen (≥ 50 € → 1 pt/€, < 50 € → 10 pts/€)',
 };
 
 const EN = {
   title: 'Program Configuration',
   subtitle: 'Configure the program structure and parameters.',
   structureHeader: 'PROGRAM STRUCTURE',
+  setupHeader: 'SETUP INFORMATION',
+  cmsTip: 'The brand\'s e-commerce platform. Used to prepare the setup checklist.',
+  crmTip: 'Emailing / CRM tool connected to Loyoly (help center integrations).',
+  international: 'International',
+  internationalTip: 'The brand sells in several countries, languages or currencies.',
+  multiLanguage: 'Several languages?',
+  multiCurrency: 'Several currencies?',
+  store: 'Physical store',
+  storeTip: 'The brand has physical stores (in-store purchases, POS).',
+  pos: 'POS system',
+  choose: '— Choose —',
+  noCrm: 'None',
+  otherCrm: 'Other',
+  guide: 'Guide',
   qPoints: 'Points program?',
   qPointsTip: 'Customers earn points via purchases / missions, redeemable for rewards.',
   qTiers: 'VIP tiers?',
@@ -461,9 +441,6 @@ const EN = {
   tierBasis: 'Tier basis',
   tierBasisTip: 'Which metric segments customers.',
   spend: 'Total spend (€)', orders: 'Orders', points: 'Points',
-  rewards: 'Reward type',
-  rewardsTip: 'Burn: redeem points for discounts/gifts. Perks: tier-based benefits.',
-  burn: 'Points burned', perks: 'VIP perks', both: 'Both',
   expirationLabel: 'Points expiration delay',
   expirationTip: 'How long until points expire.',
   months: 'months', rolling: 'Rolling', fixed: 'Fixed',
@@ -476,9 +453,7 @@ const EN = {
   keyParams: 'Key parameters',
   aov: 'Avg order value (AOV)',
   margin: 'Gross margin',
-  cashbackRate: 'Cashback rate',
-  cashbackTip: '% of purchase value returned to the customer as reward value.',
-  ofMargin: 'of margin',
-  pointsPerEuro: 'Points value',
-  pointsPerEuroTip: 'How many points equal 1€ at redemption.',
+  earnRate: 'Points earned per € spent',
+  earnRateTip: 'Loyoly rule: AOV ≥ 50€ → 1 pt/€, below 50€ → 10 pts/€. Mission points and reward prices follow this rate.',
+  earnRateAuto: 'Automatic from the AOV (≥ 50€ → 1 pt/€, < 50€ → 10 pts/€)',
 };

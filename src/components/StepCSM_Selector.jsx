@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, FileText, Trash2 } from 'lucide-react';
-import { listDrafts, deleteDraft } from '../utils/persistence';
+import { Search, ChevronDown, ChevronLeft, ArrowUpDown, Loader2, AlertCircle, Users, Building2, ArrowRight, Folder } from 'lucide-react';
+import { listPrograms } from '../utils/programStore';
+import { normalizeDomain } from '../utils/clientFolders';
+import { apiFetch } from '../lib/supabase';
 
 const FR = {
   title: 'Sélection client',
-  subtitle: 'Choisissez un client HubSpot pour pré-remplir le configurateur VIP.',
+  subtitle: 'Choisissez un client HubSpot : son dossier s\'ouvre, ou il est créé avec un premier programme pré-rempli.',
   searchPlaceholder: 'Rechercher un client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
@@ -23,7 +25,7 @@ const FR = {
 
 const EN = {
   title: 'Client selection',
-  subtitle: 'Pick a HubSpot client to pre-fill the VIP configurator.',
+  subtitle: 'Pick a HubSpot client: its folder opens, or is created with a first pre-filled program.',
   searchPlaceholder: 'Search for a client...',
   sortAlpha: 'A-Z',
   sortMrr: 'MRR',
@@ -49,24 +51,24 @@ function formatMrr(value) {
   return `${Math.round(value)}€/m`;
 }
 
-// Strip URL noise so users can paste full URLs like "https://www.lecoqsportif.com/"
-// and still match on the bare domain stored in HubSpot ("lecoqsportif.com").
-function normalizeSearchTerm(s) {
-  if (!s) return '';
-  let q = s.toLowerCase().trim();
-  q = q.replace(/^https?:\/\//, '');   // strip protocol
-  q = q.replace(/^www\./, '');         // strip www.
-  q = q.split('/')[0];                 // drop path
-  q = q.split('?')[0];                 // drop query string
-  q = q.split('#')[0];                 // drop fragment
-  return q.trim();
-}
+// Users can paste full URLs like "https://www.lecoqsportif.com/" and still
+// match on the bare domain stored in HubSpot ("lecoqsportif.com").
+const normalizeSearchTerm = normalizeDomain;
 
-export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onHubSpotUnavailable, onResumeDraft }) {
+export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManual, onBack }) {
   const t = lang === 'fr' ? FR : EN;
   const planFilters = lang === 'fr' ? PLAN_FILTERS : PLAN_FILTERS_EN;
-  const [drafts, setDrafts] = useState(() => listDrafts());
-  const refreshDrafts = () => setDrafts(listDrafts());
+
+  // Clients that already have a folder (saved programs, shared by the team)
+  const [programs, setPrograms] = useState([]);
+  useEffect(() => {
+    listPrograms().then(setPrograms).catch(() => setPrograms([]));
+  }, []);
+  const companiesWithProgram = useMemo(
+    () => new Set(programs.map(p => p.hubspot_company_id).filter(Boolean)),
+    [programs]
+  );
+  const [hubspotUnavailable, setHubspotUnavailable] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -81,11 +83,15 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/hubspot-clients');
+        const res = await apiFetch('/api/hubspot-clients');
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          if (data.code === 'NO_API_KEY' || res.status === 503) {
-            onHubSpotUnavailable();
+          if (data.code === 'NO_API_KEY') {
+            // Saved programs and manual setup stay available without HubSpot.
+            if (!cancelled) {
+              setHubspotUnavailable(true);
+              setPhase('ready');
+            }
             return;
           }
           throw new Error(data.error || `Error ${res.status}`);
@@ -103,7 +109,7 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
       }
     })();
     return () => { cancelled = true; };
-  }, [onHubSpotUnavailable]);
+  }, []);
 
   // Filter + sort clients
   const filteredClients = useMemo(() => {
@@ -143,13 +149,13 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
     setLoadingClientId(client.id);
     setPhase('loading_details');
     try {
-      const res = await fetch(`/api/hubspot-client-details?companyId=${client.id}`);
+      const res = await apiFetch(`/api/hubspot-client-details?companyId=${client.id}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Error ${res.status}`);
       }
       const details = await res.json();
-      onClientSelected(client, details);
+      await onClientSelected(client, details);
     } catch (err) {
       setError(err.message);
       setPhase('error');
@@ -178,6 +184,10 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
 
   return (
     <div className="max-w-2xl mx-auto">
+      <button onClick={onBack} className="mb-4 text-[13px] text-[#645648] hover:text-primary inline-flex items-center gap-1">
+        <ChevronLeft size={14} /> {lang === 'fr' ? 'Espace clients' : 'Client space'}
+      </button>
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
@@ -186,62 +196,6 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
         </div>
         <p className="text-[14px] text-[#8A7D6B]">{t.subtitle}</p>
       </div>
-
-      {/* Saved drafts (resume your work) */}
-      {drafts.length > 0 && onResumeDraft && (
-        <div className="card mb-4" style={{ borderLeft: '3px solid #2965FE' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="section-subheader" style={{ marginBottom: 0 }}>
-              <FileText size={11} className="inline mr-1" />
-              {lang === 'fr' ? `MES BROUILLONS (${drafts.length})` : `MY DRAFTS (${drafts.length})`}
-            </div>
-            <span className="text-[10px] text-[#8A7D6B]">
-              {lang === 'fr' ? 'Auto-sauvegardés dans ce navigateur' : 'Auto-saved in this browser'}
-            </span>
-          </div>
-          <div className="max-h-[200px] overflow-y-auto -mx-1 tier-scroll">
-            {drafts.map(d => {
-              const label = d.selectedClient?.name || (lang === 'fr' ? 'Configuration manuelle' : 'Manual configuration');
-              const customersCount = (d.customers || []).length;
-              const tierCount = (d.tiers || []).length;
-              return (
-                <div key={d.key} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#E5E1D8] transition-all">
-                  <button
-                    onClick={() => onResumeDraft(d)}
-                    className="flex-1 text-left min-w-0"
-                  >
-                    <div className="text-[13px] font-semibold text-[#52473C] truncate">{label}</div>
-                    <div className="text-[11px] text-[#8A7D6B] truncate">
-                      {customersCount > 0
-                        ? (lang === 'fr' ? `${customersCount.toLocaleString('fr-FR')} clients` : `${customersCount.toLocaleString()} customers`)
-                        : (lang === 'fr' ? 'Données client à importer' : 'Customer data to import')}
-                      {' · '}
-                      {lang === 'fr' ? `${tierCount} paliers` : `${tierCount} tiers`}
-                      {' · '}
-                      {new Date(d.savedAt).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}
-                    </div>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(lang === 'fr' ? 'Supprimer ce brouillon ?' : 'Delete this draft?')) {
-                        const clientId = d.key.replace(/^vip_draft_/, '');
-                        deleteDraft(clientId === 'manual' ? null : clientId);
-                        refreshDrafts();
-                      }
-                    }}
-                    className="text-[#8A7D6B] hover:text-red-500 transition-colors p-1"
-                    title={lang === 'fr' ? 'Supprimer' : 'Delete'}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                  <ArrowRight size={12} className="text-[#D9D5CB] shrink-0" />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Client list area */}
       <div className="card">
@@ -314,7 +268,12 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
               </div>
 
               {/* Client list */}
-              {filteredClients.length === 0 ? (
+              {hubspotUnavailable ? (
+                <div className="text-center py-8">
+                  <AlertCircle size={24} className="mx-auto text-[#D9D5CB] mb-2" />
+                  <p className="text-[13px] text-[#8A7D6B]">{t.errorHubspot}</p>
+                </div>
+              ) : filteredClients.length === 0 ? (
                 <div className="text-center py-8">
                   <Users size={24} className="mx-auto text-[#D9D5CB] mb-2" />
                   <p className="text-[13px] text-[#8A7D6B]">
@@ -339,6 +298,11 @@ export default function StepCSM_Selector({ lang, onClientSelected, onSkipToManua
                             {[client.domain, client.platform, client.country].filter(Boolean).join(' · ')}
                           </div>
                         </div>
+                        {companiesWithProgram.has(String(client.id)) && (
+                          <span className="text-[10px] font-medium text-primary shrink-0 inline-flex items-center gap-1">
+                            <Folder size={10} /> {lang === 'fr' ? 'Dossier existant' : 'Existing folder'}
+                          </span>
+                        )}
                         {client.plan && (
                           <span className="pill pill-purple text-[10px] shrink-0">
                             {client.plan}

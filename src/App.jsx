@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { RotateCcw, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle } from 'lucide-react';
+import { FolderOpen, Globe, ChevronLeft, ChevronRight, Link2, Check, LogOut, Save, AlertCircle, Loader2, Send } from 'lucide-react';
 import Step0_ProgramSetup from './components/Step0_ProgramSetup';
 import StepData_Import from './components/StepData_Import';
 import Step1_DataSettings from './components/Step1_DataSettings';
@@ -8,48 +8,36 @@ import Step2_Missions from './components/Step2_Missions';
 import Step3_Rewards from './components/Step3_Rewards';
 import Step4_TierBuilder from './components/Step4_TierBuilder';
 import Step5_Dashboard from './components/Step5_Dashboard';
+import StepChecklist from './components/StepChecklist';
 import StepReferral from './components/StepReferral';
 import { parseSampleData } from './data/sampleData';
-import { DEFAULT_MISSIONS, DEFAULT_REWARDS, INITIAL_REFERRAL } from './data/defaults';
-import { resizeAssignedTiers, resizeMissionEngagement } from './utils/calculations';
+import { INITIAL_REFERRAL } from './data/defaults';
+import { normalizeProgram, normalizeMission, normalizeReward, normalizeTier } from './data/programDefaults';
+import { resizeAssignedTiers } from './utils/calculations';
 import { applyOnboardingDefaults } from './data/onboardingPresets';
-import { saveDraft, loadDraft, listDrafts } from './utils/persistence';
+import { createProgramSaver, buildProgramSnapshot, programClientFields, listCompanyPrograms, loadProgram, migrateProgramState, STATE_VERSION, DEFAULT_PROGRAM_NAME } from './utils/programStore';
+import { folderKeyOf, isSelfServeFolder } from './utils/clientFolders';
+import { supabase, apiFetch, ALLOWED_DOMAIN, isLoyolyEmail } from './lib/supabase';
 import { applyBrandDefaults } from './data/brandPresets';
 import { applyCsmDefaults, buildCsmOnboardingAnswers } from './data/csmPresets';
 import StepBrand_Analyzer from './components/StepBrand_Analyzer';
 import StepCSM_Selector from './components/StepCSM_Selector';
+import ClientSpace from './components/ClientSpace';
+import ClientFolder from './components/ClientFolder';
 import ProgramTypeBanner from './components/ProgramTypeBanner';
+import SaveStatus from './components/SaveStatus';
+import CommentsPanel, { CommentsButton } from './components/CommentsPanel';
+import { buildClientView, hasUnpublishedChanges, PAGE_OF_STEP, STEP_OF_PAGE, pageLabel } from './utils/clientView';
+import { publishProgram, countToHandleByPage, listProgramActivity } from './utils/clientPortalStore';
+import { useProgramComments } from './utils/useProgramComments';
+import { useProgramActivity } from './utils/useProgramActivity';
+import { replayProgramOps, isLaterThan } from './utils/programOps';
 import { Building2 } from 'lucide-react';
 
-const INITIAL_CONFIG = {
-  tierBasis: 'spend',
-  hasMissions: true,    // "Programme à points" — Oui/Non
-  hasTiers: true,       // "Paliers VIP" — Oui/Non
-  rewardType: 'both',
-  // Points expiration (only meaningful when hasMissions)
-  pointsExpire: true,
-  expirationMonths: 12,
-  expirationType: 'rolling',
-  // Tier expiration / reassessment (independent of points — applies when hasTiers)
-  tiersExpire: true,
-  tierExpirationMonths: 12,
-  tierExpirationType: 'rolling',
-};
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const INITIAL_SETTINGS = {
-  segmentationType: 'revenue',
-  caWeight: 0.5,
-  aov: 60,
-  grossMargin: 60,
-  cashbackRate: 3,
-  pointsPerEuro: 100, // 100 points = 1€ de récompense
-};
-
-const INITIAL_TIERS = [
-  { name: 'Bronze', color: '#B87333', threshold: 100, spendThreshold: 0, pointsThreshold: 0, orderThreshold: 0, pointsMultiplier: 1, perks: [] },
-  { name: 'Argent', color: '#9CA3AF', threshold: 50, spendThreshold: 500, pointsThreshold: 1000, orderThreshold: 3, pointsMultiplier: 1.5, perks: [] },
-  { name: 'Or', color: '#D97706', threshold: 15, spendThreshold: 2000, pointsThreshold: 3000, orderThreshold: 10, pointsMultiplier: 2, perks: [] },
-];
+// Program the wizard starts from before any preset is applied.
+const BLANK_PROGRAM = normalizeProgram();
 
 const STEPS = [
   { id: 0, labelFr: 'Programme', labelEn: 'Program' },
@@ -60,290 +48,475 @@ const STEPS = [
   { id: 5, labelFr: 'Récompenses', labelEn: 'Rewards' },
   { id: 6, labelFr: 'Paliers', labelEn: 'Tiers' },
   { id: 7, labelFr: 'Dashboard', labelEn: 'Dashboard' },
+  { id: 8, labelFr: 'Checklist', labelEn: 'Checklist' },
 ];
 
 function App() {
   // ─── Auth state ───
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('loyoly_user');
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      // Verify domain on reload
-      if (!parsed.email?.endsWith('@loyoly.io')) {
-        localStorage.removeItem('loyoly_user');
-        return null;
-      }
-      return parsed;
-    } catch { return null; }
-  });
-
-  const ALLOWED_DOMAIN = 'loyoly.io';
+  // CSMs sign in with Google (@loyoly.io only). The Google ID token is then
+  // exchanged for a Supabase session, which gives access to the shared
+  // programs table and is forwarded to the /api functions.
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(!supabase);
   const [loginError, setLoginError] = useState(null);
 
-  const handleLoginSuccess = (credentialResponse) => {
+  useEffect(() => {
+    if (!supabase) return;
+    const accept = (s) => {
+      // A self-serve brand landing here (its confirmation link fell back to
+      // the site's root) keeps its session and goes to its kit.
+      if (s && !isLoyolyEmail(s.user?.email) && s.user?.user_metadata?.brand_name) {
+        window.location.replace('/kit');
+        return null;
+      }
+      if (s && !isLoyolyEmail(s.user?.email)) {
+        setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
+        // Supabase calls must not be awaited inside the auth callback.
+        setTimeout(() => supabase.auth.signOut(), 0);
+        return null;
+      }
+      return s;
+    };
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(accept(data.session));
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(accept(s)));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const meta = session?.user?.user_metadata || {};
+  const user = session?.user
+    ? { name: meta.full_name || meta.name || session.user.email, email: session.user.email, picture: meta.avatar_url || meta.picture }
+    : null;
+
+  const handleLoginSuccess = async (credentialResponse) => {
+    setLoginError(null);
     try {
-      const decoded = JSON.parse(atob(credentialResponse.credential.split('.')[1]));
+      const credential = credentialResponse.credential;
+      const decoded = JSON.parse(atob(credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       // Restrict to @loyoly.io domain
       if (decoded.hd !== ALLOWED_DOMAIN) {
         setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
         return;
       }
-      setLoginError(null);
-      const userData = { name: decoded.name, email: decoded.email, picture: decoded.picture };
-      setUser(userData);
-      localStorage.setItem('loyoly_user', JSON.stringify(userData));
-    } catch { /* invalid token */ }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('loyoly_user');
+      const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: credential });
+      if (error) setLoginError(`Connexion impossible : ${error.message}`);
+    } catch {
+      setLoginError('Erreur de connexion Google');
+    }
   };
 
   const [lang, setLang] = useState('fr');
   const [step, setStep] = useState(0);
-  const [config, setConfig] = useState(INITIAL_CONFIG);
-  const [settings, setSettings] = useState(INITIAL_SETTINGS);
+  const [config, setConfig] = useState(BLANK_PROGRAM.config);
+  const [settings, setSettings] = useState(BLANK_PROGRAM.settings);
   const [customers, setCustomers] = useState(() => parseSampleData());
-  const [tiers, setTiersRaw] = useState(INITIAL_TIERS);
-  const [missions, setMissions] = useState(() => DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] })));
-  const [customMissions, setCustomMissions] = useState([]);
-  const [rewards, setRewards] = useState(DEFAULT_REWARDS);
-  const [burnRate, setBurnRate] = useState(40);
-  const [referralConfig, setReferralConfig] = useState(INITIAL_REFERRAL);
+  const [tiers, setTiersRaw] = useState(BLANK_PROGRAM.tiers);
+  const [missions, setMissions] = useState(BLANK_PROGRAM.missions);
+  const [customMissions, setCustomMissions] = useState(BLANK_PROGRAM.customMissions);
+  const [rewards, setRewards] = useState(BLANK_PROGRAM.rewards);
+  const [burnRate, setBurnRate] = useState(BLANK_PROGRAM.burnRate);
+  const [referralConfig, setReferralConfig] = useState(BLANK_PROGRAM.referralConfig);
   const [onboardingAnswers, setOnboardingAnswers] = useState(null);
-  const [phase, setPhase] = useState('csm'); // 'csm' | 'brand' | 'wizard'
+  const [phase, setPhase] = useState('clients'); // 'clients' | 'folder' | 'csm' | 'brand' | 'wizard'
+  const [folderKey, setFolderKey] = useState(null); // client folder shown in the 'folder' phase
   const [brandAnalysis, setBrandAnalysis] = useState(null);
   const [visitedSteps, setVisitedSteps] = useState(new Set([0]));
   const [csmMode, setCsmMode] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [clientDetails, setClientDetails] = useState(null);
-  const [firefliesInsights, setFirefliesInsights] = useState(null);
-  const [firefliesLoading, setFirefliesLoading] = useState(false);
 
-  const setTiers = useCallback((newTiersOrFn) => {
+  // ─── Program persistence (Supabase) ───
+  // programTarget is the handle of the open program: { id, hubspotCompanyId, name },
+  // null while none is open. Its id is filled in by the first save.
+  const [programTarget, setProgramTarget] = useState(null);
+  // What the client portal shows of the open program: { version, at, view }, null until published.
+  const [publication, setPublication] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+  // Client comments of the open program (CSM side panel).
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsPage, setCommentsPage] = useState('missions');
+  const { comments: programComments, error: commentsError, reload: reloadComments } =
+    useProgramComments(phase === 'wizard' ? programTarget?.id : null, user?.email);
+  const toHandleByPage = countToHandleByPage(programComments);
+  const toHandleTotal = Object.values(toHandleByPage).reduce((s, n) => s + n, 0);
+  // Brand edits from the client portal (activity feed). They are already in
+  // the database, but the open wizard would write over them with its next
+  // save: they are replayed into it. Saved with the program:
+  // `clientEditsMergedAt`, the creation time of the last edit it holds, and
+  // `clientEditsSeenAt`, of the last one the CSM saw in the feed.
+  const [clientEditsMergedAt, setClientEditsMergedAt] = useState(null);
+  const [activitySeenAt, setActivitySeenAt] = useState(null);
+  const mergeGuard = useRef({ target: null, since: null, seen: null, announced: false });
+  // The program slices as last rendered, for the replay (an add or a removal
+  // can touch several slices: a new tier also widens the rewards).
+  const latestProgram = useRef(null);
+  useLayoutEffect(() => {
+    latestProgram.current = { config, settings, missions, customMissions, rewards, tiers, referralConfig };
+  });
+  const resetClientEdits = (target, since = null, seen = null) => {
+    mergeGuard.current = { target, since, seen, announced: false };
+    setClientEditsMergedAt(since);
+    setActivitySeenAt(seen);
+  };
+  const { activity: programActivity, error: activityError } =
+    useProgramActivity(phase === 'wizard' ? programTarget?.id : null, (activity, programId) => mergeClientEdits(activity, programId));
+  const newActivityCount = programActivity.filter(a => isLaterThan(a.at, activitySeenAt)).length;
+  const [saveState, setSaveState] = useState({ status: 'idle', savedAt: null, error: null });
+  const [saver] = useState(() => createProgramSaver({ onChange: setSaveState }));
+
+  // A new program starts clean: nothing from the previously opened brand
+  // (imported customers, custom missions, referral) carries over.
+  const startNewProgram = (hubspotCompanyId = null, name = DEFAULT_PROGRAM_NAME, folderKey = null) => {
+    const target = { id: null, hubspotCompanyId, name, folderKey };
+    setProgramTarget(target);
+    resetClientEdits(target);
+    setPublication(null);
+    setCustomers(parseSampleData());
+    setCustomMissions([]);
+    setReferralConfig(INITIAL_REFERRAL);
+  };
+
+  const setTiers = (newTiersOrFn) => {
     setTiersRaw(prev => {
       const newTiers = typeof newTiersOrFn === 'function' ? newTiersOrFn(prev) : newTiersOrFn;
       if (newTiers.length !== prev.length) {
         setRewards(r => resizeAssignedTiers(r, newTiers.length));
-        setMissions(m => resizeMissionEngagement(m, newTiers.length));
-        setCustomMissions(m => resizeMissionEngagement(m, newTiers.length));
       }
       return newTiers;
     });
-  }, []);
+  };
 
+  // Load the program-level values of a normalized program into the wizard.
+  const applyProgram = (program) => {
+    setConfig(program.config);
+    setSettings(program.settings);
+    setTiersRaw(program.tiers);
+    setRewards(program.rewards);
+    setMissions(program.missions);
+    setCustomMissions(program.customMissions);
+    setBurnRate(program.burnRate);
+    setReferralConfig(program.referralConfig);
+  };
+
+  // Re-running the brand analysis from an open program keeps that program.
   const handleBrandComplete = (analysisResult) => {
+    if (!programTarget) startNewProgram();
     setBrandAnalysis(analysisResult);
-    const defaults = applyBrandDefaults(analysisResult, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyBrandDefaults(analysisResult, lang));
     setPhase('wizard');
     setStep(1); // Go to CSV import step
   };
 
   const handleBrandSkip = () => {
+    if (!programTarget) startNewProgram();
     setBrandAnalysis(null);
     setPhase('wizard');
     setStep(0); // Go to manual onboarding
   };
 
   // CSM mode handlers
-  const handleHubSpotUnavailable = useCallback(() => {
-    setPhase('brand'); // Fallback: skip CSM selector, go to brand analysis
-  }, []);
-
   const handleSkipToManual = () => {
+    setProgramTarget(null);
     setPhase('brand'); // Go to brand analysis
   };
 
-  const handleCSMClientSelected = (client, details) => {
-    setSelectedClient({ ...client, contacts: details.contacts || [] });
-    setClientDetails(details);
+  // Load a saved program into the wizard.
+  const openProgram = (row) => {
+    const savedVersion = row.state?.v ?? 1;
+    const values = {
+      ...normalizeProgram(migrateProgramState(row.state || {})),
+      customers: row.customers?.length ? row.customers : parseSampleData(),
+      selectedClient: row.hubspot_company_id
+        ? { id: row.hubspot_company_id, name: row.client_name, domain: row.client_domain, plan: row.client_plan }
+        : null,
+      step: row.step ?? 1,
+    };
+    const target = { id: row.id, hubspotCompanyId: row.hubspot_company_id, name: row.program_name, folderKey: row.folder_key || null };
+
+    applyProgram(values);
+    setOnboardingAnswers(values.onboardingAnswers);
+    setBrandAnalysis(values.brandAnalysis);
+    setCustomers(values.customers);
+    setSelectedClient(values.selectedClient);
+    setCsmMode(!!values.selectedClient);
+    setProgramTarget(target);
+    resetClientEdits(target, values.clientEditsMergedAt, values.clientEditsSeenAt);
+    setPhase('wizard');
+    setStep(values.step);
+    setVisitedSteps(new Set([values.step]));
+    // This is what the database already holds: nothing to write back —
+    // unless it was stored in an older format, which gets rewritten.
+    if (savedVersion >= STATE_VERSION) saver.markSaved(buildProgramSnapshot(target, values));
+    setPublication(row.published_version > 0
+      ? { version: row.published_version, at: row.published_at, view: row.published_view }
+      : null);
+  };
+
+  // `commentsPage` opens the program on that page's step, comments panel open.
+  const handleOpenProgram = async (programId, { commentsPage: page } = {}) => {
+    openProgram(await loadProgram(programId));
+    if (page) {
+      setStep(STEP_OF_PAGE[page]);
+      setCommentsPage(page);
+      setCommentsOpen(true);
+    }
+  };
+
+  // A client that already has a folder opens it; otherwise its first program
+  // starts. Throws when Supabase can't be reached: the selector then shows the
+  // error rather than starting a second folder for this client.
+  const handleCSMClientSelected = async (client, details) => {
+    const existing = await listCompanyPrograms(client.id);
+    if (existing.length > 0) {
+      openFolder(`hs:${client.id}`);
+      return;
+    }
+    startCsmProgram(client, details, DEFAULT_PROGRAM_NAME);
+  };
+
+  // New program for a HubSpot client: CSM-inferred defaults, then Step 0
+  // (Program Setup) pre-filled from the HubSpot company data.
+  const startCsmProgram = (client, details, name) => {
+    startNewProgram(String(client.id), name);
+    setBrandAnalysis(null);
+    setSelectedClient(client);
     setCsmMode(true);
-
-    // Apply CSM-inferred defaults and skip straight to Step 0 (Program Setup),
-    // pre-filled with values inferred from HubSpot company data so the user
-    // can adjust before continuing into the wizard.
     const company = details?.company || {};
-    const defaults = applyCsmDefaults(company, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyCsmDefaults(company, lang));
     setOnboardingAnswers(buildCsmOnboardingAnswers(company));
-
     setPhase('wizard');
     setStep(0);
     setVisitedSteps(new Set([0]));
+  };
+
+  // "Nouveau programme" in a client folder.
+  const handleNewProgramInFolder = async (folder, name) => {
+    if (folder.hubspotCompanyId) {
+      const client = { id: folder.hubspotCompanyId, name: folder.name, domain: folder.domain, plan: folder.plan };
+      // HubSpot details refine the defaults; without them the program starts from generic ones.
+      const details = await apiFetch(`/api/hubspot-client-details?companyId=${client.id}`)
+        .then(res => (res.ok ? res.json() : {}))
+        .catch(() => ({}));
+      startCsmProgram(client, details, name);
+      return;
+    }
+    // Outside HubSpot: start again from the brand analysis of the folder's latest program.
+    const latest = await loadProgram(folder.programs[0].id);
+    const analysis = latest.state?.brandAnalysis || null;
+    const firstStep = analysis ? 1 : 0;
+    startNewProgram(null, name, isSelfServeFolder(folder.key) ? folder.key : null);
+    setSelectedClient(null);
+    setCsmMode(false);
+    setOnboardingAnswers(null);
+    setBrandAnalysis(analysis);
+    applyProgram(analysis ? applyBrandDefaults(analysis, lang) : BLANK_PROGRAM);
+    setPhase('wizard');
+    setStep(firstStep);
+    setVisitedSteps(new Set([firstStep]));
   };
 
   const handleStep0Complete = (answers) => {
     setOnboardingAnswers(answers);
-    const defaults = applyOnboardingDefaults(answers, lang);
-    setConfig(defaults.config);
-    setSettings(defaults.settings);
-    setTiersRaw(defaults.tiers);
-    setRewards(defaults.rewards);
-    setMissions(defaults.missions);
-    setBurnRate(defaults.burnRate);
+    applyProgram(applyOnboardingDefaults(answers, lang));
     setStep(1); // Go to CSV import step
   };
 
-  const reset = () => {
-    setConfig(INITIAL_CONFIG);
-    setSettings(INITIAL_SETTINGS);
+  // Close the open program once its pending edits reach the database; the
+  // wizard is cleared so nothing carries over to the next program.
+  const closeProgram = async () => {
+    await saver.flush();
+    setProgramTarget(null);
+    resetClientEdits(null);
+    setPublication(null);
+    setCommentsOpen(false);
+    applyProgram(BLANK_PROGRAM);
     setCustomers(parseSampleData());
-    setTiersRaw(INITIAL_TIERS);
-    setMissions(DEFAULT_MISSIONS.map(m => ({ ...m, engagementByTier: [...(m.engagementByTier || [20, 30, 50])] })));
-    setCustomMissions([]);
-    setRewards(DEFAULT_REWARDS);
-    setBurnRate(40);
-    setReferralConfig(INITIAL_REFERRAL);
     setOnboardingAnswers(null);
     setBrandAnalysis(null);
     setCsmMode(false);
     setSelectedClient(null);
-    setClientDetails(null);
-    setFirefliesInsights(null);
-    setFirefliesLoading(false);
-    setPhase('csm');
     setStep(0);
     setVisitedSteps(new Set([0]));
-    // Clear recommendation dismiss flags
-    for (let i = 1; i <= 7; i++) {
-      try { localStorage.removeItem(`vip_reco_dismissed_step${i}`); } catch { /* noop */ }
-    }
   };
 
-  // Track visited steps
-  useEffect(() => {
-    if (phase === 'wizard') {
-      setVisitedSteps(prev => {
-        if (prev.has(step)) return prev;
-        const next = new Set(prev);
-        next.add(step);
-        return next;
-      });
-    }
-  }, [step, phase]);
+  const openFolder = (key) => {
+    setFolderKey(key);
+    setPhase('folder');
+  };
 
-  // ── Persistence: auto-save to localStorage on every change during the wizard ──
-  const [savedAt, setSavedAt] = useState(null);
+  const goToClientSpace = async () => {
+    if (programTarget) await closeProgram();
+    setPhase('clients');
+  };
+
+  // Back from the wizard to the folder of the open program.
+  const leaveProgram = async () => {
+    const key = isSelfServeFolder(programTarget?.folderKey) ? programTarget.folderKey : folderKeyOf({
+      hubspot_company_id: programTarget?.hubspotCompanyId,
+      ...programClientFields({ selectedClient, brandAnalysis }),
+    });
+    await closeProgram();
+    openFolder(key);
+  };
+
+  // Track visited steps (updated during render when a new step is shown).
+  if (phase === 'wizard' && !visitedSteps.has(step)) {
+    setVisitedSteps(new Set([...visitedSteps, step]));
+  }
+
+  // ── Persistence: every change of the open program is saved to Supabase ──
   const [shareToast, setShareToast] = useState(null); // success/error toast for save ops
 
-  // Latest-state ref so the beforeunload listener always reads the freshest
-  // values (avoids stale closure capture).
-  const latestStateRef = useRef(null);
+  // The saver debounces (600 ms), serializes and retries the writes.
   useEffect(() => {
-    latestStateRef.current = {
+    if (phase !== 'wizard' || !programTarget) return;
+    saver.schedule(buildProgramSnapshot(programTarget, {
       config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers,
-      selectedClient, customers, step,
-    };
-  });
+      burnRate, referralConfig, onboardingAnswers, brandAnalysis,
+      selectedClient, customers, step, clientEditsMergedAt, clientEditsSeenAt: activitySeenAt,
+    }));
+  }, [saver, phase, programTarget, config, settings, tiers, rewards, missions, customMissions,
+      burnRate, referralConfig, onboardingAnswers, brandAnalysis, selectedClient, customers, step, clientEditsMergedAt, activitySeenAt]);
 
-  // Debounced auto-save on every change (250 ms).
+  // Write immediately when the tab is hidden, and ask before closing it while
+  // a change hasn't reached the database yet.
   useEffect(() => {
-    if (phase !== 'wizard') return;
-    const handle = setTimeout(() => {
-      const res = saveDraft({
-        config, settings, tiers, rewards, missions, customMissions,
-        burnRate, referralConfig, onboardingAnswers,
-        selectedClient, customers, step,
-      });
-      if (res.ok) setSavedAt(res.savedAt);
-    }, 250);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
-
-  // Synchronous flush on tab close / navigation / refresh — guarantees
-  // last-second edits (reward utilization, tier threshold, etc.) reach
-  // localStorage even if the user moves on within the 250 ms debounce.
-  useEffect(() => {
-    if (phase !== 'wizard') return;
-    const flush = () => {
-      if (latestStateRef.current) saveDraft(latestStateRef.current);
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') saver.flush();
     };
-    window.addEventListener('beforeunload', flush);
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') flush();
-    });
+    const onBeforeUnload = (e) => {
+      if (!saver.hasUnsaved()) return;
+      saver.flush();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', flush);
-      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
     };
-  }, [phase]);
+  }, [saver]);
 
-  // Restore a saved draft (called from the CSM selector).
-  const restoreDraft = useCallback((draft) => {
-    if (!draft) return;
-    setConfig(draft.config);
-    setSettings(draft.settings);
-    setTiersRaw(draft.tiers);
-    setRewards(draft.rewards);
-    setMissions(draft.missions);
-    setCustomMissions(draft.customMissions || []);
-    setBurnRate(draft.burnRate);
-    setReferralConfig(draft.referralConfig);
-    setOnboardingAnswers(draft.onboardingAnswers);
-    if (draft.customers && draft.customers.length) setCustomers(draft.customers);
-    if (draft.selectedClient) {
-      setSelectedClient(draft.selectedClient);
-      setClientDetails({ company: { name: draft.selectedClient.name, domain: draft.selectedClient.domain } });
-      setCsmMode(true);
-    }
-    setPhase('wizard');
-    setStep(draft.step ?? 1);
-  }, []);
-
-  // Force an immediate save (bypasses the 600ms debounce) and confirm via toast.
-  // The auto-save useEffect already does this on every change, but the explicit
-  // button gives the user a clear visual confirmation that work won't be lost.
-  const forceSave = useCallback(() => {
-    const res = saveDraft({
-      config, settings, tiers, rewards, missions, customMissions,
-      burnRate, referralConfig, onboardingAnswers,
-      selectedClient, customers, step,
-    });
-    if (res.ok) {
-      setSavedAt(res.savedAt);
-      const tierCount = tiers.length;
+  // Explicit save button: writes right away and confirms via toast.
+  const forceSave = useCallback(async () => {
+    const ok = await saver.flush();
+    if (ok) {
       const custCount = customers?.length || 0;
-      const msg = res.withCustomers
-        ? `Brouillon enregistré · ${tierCount} paliers · ${custCount.toLocaleString('fr-FR')} clients`
-        : `Brouillon enregistré · ${tierCount} paliers (clients trop volumineux, réimportez le CSV à la reprise)`;
-      setShareToast({ ok: true, message: msg });
+      setShareToast({ ok: true, message: `Programme enregistré · ${tiers.length} paliers · ${custCount.toLocaleString('fr-FR')} clients` });
     } else {
-      setShareToast({ ok: false, message: 'Échec de l\'enregistrement — espace navigateur plein ?' });
+      setShareToast({ ok: false, message: 'Échec de l\'enregistrement — nouvelle tentative automatique dans quelques secondes' });
     }
     setTimeout(() => setShareToast(null), 4000);
-  }, [config, settings, tiers, rewards, missions, customMissions, burnRate, referralConfig, onboardingAnswers, selectedClient, customers, step]);
+  }, [saver, tiers.length, customers]);
+
+  // ── Client portal: the program as the client sees it, and its publication ──
+  const clientView = phase === 'wizard' && programTarget
+    ? buildClientView({ config, settings, tiers, rewards, missions, customMissions, referralConfig }, {
+      clientName: programClientFields({ selectedClient, brandAnalysis }).client_name,
+      brandLogo: brandAnalysis?.brand_logo || null,
+    })
+    : null;
+  const unpublishedChanges = !!clientView && hasUnpublishedChanges(clientView, publication?.view);
+  // The panel opens on the current step's page, else where the client wrote.
+  const openComments = () => {
+    setCommentsPage(PAGE_OF_STEP[step] || Object.keys(toHandleByPage)[0] || 'missions');
+    setCommentsOpen(true);
+  };
+
+  const publishForClient = async () => {
+    setPublishing(true);
+    try {
+      await saver.flush(); // the first save creates the row that gets published
+      if (!programTarget.id) throw new Error(t ? 'programme pas encore enregistré' : 'program not saved yet');
+      // Brand edits not polled yet go into this version too (the publication
+      // replaces the view the brand edited).
+      const activity = await listProgramActivity(programTarget.id).catch(() => []);
+      const since = mergeGuard.current.since;
+      const pending = activity.filter(a => isLaterThan(a.at, since));
+      const view = pending.length
+        ? { ...clientView, program: replayProgramOps(clientView.program, pending.map(a => a.op)) }
+        : clientView;
+      mergeClientEdits(activity, programTarget.id);
+      const version = await publishProgram(programTarget.id, view);
+      setPublication({ version, at: new Date().toISOString(), view });
+      setShareToast({ ok: true, message: t ? `Version ${version} publiée pour le client` : `Version ${version} published for the client` });
+    } catch (err) {
+      setShareToast({ ok: false, message: `${t ? 'Échec de la publication' : 'Publication failed'} : ${err.message}` });
+    }
+    setPublishing(false);
+    setTimeout(() => setShareToast(null), 4000);
+  };
+
+  // Replays the brand edits the wizard does not hold yet (later than its
+  // marker: an add or a removal must not be replayed twice); the items they
+  // add get the fields the app expects. The published view follows.
+  const mergeClientEdits = (activity, programId) => {
+    const guard = mergeGuard.current;
+    if (!guard.target || guard.target.id !== programId) return;
+    const fresh = activity.filter(a => isLaterThan(a.at, guard.since));
+    const fr = lang === 'fr';
+    // On opening: what the brand changed since the CSM last read the feed.
+    if (!guard.announced) {
+      guard.announced = true;
+      const unseen = activity.filter(a => isLaterThan(a.at, guard.seen)).length;
+      if (unseen > 0 && !fresh.length) {
+        setShareToast({
+          ok: true,
+          message: fr
+            ? `${unseen} modification${unseen > 1 ? 's' : ''} de la marque depuis votre dernière lecture de l'activité`
+            : `${unseen} brand change${unseen > 1 ? 's' : ''} since you last read the activity`,
+        });
+        setTimeout(() => setShareToast(null), 6000);
+      }
+    }
+    if (!fresh.length) return;
+    guard.since = fresh[fresh.length - 1].at;
+    const ops = fresh.map(a => a.op);
+    const before = latestProgram.current;
+    const after = replayProgramOps(before, ops);
+    if (after.missions !== before.missions) setMissions(after.missions.map(normalizeMission));
+    if (after.customMissions !== before.customMissions) setCustomMissions(after.customMissions.map(normalizeMission));
+    if (after.tiers !== before.tiers) setTiersRaw(after.tiers.map(normalizeTier));
+    if (after.rewards !== before.rewards) setRewards(after.rewards.map(r => normalizeReward(r, after.tiers.length)));
+    if (after.referralConfig !== before.referralConfig) setReferralConfig(after.referralConfig);
+    if (after.config !== before.config) setConfig(after.config);
+    if (after.settings !== before.settings) setSettings(after.settings);
+    setPublication(pub => (pub?.view?.program
+      ? { ...pub, view: { ...pub.view, program: replayProgramOps(pub.view.program, ops) } }
+      : pub));
+    setClientEditsMergedAt(guard.since);
+    const last = fresh[fresh.length - 1];
+    const change = last.oldValue && last.newValue ? `${last.oldValue} → ${last.newValue}` : (last.newValue || last.oldValue);
+    setShareToast({
+      ok: true,
+      message: fresh.length === 1
+        ? `${last.actorName} · ${pageLabel(last.page, lang)} · ${last.itemLabel} — ${last.fieldLabel}${change ? ` : ${change}` : ''}`
+        : (fr ? `${fresh.length} modifications de la marque intégrées au programme (voir l'activité)` : `${fresh.length} brand changes merged into the program (see the activity)`),
+    });
+    setTimeout(() => setShareToast(null), 6000);
+  };
+
+  const handleLogout = async () => {
+    await saver.flush();
+    await supabase.auth.signOut();
+  };
 
   // Smooth scroll the page back to the top so the new step's title is visible.
-  const scrollToTop = useCallback(() => {
+  const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  };
 
-  const goNext = useCallback(() => {
+  const goNext = () => {
     setStep(s => Math.min(STEPS.length - 1, s + 1));
     requestAnimationFrame(scrollToTop);
-  }, [scrollToTop]);
+  };
 
-  const goPrev = useCallback(() => {
+  const goPrev = () => {
     setStep(s => Math.max(0, s - 1));
     requestAnimationFrame(scrollToTop);
-  }, [scrollToTop]);
+  };
 
   // Step navigation is click-only (Précédent / Suivant buttons + tabs).
   // Earlier prototype with wheel-driven advance was removed — it conflicted
@@ -357,16 +530,42 @@ function App() {
   };
 
   const t = lang === 'fr';
-  const clientName = csmMode ? (selectedClient?.name || selectedClient?.company?.name || null) : null;
 
-  // ─── Login gate ───
+  // ─── Configuration / login gate ───
+  if (!supabase || !GOOGLE_CLIENT_ID) {
+    const missing = [
+      !import.meta.env.VITE_SUPABASE_URL && 'VITE_SUPABASE_URL',
+      !import.meta.env.VITE_SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY',
+      !GOOGLE_CLIENT_ID && 'VITE_GOOGLE_CLIENT_ID',
+    ].filter(Boolean);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: '#EEEDE6' }}>
+        <div className="card max-w-md text-center">
+          <AlertCircle size={28} className="mx-auto text-red-500 mb-3" />
+          <h1 className="text-[18px] font-bold text-[#52473C] mb-2">Configuration incomplète</h1>
+          <p className="text-[13px] text-[#645648]">
+            Variables d'environnement manquantes : <code>{missing.join(', ')}</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
+        <Loader2 size={24} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#EEEDE6' }}>
         <div className="flex flex-col items-center gap-8 p-10 rounded-2xl" style={{ backgroundColor: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', maxWidth: 400, width: '100%' }}>
           <div className="flex flex-col items-center gap-3">
             <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 40 }} />
-            <h1 className="text-[22px] font-bold" style={{ color: '#2B251F' }}>VIP Tiers Calculator</h1>
+            <h1 className="text-[22px] font-bold" style={{ color: '#2B251F' }}>Loyoly Setup</h1>
             <p className="text-[13px] text-center" style={{ color: '#8A7D6B' }}>
               Connectez-vous pour accéder à l'outil
             </p>
@@ -394,11 +593,42 @@ function App() {
       {/* ─── Navbar ─── */}
       <header className="sticky top-0 z-40" style={{ height: 60, backgroundColor: '#2B251F' }}>
         <div className="max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
-            <span className="text-[15px] font-bold text-white">VIP Tiers Calculator</span>
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={goToClientSpace} className="flex items-center gap-3 shrink-0" title={t ? 'Espace clients' : 'Client space'}>
+              <img src="/loyoly-logo.svg" alt="Loyoly" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
+              <span className="text-[15px] font-bold text-white">Loyoly Setup</span>
+            </button>
+            {/* Breadcrumb of the open program: client folder › program */}
+            {phase === 'wizard' && programTarget && (
+              <div className="hidden md:flex items-center gap-2 text-[13px] text-white/50 min-w-0">
+                <ChevronRight size={13} className="shrink-0" />
+                <button onClick={leaveProgram} className="text-white/80 hover:text-white truncate">
+                  {programClientFields({ selectedClient, brandAnalysis }).client_name}
+                </button>
+                <ChevronRight size={13} className="shrink-0" />
+                <span className="text-white font-medium truncate">{programTarget.name}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1">
+            {phase === 'wizard' && programTarget && (
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-[12px] text-white/60 hidden lg:inline" data-testid="publication-status">
+                  {!publication
+                    ? (t ? 'Non publié' : 'Not published')
+                    : unpublishedChanges
+                      ? (t ? `v${publication.version} · modifications non publiées` : `v${publication.version} · unpublished changes`)
+                      : (t ? `v${publication.version} publiée` : `v${publication.version} published`)}
+                </span>
+                <button onClick={publishForClient} disabled={publishing || (publication && !unpublishedChanges)}
+                  className="h-8 px-3 rounded-lg text-[12px] font-medium text-white bg-white/10 hover:bg-white/20 transition-all inline-flex items-center gap-1.5 disabled:opacity-40"
+                  title={t ? 'Rendre cette version visible dans l\'espace client' : 'Make this version visible in the client portal'}>
+                  {publishing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                  {publication ? (t ? 'Publier la mise à jour' : 'Publish update') : (t ? 'Publier pour le client' : 'Publish for the client')}
+                </button>
+              </div>
+            )}
+            {phase === 'wizard' && programTarget && <SaveStatus saveState={saveState} lang={lang} />}
             <button onClick={copyShareableLink}
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
               title={t ? 'Copier le lien' : 'Copy link'}>
@@ -408,9 +638,9 @@ function App() {
               className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
               <Globe size={15} />
             </button>
-            <button onClick={reset}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-red-400 hover:bg-white/10 transition-all">
-              <RotateCcw size={15} />
+            <button onClick={goToClientSpace} title={t ? 'Espace clients' : 'Client space'}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+              <FolderOpen size={15} />
             </button>
             {/* User avatar + logout */}
             <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
@@ -447,19 +677,20 @@ function App() {
                 <span className="pill pill-purple text-[10px]">{selectedClient.plan}</span>
               </>
             )}
+            {programTarget?.name && (
+              <>
+                <span className="text-[#B0A595]">|</span>
+                <span className="text-[#52473C] whitespace-nowrap">{programTarget.name}</span>
+              </>
+            )}
             <div className="ml-auto flex items-center gap-3">
-              {savedAt && (
-                <span className="text-[11px] text-[#059669] inline-flex items-center gap-1" title={t ? 'Brouillon enregistré automatiquement dans ce navigateur' : 'Draft auto-saved in this browser'}>
-                  <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
               <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
-                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                title={t ? 'Enregistrer immédiatement en base (partagé avec l\'équipe)' : 'Save to the database now (shared with the team)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
-              <button onClick={() => { setCsmMode(false); setSelectedClient(null); setClientDetails(null); setFirefliesInsights(null); setPhase('csm'); }}
+              <button onClick={leaveProgram}
                 className="text-primary font-medium hover:underline text-[12px]">
-                {t ? 'Changer de client' : 'Change client'}
+                {t ? 'Dossier client' : 'Client folder'}
               </button>
             </div>
           </div>
@@ -486,13 +717,8 @@ function App() {
             <span className="text-[#B0A595]">|</span>
             <span className="text-[#52473C] whitespace-nowrap">{onboardingAnswers.goals?.join(', ')}</span>
             <div className="ml-auto flex items-center gap-3">
-              {savedAt && (
-                <span className="text-[11px] text-[#059669] inline-flex items-center gap-1">
-                  <Check size={12} /> {t ? 'Enregistré' : 'Saved'} {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
               <button onClick={forceSave} className="text-primary font-medium hover:underline text-[12px] inline-flex items-center gap-1"
-                title={t ? "Sauvegarde immédiate dans ce navigateur (survit à la fermeture)" : 'Immediate save in this browser (survives closing)'}>
+                title={t ? 'Enregistrer immédiatement en base (partagé avec l\'équipe)' : 'Save to the database now (shared with the team)'}>
                 <Save size={12} /> {t ? 'Enregistrer' : 'Save'}
               </button>
               <button onClick={() => setStep(0)} className="text-primary font-medium hover:underline text-[12px]">
@@ -543,6 +769,12 @@ function App() {
                   {isVisited && !isActive && <Check size={12} />}
                   <span className="text-[11px] font-normal opacity-60">{s.id + 1}.</span>
                   {t ? s.labelFr : s.labelEn}
+                  {toHandleByPage[PAGE_OF_STEP[s.id]] > 0 && (
+                    <span className="px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold"
+                      title={t ? 'Commentaires client à traiter' : 'Client comments to handle'}>
+                      {toHandleByPage[PAGE_OF_STEP[s.id]]}
+                    </span>
+                  )}
                   {isActive && (
                     <span className="absolute left-3.5 right-3.5 -bottom-px h-[2px] bg-primary rounded-sm" />
                   )}
@@ -559,14 +791,43 @@ function App() {
       )}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-12">
-        {phase === 'csm' ? (
+      {phase === 'wizard' && programTarget?.id && (
+        <>
+          <CommentsButton lang={lang} count={toHandleTotal} activityCount={newActivityCount} onClick={openComments} />
+          {commentsOpen && (
+            <CommentsPanel lang={lang} programId={programTarget.id} comments={programComments}
+              error={commentsError} reload={reloadComments} page={commentsPage} onPageChange={setCommentsPage}
+              view={clientView} user={user} onClose={() => setCommentsOpen(false)}
+              activity={programActivity} activityError={activityError} activitySeenAt={activitySeenAt}
+              openOnActivity={newActivityCount > 0 && toHandleTotal === 0}
+              onActivitySeen={() => setActivitySeenAt(programActivity[programActivity.length - 1]?.at ?? activitySeenAt)} />
+          )}
+        </>
+      )}
+
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 pt-6 pb-24">
+        {phase === 'clients' ? (
+          <ClientSpace
+            lang={lang}
+            userEmail={user.email}
+            onOpenFolder={openFolder}
+            onNewClient={() => setPhase('csm')}
+            onManual={handleSkipToManual}
+          />
+        ) : phase === 'folder' ? (
+          <ClientFolder
+            lang={lang}
+            folderKey={folderKey}
+            onBack={() => setPhase('clients')}
+            onOpenProgram={handleOpenProgram}
+            onNewProgram={handleNewProgramInFolder}
+          />
+        ) : phase === 'csm' ? (
           <StepCSM_Selector
             lang={lang}
             onClientSelected={handleCSMClientSelected}
             onSkipToManual={handleSkipToManual}
-            onHubSpotUnavailable={handleHubSpotUnavailable}
-            onResumeDraft={restoreDraft}
+            onBack={() => setPhase('clients')}
           />
         ) : phase === 'brand' ? (
           <StepBrand_Analyzer
@@ -589,14 +850,15 @@ function App() {
             {step === 2 && (
               <Step1_DataSettings config={config} setConfig={setConfig}
                 customers={customers} settings={settings} setSettings={setSettings}
-                lang={lang} brandAnalysis={brandAnalysis} clientName={clientName}
+                lang={lang} brandAnalysis={brandAnalysis}
                 onboardingAnswers={onboardingAnswers}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 3 && (
               <Step2_Missions missions={missions} setMissions={setMissions}
                 customMissions={customMissions} setCustomMissions={setCustomMissions}
-                tiers={tiers} customers={customers} settings={settings} config={config} lang={lang}
+                tiers={tiers} customers={customers} settings={settings} setSettings={setSettings}
+                config={config} lang={lang}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 4 && (
@@ -626,27 +888,30 @@ function App() {
             )}
             {step === 5 && (
               <Step3_Rewards rewards={rewards} setRewards={setRewards}
-                settings={settings} config={config} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName} customers={customers}
+                tiers={tiers} settings={settings} lang={lang}
+                burnRate={burnRate} setBurnRate={setBurnRate}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 6 && (
               <Step4_TierBuilder tiers={tiers} setTiers={setTiers}
                 rewards={rewards} setRewards={setRewards}
-                burnRate={burnRate} setBurnRate={setBurnRate}
-                customers={customers} settings={settings} config={config}
-                missions={missions} customMissions={customMissions} lang={lang}
-                brandAnalysis={brandAnalysis} clientName={clientName}
+                customers={customers} settings={settings} config={config} lang={lang}
                 onPrev={goPrev} onNext={goNext} />
             )}
             {step === 7 && (
               <Step5_Dashboard tiers={tiers} customers={customers}
-                settings={settings} config={config}
+                settings={settings} setSettings={setSettings} config={config}
                 missions={missions} customMissions={customMissions}
                 rewards={rewards} burnRate={burnRate} lang={lang}
-                programType={brandAnalysis?.recommended_program || (config.hasMissions ? 'mid' : 'luxury')}
-                brandAnalysis={brandAnalysis} clientName={clientName}
                 referralConfig={referralConfig}
+                clientName={selectedClient?.name || brandAnalysis?.brand_name}
+                author={user.name}
+                onPrev={goPrev} onNext={goNext} />
+            )}
+            {step === 8 && (
+              <StepChecklist lang={lang} programId={programTarget?.id ?? null}
+                config={config} referralConfig={referralConfig} author={user.name}
+                onGoToSetup={() => { setStep(2); requestAnimationFrame(scrollToTop); }}
                 onPrev={goPrev} />
             )}
           </div>
