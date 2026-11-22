@@ -3,7 +3,7 @@ import { AuthCard, NewPassword } from './BrandKit';
 import { authErrorText } from '../utils/accountSpaces';
 
 // ════════════════════════════════════════════════════════════════════
-// /agence — partner agencies: account, review by Loyoly, then the tool
+// /agency — partner agencies: account, review by Loyoly, then the tool
 // ════════════════════════════════════════════════════════════════════
 // An agency signs up (agency name, website, email, password; Supabase Auth
 // sends the confirmation email). Its first visit creates its agency, pending
@@ -117,7 +117,7 @@ export function AgencyShell({ lang, onLang, onSignOut, children }) {
 
 export function AgencySignIn({ lang }) {
   return (
-    <AuthCard t={agencyTexts(lang)} redirectPath="/agence" nameKey="agency_name" websiteKey="agency_website"
+    <AuthCard t={agencyTexts(lang)} redirectPath="/agency" nameKey="agency_name" websiteKey="agency_website"
       extraData={{ account_type: 'agency' }} />
   );
 }

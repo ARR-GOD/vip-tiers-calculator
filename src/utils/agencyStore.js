@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════
-// Agencies — accounts of the partner agencies (/agence)
+// Agencies — accounts of the partner agencies (/agency)
 // ════════════════════════════════════════════════════════════════════
 // Tables and rules: supabase/migrations/20261122000000_agencies.sql.
 

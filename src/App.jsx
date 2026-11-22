@@ -55,7 +55,7 @@ const STEPS = [
 ];
 
 // mode "loyoly" (/loyoly): the Loyoly team, Google sign-in @loyoly.io.
-// mode "agency" (/agence): partner agencies, email + password, once approved
+// mode "agency" (/agency): partner agencies, email + password, once approved
 // by the team; no HubSpot, no client portal, only their agency's programs.
 function App({ mode = 'loyoly' }) {
   const isAgency = mode === 'agency';
@@ -83,7 +83,7 @@ function App({ mode = 'loyoly' }) {
       if (!isLoyolyEmail(email)) {
         // A self-serve brand or an agency landing here keeps its session and
         // goes to its own space.
-        if (meta.account_type === 'agency') { window.location.replace('/agence'); return null; }
+        if (meta.account_type === 'agency') { window.location.replace('/agency'); return null; }
         if (meta.brand_name) { window.location.replace('/kit'); return null; }
         setLoginError(`Accès réservé aux comptes @${ALLOWED_DOMAIN}`);
         // Supabase calls must not be awaited inside the auth callback.

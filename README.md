@@ -49,7 +49,7 @@ call and return only what was published. Codes can be regenerated or revoked fro
 - `/` — home page: **Clients** (`/kit`, or an access code → `/client/…`), **Loyoly**, **Agence**.
   A signed-in account goes straight to its space (`src/utils/accountSpaces.js`).
 - `/loyoly` — the Loyoly team's tool (Google sign-in, `@loyoly.io`).
-- `/agence` — partner agencies (`src/components/AgencyAccess.jsx`): email + password account,
+- `/agency` — partner agencies (`src/components/AgencyAccess.jsx`): email + password account,
   pending until the team approves it (navbar **Agences** button → `AgenciesAdmin`). Approved,
   they use the tool without HubSpot nor client portal, on their own folders
   (`agency:<agency id>:<brand>`); the database only shows them their agency's programs

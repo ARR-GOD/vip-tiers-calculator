@@ -55,7 +55,7 @@ describe('account spaces', () => {
   const session = (email, meta = {}) => ({ user: { email, user_metadata: meta } });
   it('sends each account to its space', () => {
     expect(spaceOf(session('csm@loyoly.io'))).toBe('/loyoly');
-    expect(spaceOf(session('a@agence.fr', { account_type: 'agency', agency_name: 'A' }))).toBe('/agence');
+    expect(spaceOf(session('a@agence.fr', { account_type: 'agency', agency_name: 'A' }))).toBe('/agency');
     expect(spaceOf(session('b@brand.fr', { brand_name: 'B' }))).toBe('/kit');
     expect(spaceOf(session('x@other.fr'))).toBe(null);
     expect(spaceOf(null)).toBe(null);

@@ -3,13 +3,13 @@
 // ════════════════════════════════════════════════════════════════════
 import { isLoyolyEmail } from '../lib/supabase';
 
-// '/loyoly' (team), '/agence' (agency), '/kit' (self-serve brand), or null.
+// '/loyoly' (team), '/agency' (agency), '/kit' (self-serve brand), or null.
 // The metadata only routes: what an account may do is checked by the database.
 export function spaceOf(session) {
   const user = session?.user;
   if (!user) return null;
   if (isLoyolyEmail(user.email)) return '/loyoly';
-  if (user.user_metadata?.account_type === 'agency') return '/agence';
+  if (user.user_metadata?.account_type === 'agency') return '/agency';
   if (user.user_metadata?.brand_name) return '/kit';
   return null;
 }

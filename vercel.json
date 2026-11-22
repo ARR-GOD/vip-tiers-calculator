@@ -42,11 +42,11 @@
       "destination": "/index.html"
     },
     {
-      "source": "/agence",
+      "source": "/agency",
       "destination": "/index.html"
     },
     {
-      "source": "/agence/:path*",
+      "source": "/agency/:path*",
       "destination": "/index.html"
     },
     {

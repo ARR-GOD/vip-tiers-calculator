@@ -50,7 +50,7 @@ const FR = {
     'Email not confirmed': 'Confirmez d\'abord votre email : cliquez sur le lien reçu à l\'inscription.',
     'User already registered': 'Un compte existe déjà avec cet email : connectez-vous.',
     email_not_confirmed: 'Confirmez d\'abord votre email : cliquez sur le lien reçu à l\'inscription.',
-    agency_account: 'Ce compte est un compte agence : connectez-vous depuis l\'espace Agence (/agence).',
+    agency_account: 'Ce compte est un compte agence : connectez-vous depuis l\'espace Agence (/agency).',
     generic: 'Une erreur est survenue. Réessayez dans un instant.',
   },
 };
@@ -88,7 +88,7 @@ const EN = {
     'Email not confirmed': 'Confirm your email first: click the link received when you signed up.',
     'User already registered': 'An account already exists with this email: sign in.',
     email_not_confirmed: 'Confirm your email first: click the link received when you signed up.',
-    agency_account: 'This is an agency account: sign in from the Agency space (/agence).',
+    agency_account: 'This is an agency account: sign in from the Agency space (/agency).',
     generic: 'Something went wrong. Try again in a moment.',
   },
 };

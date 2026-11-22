@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════
 -- Agencies — partner agencies build programs for their clients/prospects
 -- ════════════════════════════════════════════════════════════════════
--- Follows 20261112000000_brand_accounts.sql. An agency signs up at /agence
+-- Follows 20261112000000_brand_accounts.sql. An agency signs up at /agency
 -- (email + password, Supabase Auth, email confirmed) and waits for the Loyoly
 -- team to approve it. Once approved, its members use the setup tool without
 -- HubSpot: folders, several programs per folder, the wizard, the dashboard,

@@ -7,14 +7,14 @@ import { groupProgramsIntoFolders } from '../utils/clientFolders';
 // ════════════════════════════════════════════════════════════════════
 // Partner agencies — the Loyoly team reviews the agencies' accounts
 // ════════════════════════════════════════════════════════════════════
-// An agency signing up at /agence waits here until approved; approved, it
+// An agency signing up at /agency waits here until approved; approved, it
 // uses the tool on its own folders. Suspending it cuts its access at once
 // (its programs stay, visible to the team).
 
 const FR = {
   back: 'Espace clients',
   title: 'Agences partenaires',
-  subtitle: 'Les agences créent leur compte depuis /agence ; elles accèdent à l\'outil une fois validées.',
+  subtitle: 'Les agences créent leur compte depuis /agency ; elles accèdent à l\'outil une fois validées.',
   loading: 'Chargement des agences…',
   empty: 'Aucune agence inscrite pour l\'instant.',
   status: { pending: 'En attente', approved: 'Validée', suspended: 'Suspendue' },
@@ -31,7 +31,7 @@ const FR = {
 const EN = {
   back: 'Client space',
   title: 'Partner agencies',
-  subtitle: 'Agencies sign up at /agence; they get the tool once approved.',
+  subtitle: 'Agencies sign up at /agency; they get the tool once approved.',
   loading: 'Loading agencies…',
   empty: 'No agency signed up yet.',
   status: { pending: 'Pending', approved: 'Approved', suspended: 'Suspended' },

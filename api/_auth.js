@@ -42,7 +42,7 @@ export async function requireLoyolyUser(req, res) {
   }
 }
 
-// The site analysis also serves the partner agencies (/agence: approved,
+// The site analysis also serves the partner agencies (/agency: approved,
 // thirty per agency, agency_consume_analysis) and the self-serve brands
 // (/kit): a signed-in account with a confirmed email, within its quota
 // (brand_consume_analysis, five per account). Returns the user, or null

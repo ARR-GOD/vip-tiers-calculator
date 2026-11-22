@@ -68,7 +68,7 @@ export default function Landing() {
   const cards = [
     { key: 'clients', icon: <Store size={20} />, href: '/kit' },
     { key: 'loyoly', icon: <Sparkles size={20} />, href: '/loyoly' },
-    { key: 'agency', icon: <Briefcase size={20} />, href: '/agence' },
+    { key: 'agency', icon: <Briefcase size={20} />, href: '/agency' },
   ];
 
   return (
